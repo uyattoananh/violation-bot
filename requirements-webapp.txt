@@ -1,0 +1,25 @@
+# Phase-1 webapp deps (CPU-only, no PyTorch). For the Phase-2 training stack
+# see the root requirements.txt.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+jinja2>=3.1
+python-multipart>=0.0.9
+
+# AI — both SDKs included; zero_shot.py picks one based on which API key is set
+anthropic>=0.43.0
+openai>=1.50.0
+
+# Storage + DB
+supabase>=2.8.0
+boto3>=1.34
+
+# Image handling
+Pillow>=10.3
+
+# Config
+python-dotenv>=1.0
+
+# Photo RAG — CLIP image embeddings (CPU-only)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.2.0
+sentence-transformers>=2.6.0

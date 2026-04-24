@@ -1,0 +1,32 @@
+# Phase-1 webapp container (zero-shot Sonnet classifier + FastAPI UI).
+# No GPU required — CPU-only Python base. For Phase-2 PyTorch training use
+# the original `Dockerfile` in this repo.
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Minimal build deps for pillow / boto3 wheels
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install only what the webapp needs — NOT the heavy ML deps.
+COPY requirements-webapp.txt .
+RUN pip install -r requirements-webapp.txt
+
+# Application code
+COPY taxonomy.json ./taxonomy.json
+COPY prompts/ ./prompts/
+COPY src/ ./src/
+COPY webapp/ ./webapp/
+COPY supabase/ ./supabase/
+
+EXPOSE 8000
+
+# Single-container entrypoint: FastAPI app + inline worker.
+# In production on Fly.io, run the worker as a separate process group.
+CMD ["uvicorn", "webapp.app:app", "--host", "0.0.0.0", "--port", "8000"]

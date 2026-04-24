@@ -1,0 +1,7 @@
+data/
+runs/
+reports/
+__pycache__/
+*.pyc
+.git/
+*.md
