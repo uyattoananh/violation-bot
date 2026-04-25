@@ -2,151 +2,262 @@
 {% block title %}Violation AI · upload{% endblock %}
 {% block body %}
 
-<!-- Dropzone -->
+<!-- Hero / Dropzone -->
 <section id="dropzone"
          class="relative rounded-2xl border-2 border-dashed border-slate-300 bg-white
-                px-6 py-10 sm:py-14 text-center cursor-pointer
-                hover:border-emerald-500 hover:bg-emerald-50/40 transition-colors">
+                px-6 py-10 sm:py-14 text-center cursor-pointer transition-all
+                hover:border-emerald-500 hover:bg-emerald-50/40">
   <input id="file-input" type="file" multiple accept="image/*" class="hidden">
   <div class="flex flex-col items-center gap-3 pointer-events-none select-none">
-    <svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-    </svg>
-    <div class="font-medium text-slate-700 text-base sm:text-lg">
+    <div class="w-14 h-14 rounded-2xl bg-emerald-50 grid place-items-center">
+      <svg class="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+      </svg>
+    </div>
+    <div class="font-semibold text-slate-800 text-base sm:text-lg">
       Drop site photos here, or <span class="text-emerald-600 underline">click to select</span>
     </div>
-    <div class="text-xs text-slate-500">
-      JPG · PNG · HEIC · up to 50 at once. Tap your phone camera to upload directly.
+    <div class="text-xs text-slate-500 max-w-md">
+      JPG · PNG · HEIC · up to 50 at once. On a phone? Tap to open the camera and upload directly.
+      Each confirmation grows the AI's reference library.
+    </div>
+  </div>
+
+  <!-- Upload progress overlay -->
+  <div id="upload-progress" class="hidden absolute inset-0 rounded-2xl bg-white/95 backdrop-blur grid place-items-center">
+    <div class="text-center">
+      <div class="w-14 h-14 mx-auto mb-3 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin"></div>
+      <div class="font-semibold text-slate-800">Uploading…</div>
+      <div id="upload-progress-detail" class="text-xs text-slate-500 mt-1 tabular-nums">0 / 0</div>
     </div>
   </div>
 </section>
 
 <!-- Error banner -->
 <div id="error-banner"
-     class="hidden mt-4 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 px-4 py-2 text-sm">
+     class="hidden mt-4 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 px-4 py-2.5 text-sm
+            flex items-center gap-2">
+  <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+  </svg>
+  <span class="error-message flex-1"></span>
+  <button onclick="document.getElementById('error-banner').classList.add('hidden')"
+          class="text-rose-400 hover:text-rose-600 text-lg leading-none">&times;</button>
 </div>
 
-<!-- Dataset impact hint -->
-<p class="mt-4 text-xs text-slate-500">
-  No account needed. Every photo you confirm or correct gets added to the AI's
-  reference library — the next user's predictions improve because of yours.
-</p>
+<!-- Toolbar: filter + sort + bulk actions -->
+<div id="toolbar" class="hidden mt-6 flex flex-wrap items-center gap-2 text-sm">
+  <div class="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
+    <button data-filter="all"     class="filter-btn active px-3 py-1.5 rounded-md font-medium text-slate-700">All <span class="filter-count text-slate-400 ml-1">0</span></button>
+    <button data-filter="pending" class="filter-btn px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900">Pending <span class="filter-count text-slate-400 ml-1">0</span></button>
+    <button data-filter="reviewed"class="filter-btn px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900">Reviewed <span class="filter-count text-slate-400 ml-1">0</span></button>
+  </div>
+
+  <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm">
+    <span class="text-slate-500 text-xs">Sort:</span>
+    <select id="sort-select" class="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer">
+      <option value="newest">Newest</option>
+      <option value="confidence-low">Low confidence first</option>
+      <option value="confidence-high">High confidence first</option>
+    </select>
+  </div>
+
+  <button id="bulk-confirm-high"
+          class="hidden bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white
+                 text-sm font-medium rounded-lg px-4 py-2 shadow-sm flex items-center gap-2 transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+    </svg>
+    Confirm all high-confidence (<span id="bulk-confirm-count">0</span>)
+  </button>
+</div>
 
 <!-- Cards grid -->
 <section id="cards"
-         class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pb-20">
-  <div id="empty-state" class="hidden col-span-full text-center py-10 text-slate-400">
-    No photos yet. Drop some above to get started.
+         class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  <div id="empty-state" class="col-span-full">
+    <div class="bg-white border border-slate-200 rounded-2xl py-14 px-6 text-center">
+      <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 grid place-items-center">
+        <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
+        </svg>
+      </div>
+      <div class="font-medium text-slate-700">No photos yet.</div>
+      <div class="text-xs text-slate-500 mt-1">Drop some above to get started — predictions land here in a few seconds.</div>
+    </div>
   </div>
 </section>
 
 <!-- Card template -->
 <template id="card-template">
-  <article class="relative bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm"
-           data-photo-id="">
-    <a class="thumb-link" target="_blank" rel="noopener">
-      <img class="thumb w-full h-56 object-cover bg-slate-100" loading="lazy">
-    </a>
+  <article class="card relative bg-white border-2 border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow card-enter focus:outline-none focus:ring-2 focus:ring-emerald-500"
+           tabindex="0"
+           data-photo-id=""
+           data-status="pending"
+           data-confidence="0">
+
+    <!-- Confidence ring + status pill (overlaid on top-right of image) -->
+    <div class="absolute top-2 right-2 z-10 flex items-center gap-1.5">
+      <div class="conf-ring hidden bg-white shadow-sm" style="--pct: 0; --color: rgb(16 185 129)">
+        <span class="conf-text">0%</span>
+      </div>
+      <span class="status-pill hidden text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"></span>
+    </div>
+
+    <button type="button" class="thumb-btn block group bg-slate-100 relative" aria-label="View full image">
+      <div class="skeleton-thumb thumb-skeleton w-full h-56"></div>
+      <img class="thumb hidden w-full h-56 object-cover transition-transform group-hover:scale-[1.02]" loading="lazy" alt="Site photo">
+      <div class="absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/0 group-hover:from-black/0 group-hover:via-black/0 group-hover:to-black/30 transition-colors"></div>
+    </button>
+
     <div class="p-3 flex-1 flex flex-col gap-2">
+
       <!-- Pending state -->
       <div class="state-pending text-sm text-slate-500 flex items-center gap-2">
-        <span class="inline-block w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
-        Analyzing…
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot"></span>
+        Analyzing photo…
       </div>
 
       <!-- Predicted state -->
       <div class="state-predicted hidden">
-        <div class="flex items-center justify-between">
-          <div class="text-[11px] uppercase tracking-wide text-slate-500">AI suggests</div>
-          <div class="text-[11px] text-slate-500 tabular-nums conf-summary"></div>
+        <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5">AI suggests</div>
+        <div class="space-y-1">
+          <div class="flex items-baseline gap-2 text-sm">
+            <span class="text-slate-400 text-xs uppercase w-9">hse</span>
+            <span class="primary-hse font-semibold text-slate-900 leading-tight"></span>
+          </div>
+          <div class="flex items-baseline gap-2 text-sm">
+            <span class="text-slate-400 text-xs uppercase w-9">loc</span>
+            <span class="primary-loc text-slate-700 leading-tight"></span>
+          </div>
         </div>
-        <div class="text-sm mt-1">
-          <div><span class="text-slate-500">loc:</span> <span class="primary-loc font-medium"></span></div>
-          <div><span class="text-slate-500">hse:</span> <span class="primary-hse font-medium"></span></div>
-        </div>
-        <div class="rationale text-[11px] text-slate-500 italic mt-1 line-clamp-2"></div>
+        <div class="rationale text-[11px] text-slate-500 italic mt-2 line-clamp-2"></div>
 
-        <div class="mt-3 flex gap-2 flex-wrap">
-          <button type="button" class="btn-confirm bg-emerald-600 hover:bg-emerald-700 text-white
-                                       text-xs font-medium rounded-md px-3 py-1.5">
-            ✓ Confirm
+        <!-- Action row -->
+        <div class="mt-3 flex gap-2">
+          <button type="button" class="btn-confirm flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
+                                       text-white text-sm font-medium rounded-lg px-3 py-2
+                                       flex items-center justify-center gap-1.5 transition-colors shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+            Confirm
           </button>
-          <button type="button" class="btn-edit bg-slate-100 hover:bg-slate-200 text-slate-700
-                                       text-xs rounded-md px-3 py-1.5">
-            Edit…
+          <button type="button" class="btn-edit bg-white border border-slate-300 hover:bg-slate-50 active:bg-slate-100
+                                       text-slate-700 text-sm font-medium rounded-lg px-3 py-2
+                                       flex items-center justify-center gap-1 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.687a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13L2.25 21.75l.798-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125"/>
+            </svg>
+            <span class="hidden sm:inline">Edit</span>
           </button>
         </div>
 
         <!-- Alternative quick-picks -->
-        <div class="alt-section hidden mt-2">
-          <div class="text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-            Or one-click pick a runner-up
+        <div class="alt-section hidden mt-2.5 pt-2.5 border-t border-slate-100">
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1.5">
+            One-click runner-up
           </div>
           <div class="alt-row-hse flex flex-wrap gap-1 mb-1"></div>
           <div class="alt-row-loc flex flex-wrap gap-1"></div>
         </div>
 
         <!-- Full edit form -->
-        <form class="edit-form hidden mt-3 p-2 bg-slate-50 border border-slate-200 rounded-md text-xs">
-          <label class="block font-medium mb-0.5">Location</label>
-          <select name="location_slug" class="loc-select w-full border border-slate-300 rounded px-2 py-1 mb-2"></select>
-          <label class="block font-medium mb-0.5">HSE type</label>
-          <select name="hse_type_slug" class="hse-select w-full border border-slate-300 rounded px-2 py-1 mb-2"></select>
-          <input type="text" name="note" placeholder="optional note"
-                 class="w-full border border-slate-300 rounded px-2 py-1 mb-2">
-          <button type="submit" class="bg-[#1f4e79] hover:bg-[#183e61] text-white
-                                       text-xs rounded-md px-3 py-1.5">
-            Save correction
-          </button>
+        <form class="edit-form hidden mt-3 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+          <label class="block font-medium mb-0.5 text-slate-700">HSE type</label>
+          <select name="hse_type_slug" class="hse-select w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white"></select>
+          <label class="block font-medium mb-0.5 text-slate-700">Location</label>
+          <select name="location_slug" class="loc-select w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white"></select>
+          <input type="text" name="note" placeholder="optional note for the audit log"
+                 class="w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white">
+          <div class="flex gap-1.5">
+            <button type="submit"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded px-3 py-1.5 flex-1">
+              Save correction
+            </button>
+            <button type="button" class="btn-edit-cancel text-slate-500 hover:text-slate-900 text-xs px-2">
+              Cancel
+            </button>
+          </div>
         </form>
       </div>
 
       <!-- Reviewed state -->
-      <div class="state-reviewed hidden text-sm text-emerald-700 flex items-center gap-1.5">
-        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clip-rule="evenodd"/>
-        </svg>
-        <span class="reviewed-label font-medium"></span>
+      <div class="state-reviewed hidden">
+        <div class="reviewed-banner flex items-center gap-2 text-sm font-medium">
+          <svg class="reviewed-icon w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clip-rule="evenodd"/>
+          </svg>
+          <span class="reviewed-label"></span>
+        </div>
+        <div class="reviewed-detail text-xs text-slate-500 mt-1.5"></div>
       </div>
     </div>
   </article>
 </template>
 
 <script>
-// ----- taxonomy served from the page (no extra HTTP) -----
+// =================== Constants ===================
 const TAXONOMY = {{ taxonomy | tojson }};
 const LOC_BY_SLUG = Object.fromEntries(TAXONOMY.locations.map(l => [l.slug, l]));
 const HSE_BY_SLUG = Object.fromEntries(TAXONOMY.hse_types.map(h => [h.slug, h]));
 
-const el = (sel, root = document) => root.querySelector(sel);
+// Confidence thresholds — match the deployment story:
+//   high   ≥ 0.85 → auto-applyable
+//   medium 0.60–0.85 → quick check
+//   low    < 0.60   → manual review needed
+const CONF_HIGH = 0.85;
+const CONF_MED  = 0.60;
+
+const el  = (sel, root = document) => root.querySelector(sel);
 const els = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+// =================== State ===================
 const SESSION = { uploaded: 0, confirmed: 0, corrected: 0 };
-const cardsEl = el("#cards");
-const dropzone = el("#dropzone");
-const fileInput = el("#file-input");
-const errorBanner = el("#error-banner");
+let activeFilter = "all";
+let activeSort   = "newest";
+const photoCache = new Map(); // photo_id → {photo, card, status, conf, ts}
 
+// =================== Refs ===================
+const cardsEl    = el("#cards");
+const dropzone   = el("#dropzone");
+const fileInput  = el("#file-input");
+const errorBanner = el("#error-banner");
+const toolbar    = el("#toolbar");
+const lightbox   = el("#lightbox");
+const lightboxImg= el("#lightbox-img");
+const toastEl    = el("#toast");
+
+// =================== Utilities ===================
 function showError(msg) {
-  errorBanner.textContent = msg;
+  el(".error-message", errorBanner).textContent = msg;
   errorBanner.classList.remove("hidden");
   setTimeout(() => errorBanner.classList.add("hidden"), 6000);
 }
 
+function bumpStat(elt) {
+  elt.classList.remove("stat-bump");
+  void elt.offsetWidth; // trigger reflow
+  elt.classList.add("stat-bump");
+}
+
 function updateStats() {
-  el("#stat-session-uploaded").textContent = SESSION.uploaded;
-  el("#stat-session-confirmed").textContent = SESSION.confirmed;
-  el("#stat-session-corrected").textContent = SESSION.corrected;
+  const u = el("#stat-session-uploaded");
+  const c = el("#stat-session-confirmed");
+  const k = el("#stat-session-corrected");
+  if (u.textContent != SESSION.uploaded) { u.textContent = SESSION.uploaded; bumpStat(u); }
+  if (c.textContent != SESSION.confirmed) { c.textContent = SESSION.confirmed; bumpStat(c); }
+  if (k.textContent != SESSION.corrected) { k.textContent = SESSION.corrected; bumpStat(k); }
 }
 
 function renderTrainingSetSize(n) {
   const cur = el("#stat-training");
-  const old = parseInt(cur.textContent, 10) || 0;
+  const old = parseInt(cur.textContent.replace(/,/g, ""), 10) || 0;
   if (Number.isFinite(n) && n !== old) {
     cur.textContent = n.toLocaleString();
-    cur.classList.add("text-emerald-600");
-    setTimeout(() => cur.classList.remove("text-emerald-600"), 800);
+    bumpStat(cur);
   }
 }
 
@@ -154,17 +265,63 @@ function displayLabel(lookup, slug) {
   return (lookup[slug] && lookup[slug].label_en) || slug || "?";
 }
 
-// ----- card DOM -----
-function getOrCreateCard(photo) {
-  let card = cardsEl.querySelector(`[data-photo-id="${photo.id}"]`);
-  if (card) return card;
-  const tmpl = el("#card-template");
-  card = tmpl.content.firstElementChild.cloneNode(true);
-  card.dataset.photoId = photo.id;
-  el(".thumb", card).src = photo.thumb_url;
-  el(".thumb-link", card).href = photo.thumb_url;
+function showToast(msg, opts = {}) {
+  toastEl.innerHTML = "";
+  const text = document.createElement("span");
+  text.textContent = msg;
+  toastEl.appendChild(text);
+  if (opts.action) {
+    const btn = document.createElement("button");
+    btn.textContent = opts.action.label;
+    btn.className = "ml-2 underline font-medium hover:no-underline";
+    btn.addEventListener("click", () => {
+      opts.action.handler();
+      hideToast();
+    });
+    toastEl.appendChild(btn);
+  }
+  toastEl.classList.add("toast-show");
+  if (opts.timeoutMs !== 0) {
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(hideToast, opts.timeoutMs || 4000);
+  }
+}
+function hideToast() { toastEl.classList.remove("toast-show"); }
 
-  // seed select dropdowns
+function confidenceBand(conf) {
+  if (conf >= CONF_HIGH) return "high";
+  if (conf >= CONF_MED)  return "medium";
+  return "low";
+}
+function bandColors(band) {
+  return {
+    high:   { ring: "rgb(16 185 129)", pill: "bg-emerald-100 text-emerald-700", label: "Likely correct" },
+    medium: { ring: "rgb(245 158 11)", pill: "bg-amber-100 text-amber-800",     label: "Quick check" },
+    low:    { ring: "rgb(244 63 94)",  pill: "bg-rose-100 text-rose-800",       label: "Needs review" },
+  }[band];
+}
+
+// =================== Lightbox ===================
+function openLightbox(src) {
+  lightboxImg.src = src;
+  lightbox.classList.add("show");
+}
+function closeLightbox() {
+  lightbox.classList.remove("show");
+  lightboxImg.src = "";
+}
+lightbox.addEventListener("click", closeLightbox);
+
+// =================== Card DOM ===================
+function getOrCreateCard(photo) {
+  let entry = photoCache.get(photo.id);
+  if (entry) return entry.card;
+
+  const tmpl = el("#card-template");
+  const card = tmpl.content.firstElementChild.cloneNode(true);
+  card.dataset.photoId = photo.id;
+
+  // Populate select dropdowns once
   const hseSel = el(".hse-select", card);
   TAXONOMY.hse_types.forEach(h => {
     const opt = document.createElement("option");
@@ -180,34 +337,96 @@ function getOrCreateCard(photo) {
     locSel.appendChild(opt);
   });
 
-  // wire actions
+  // Wire actions
   el(".btn-confirm", card).addEventListener("click", () => confirmCard(card));
-  el(".btn-edit", card).addEventListener("click", () => {
-    const f = el(".edit-form", card);
-    f.classList.toggle("hidden");
-  });
-  el(".edit-form", card).addEventListener("submit", (e) => {
+  el(".btn-edit",    card).addEventListener("click", () => toggleEdit(card));
+  el(".btn-edit-cancel", card).addEventListener("click", () => toggleEdit(card));
+  el(".edit-form",   card).addEventListener("submit", (e) => { e.preventDefault(); correctCard(card); });
+  el(".thumb-btn",   card).addEventListener("click", (e) => {
     e.preventDefault();
-    correctCard(card);
+    const src = el(".thumb", card).src;
+    if (src) openLightbox(src);
   });
+
   cardsEl.prepend(card);
   el("#empty-state").classList.add("hidden");
+  toolbar.classList.remove("hidden");
+
+  photoCache.set(photo.id, { photo, card, status: "pending", conf: 0, ts: Date.now() });
   return card;
+}
+
+function toggleEdit(card) {
+  const f = el(".edit-form", card);
+  f.classList.toggle("hidden");
+  if (!f.classList.contains("hidden")) {
+    setTimeout(() => el(".hse-select", card).focus(), 50);
+  }
+}
+
+function setConfidenceRing(card, conf, band) {
+  const ring = el(".conf-ring", card);
+  const colors = bandColors(band);
+  ring.style.setProperty("--pct", Math.round(conf * 100));
+  ring.style.setProperty("--color", colors.ring);
+  el(".conf-text", ring).textContent = Math.round(conf * 100) + "%";
+  ring.classList.remove("hidden");
+
+  const pill = el(".status-pill", card);
+  pill.className = `status-pill text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${colors.pill}`;
+  pill.textContent = colors.label;
+  pill.classList.remove("hidden");
+
+  // Card border colour
+  card.classList.remove("band-high", "band-medium", "band-low");
+  card.classList.add(`band-${band}`);
+  card.dataset.confidence = conf;
 }
 
 function updateCard(card, photo) {
   const predEl = el(".state-predicted", card);
   const pendEl = el(".state-pending", card);
-  const revEl = el(".state-reviewed", card);
+  const revEl  = el(".state-reviewed", card);
+  const thumb  = el(".thumb", card);
+  const skel   = el(".thumb-skeleton", card);
+
+  // Lazy-set thumbnail when URL becomes available
+  if (photo.thumb_url && thumb.src !== photo.thumb_url) {
+    thumb.src = photo.thumb_url;
+    thumb.onload = () => {
+      skel.classList.add("hidden");
+      thumb.classList.remove("hidden");
+    };
+  }
+
+  const cached = photoCache.get(photo.id) || { status: "pending", conf: 0 };
+  cached.photo = photo;
 
   if (photo.reviewed) {
     pendEl.classList.add("hidden");
     predEl.classList.add("hidden");
     revEl.classList.remove("hidden");
+    const isConfirm = photo.review_action === "confirm";
+    const lbl = el(".reviewed-label", revEl);
+    const ico = el(".reviewed-icon", revEl);
+    if (isConfirm) {
+      lbl.textContent = "Confirmed";
+      lbl.className = "reviewed-label text-emerald-700";
+      ico.className = "reviewed-icon w-4 h-4 text-emerald-500";
+      card.classList.add("band-high");
+    } else {
+      lbl.textContent = "Corrected";
+      lbl.className = "reviewed-label text-sky-700";
+      ico.className = "reviewed-icon w-4 h-4 text-sky-500";
+      card.classList.add("band-medium");
+    }
     const cls = photo.classification || {};
-    el(".reviewed-label", revEl).textContent =
-      photo.review_action === "confirm" ? "Confirmed" : "Corrected";
-    card.classList.add("ring-2", "ring-emerald-300");
+    el(".reviewed-detail", revEl).textContent =
+      `${displayLabel(HSE_BY_SLUG, cls.hse_type_slug)} · ${displayLabel(LOC_BY_SLUG, cls.location_slug)}`;
+    cached.status = "reviewed";
+    photoCache.set(photo.id, cached);
+    card.dataset.status = "reviewed";
+    applyFilter();
     return;
   }
 
@@ -215,23 +434,33 @@ function updateCard(card, photo) {
     pendEl.classList.remove("hidden");
     predEl.classList.add("hidden");
     revEl.classList.add("hidden");
+    card.dataset.status = "pending";
+    cached.status = "pending";
+    photoCache.set(photo.id, cached);
     return;
   }
 
   pendEl.classList.add("hidden");
   predEl.classList.remove("hidden");
   revEl.classList.add("hidden");
+  card.dataset.status = "predicted";
+  cached.status = "predicted";
+
   const cls = photo.classification;
+  const conf = Math.max(cls.location_confidence || 0, cls.hse_type_confidence || 0);
+  const band = confidenceBand(conf);
+  cached.conf = conf;
+  photoCache.set(photo.id, cached);
+
+  setConfidenceRing(card, conf, band);
 
   el(".primary-loc", card).textContent = displayLabel(LOC_BY_SLUG, cls.location_slug);
   el(".primary-hse", card).textContent = displayLabel(HSE_BY_SLUG, cls.hse_type_slug);
-  el(".conf-summary", card).textContent =
-    `${Math.round((cls.location_confidence || 0) * 100)}% / ${Math.round((cls.hse_type_confidence || 0) * 100)}%`;
   el(".rationale", card).textContent = cls.rationale || "";
   el(".loc-select", card).value = cls.location_slug;
   el(".hse-select", card).value = cls.hse_type_slug;
 
-  // Alternatives row
+  // Alternatives
   const altSection = el(".alt-section", card);
   const hseRow = el(".alt-row-hse", card);
   const locRow = el(".alt-row-loc", card);
@@ -241,84 +470,103 @@ function updateCard(card, photo) {
   const altsLoc = cls.location_alternatives || [];
   if (altsHse.length || altsLoc.length) {
     altSection.classList.remove("hidden");
+  } else {
+    altSection.classList.add("hidden");
   }
   altsHse.forEach(a => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "bg-amber-50 hover:bg-amber-100 text-amber-900 rounded px-2 py-0.5 text-[11px]";
-    b.textContent = `hse→ ${displayLabel(HSE_BY_SLUG, a.slug)}  (${Math.round((a.confidence || 0)*100)}%)`;
+    b.className = "bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-100 rounded-md px-2 py-1 text-[11px] transition-colors";
+    b.innerHTML = `<span class="text-amber-500 mr-1">hse</span>${displayLabel(HSE_BY_SLUG, a.slug)} <span class="text-amber-500 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
     b.addEventListener("click", () => correctCard(card, { hse_type_slug: a.slug }));
     hseRow.appendChild(b);
   });
   altsLoc.forEach(a => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "bg-sky-50 hover:bg-sky-100 text-sky-900 rounded px-2 py-0.5 text-[11px]";
-    b.textContent = `loc→ ${displayLabel(LOC_BY_SLUG, a.slug)}  (${Math.round((a.confidence || 0)*100)}%)`;
+    b.className = "bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-900 border border-sky-100 rounded-md px-2 py-1 text-[11px] transition-colors";
+    b.innerHTML = `<span class="text-sky-500 mr-1">loc</span>${displayLabel(LOC_BY_SLUG, a.slug)} <span class="text-sky-500 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
     b.addEventListener("click", () => correctCard(card, { location_slug: a.slug }));
     locRow.appendChild(b);
   });
+
+  applyFilter();
+  updateBulkConfirmButton();
 }
 
-// ----- upload -----
+// =================== Upload ===================
 async function uploadFiles(files) {
   if (!files.length) return;
+  const total = files.length;
+  const detail = el("#upload-progress-detail");
+  el("#upload-progress").classList.remove("hidden");
+  detail.textContent = `0 / ${total}`;
+
   const fd = new FormData();
   for (const f of files) fd.append("files", f);
+
   try {
     const resp = await fetch("/api/upload", { method: "POST", body: fd });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     SESSION.uploaded += data.count || 0;
     updateStats();
-    // Immediately show pending placeholder cards (poll will fill them in)
+    detail.textContent = `${data.count || 0} / ${total}`;
     (data.uploaded || []).forEach(u => {
-      const placeholder = {
-        id: u.id,
-        thumb_url: "",
-        classification: null,
-        reviewed: false,
-      };
-      getOrCreateCard(placeholder);
+      getOrCreateCard({ id: u.id, thumb_url: "", classification: null, reviewed: false });
     });
-    poll(); // trigger a fresh fetch so the thumbnail URL + class (if ready) lands
+    showToast(`${data.count} photo${data.count === 1 ? "" : "s"} uploaded — analyzing now`);
+    poll();
   } catch (e) {
     showError(`Upload failed: ${e.message}`);
+  } finally {
+    setTimeout(() => el("#upload-progress").classList.add("hidden"), 600);
   }
 }
 
-dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("click", (e) => {
+  if (e.target.tagName !== "BUTTON") fileInput.click();
+});
 fileInput.addEventListener("change", (e) => {
   uploadFiles(Array.from(e.target.files || []));
   fileInput.value = "";
 });
 ["dragenter", "dragover"].forEach(ev => dropzone.addEventListener(ev, e => {
   e.preventDefault();
-  dropzone.classList.add("border-emerald-500", "bg-emerald-50/60");
+  dropzone.classList.add("drop-active");
 }));
 ["dragleave", "drop"].forEach(ev => dropzone.addEventListener(ev, e => {
   e.preventDefault();
-  dropzone.classList.remove("border-emerald-500", "bg-emerald-50/60");
+  dropzone.classList.remove("drop-active");
 }));
 dropzone.addEventListener("drop", e => {
   const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith("image/"));
   uploadFiles(files);
 });
 
-// ----- confirm / correct -----
-async function confirmCard(card) {
+// =================== Confirm / Correct (with undo) ===================
+async function confirmCard(card, opts = {}) {
   const id = card.dataset.photoId;
-  const resp = await fetch(`/api/photos/${id}/confirm`, { method: "POST" });
-  if (resp.ok) {
+  // Optimistic UI
+  const prevState = captureState(card);
+  applyReviewedState(card, "confirm");
+  card.classList.add("celebrate");
+  setTimeout(() => card.classList.remove("celebrate"), 700);
+
+  try {
+    const resp = await fetch(`/api/photos/${id}/confirm`, { method: "POST" });
+    if (!resp.ok) throw new Error("server returned " + resp.status);
     SESSION.confirmed++;
     updateStats();
-    card.querySelector(".state-predicted").classList.add("hidden");
-    card.querySelector(".state-reviewed").classList.remove("hidden");
-    card.querySelector(".reviewed-label").textContent = "Confirmed — thanks";
-    card.classList.add("ring-2", "ring-emerald-300");
+    if (!opts.silent) {
+      showToast("Confirmed — added to training set", {
+        action: { label: "Undo", handler: () => undoReview(card, prevState) },
+      });
+    }
     poll();
-  } else {
-    showError("Confirmation failed");
+  } catch (e) {
+    restoreState(card, prevState);
+    showError("Confirmation failed: " + e.message);
   }
 }
 
@@ -326,30 +574,223 @@ async function correctCard(card, override = null) {
   const id = card.dataset.photoId;
   const fd = new FormData();
   if (override) {
-    fd.append("hse_type_slug", override.hse_type_slug || card.querySelector(".primary-hse").dataset.slug || card.querySelector(".hse-select").value);
-    fd.append("location_slug", override.location_slug || card.querySelector(".loc-select").value);
-    fd.append("note", "one-click alternative");
+    fd.append("hse_type_slug", override.hse_type_slug || el(".hse-select", card).value);
+    fd.append("location_slug", override.location_slug || el(".loc-select", card).value);
+    fd.append("note", "one-click runner-up pick");
   } else {
-    fd.append("hse_type_slug", card.querySelector(".hse-select").value);
-    fd.append("location_slug", card.querySelector(".loc-select").value);
-    const note = card.querySelector("input[name=note]").value;
+    fd.append("hse_type_slug", el(".hse-select", card).value);
+    fd.append("location_slug", el(".loc-select", card).value);
+    const note = el("input[name=note]", card).value;
     if (note) fd.append("note", note);
   }
-  const resp = await fetch(`/api/photos/${id}/correct`, { method: "POST", body: fd });
-  if (resp.ok) {
+  const prevState = captureState(card);
+  applyReviewedState(card, "correct");
+
+  try {
+    const resp = await fetch(`/api/photos/${id}/correct`, { method: "POST", body: fd });
+    if (!resp.ok) throw new Error("server returned " + resp.status);
     SESSION.corrected++;
     updateStats();
-    card.querySelector(".state-predicted").classList.add("hidden");
-    card.querySelector(".state-reviewed").classList.remove("hidden");
-    card.querySelector(".reviewed-label").textContent = "Corrected — saved";
-    card.classList.add("ring-2", "ring-sky-300");
+    showToast("Correction saved — added to training set", {
+      action: { label: "Undo", handler: () => undoReview(card, prevState) },
+    });
     poll();
-  } else {
-    showError("Correction failed");
+  } catch (e) {
+    restoreState(card, prevState);
+    showError("Correction failed: " + e.message);
   }
 }
 
-// ----- poll -----
+function captureState(card) {
+  return {
+    predHidden: el(".state-predicted", card).classList.contains("hidden"),
+    revHidden:  el(".state-reviewed", card).classList.contains("hidden"),
+    revLabel:   el(".reviewed-label", card).textContent,
+    revIconCls: el(".reviewed-icon", card).className,
+    status:     card.dataset.status,
+  };
+}
+function applyReviewedState(card, action) {
+  el(".state-predicted", card).classList.add("hidden");
+  el(".state-reviewed", card).classList.remove("hidden");
+  el(".edit-form", card).classList.add("hidden");
+  const lbl = el(".reviewed-label", card);
+  const ico = el(".reviewed-icon", card);
+  if (action === "confirm") {
+    lbl.textContent = "Confirmed";
+    lbl.className = "reviewed-label text-emerald-700";
+    ico.className = "reviewed-icon w-4 h-4 text-emerald-500";
+    card.classList.remove("band-medium", "band-low");
+    card.classList.add("band-high");
+  } else {
+    lbl.textContent = "Corrected";
+    lbl.className = "reviewed-label text-sky-700";
+    ico.className = "reviewed-icon w-4 h-4 text-sky-500";
+  }
+  card.dataset.status = "reviewed";
+  applyFilter();
+}
+function restoreState(card, st) {
+  el(".state-predicted", card).classList.toggle("hidden", st.predHidden);
+  el(".state-reviewed", card).classList.toggle("hidden", st.revHidden);
+  el(".reviewed-label", card).textContent = st.revLabel;
+  el(".reviewed-icon", card).className = st.revIconCls;
+  card.dataset.status = st.status;
+  applyFilter();
+}
+async function undoReview(card, prev) {
+  // Best-effort: tell server to mark not-reviewed isn't part of the public API
+  // for this MVP, so just restore local UI. Server-side undo would need a new endpoint.
+  restoreState(card, prev);
+  showToast("Undid your last action — locally only (re-confirm to persist)", { timeoutMs: 4500 });
+}
+
+// =================== Filter / Sort / Bulk ===================
+function applyFilter() {
+  let counts = { all: 0, pending: 0, reviewed: 0 };
+  els(".card", cardsEl).forEach(c => {
+    const s = c.dataset.status;
+    counts.all++;
+    if (s === "pending" || s === "predicted") counts.pending++;
+    if (s === "reviewed") counts.reviewed++;
+    const show =
+      activeFilter === "all" ||
+      (activeFilter === "pending" && (s === "pending" || s === "predicted")) ||
+      (activeFilter === "reviewed" && s === "reviewed");
+    c.style.display = show ? "" : "none";
+  });
+  els(".filter-btn").forEach(b => {
+    const f = b.dataset.filter;
+    el(".filter-count", b).textContent = counts[f];
+    b.classList.toggle("bg-slate-900", b.classList.contains("active") && false); // reset
+    if (b.dataset.filter === activeFilter) {
+      b.classList.add("bg-slate-900", "text-white");
+      b.classList.remove("text-slate-500", "text-slate-700");
+    } else {
+      b.classList.remove("bg-slate-900", "text-white");
+      b.classList.add("text-slate-500");
+    }
+  });
+}
+
+function applySort() {
+  const cards = els(".card", cardsEl);
+  cards.sort((a, b) => {
+    if (activeSort === "newest") {
+      // Already in DOM-prepend order (newest first)
+      return 0;
+    }
+    const ca = parseFloat(a.dataset.confidence) || 0;
+    const cb = parseFloat(b.dataset.confidence) || 0;
+    return activeSort === "confidence-low" ? ca - cb : cb - ca;
+  });
+  if (activeSort !== "newest") {
+    cards.forEach(c => cardsEl.appendChild(c));
+  }
+}
+
+els(".filter-btn").forEach(b => {
+  b.addEventListener("click", () => {
+    activeFilter = b.dataset.filter;
+    applyFilter();
+  });
+});
+el("#sort-select").addEventListener("change", e => {
+  activeSort = e.target.value;
+  applySort();
+});
+
+function updateBulkConfirmButton() {
+  const high = els(".card", cardsEl).filter(c =>
+    c.dataset.status === "predicted" && parseFloat(c.dataset.confidence) >= CONF_HIGH
+  );
+  const btn = el("#bulk-confirm-high");
+  if (high.length >= 3) {
+    el("#bulk-confirm-count").textContent = high.length;
+    btn.classList.remove("hidden");
+  } else {
+    btn.classList.add("hidden");
+  }
+}
+el("#bulk-confirm-high").addEventListener("click", async () => {
+  const high = els(".card", cardsEl).filter(c =>
+    c.dataset.status === "predicted" && parseFloat(c.dataset.confidence) >= CONF_HIGH
+  );
+  el("#bulk-confirm-high").classList.add("hidden");
+  showToast(`Confirming ${high.length} high-confidence photos…`, { timeoutMs: 0 });
+  for (const c of high) {
+    await confirmCard(c, { silent: true });
+  }
+  hideToast();
+  showToast(`${high.length} confirmed`, { timeoutMs: 3000 });
+});
+
+// =================== Keyboard nav ===================
+function focusedCard() {
+  return document.activeElement && document.activeElement.classList.contains("card")
+    ? document.activeElement : null;
+}
+function moveFocus(dir) {
+  const cards = els(".card", cardsEl).filter(c => c.style.display !== "none");
+  if (!cards.length) return;
+  const cur = focusedCard();
+  const idx = cur ? cards.indexOf(cur) : -1;
+  const next = cards[(idx + dir + cards.length) % cards.length] || cards[0];
+  next.focus();
+  next.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+document.addEventListener("keydown", e => {
+  // Ignore when typing
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "select" || tag === "textarea") return;
+
+  if (e.key === "Escape") {
+    if (lightbox.classList.contains("show")) { closeLightbox(); return; }
+    const help = el("#kbd-help");
+    if (!help.classList.contains("hidden")) { help.classList.add("hidden"); help.classList.remove("flex"); return; }
+    const c = focusedCard();
+    if (c) {
+      const f = el(".edit-form", c);
+      if (!f.classList.contains("hidden")) f.classList.add("hidden");
+    }
+    return;
+  }
+
+  if (e.key === "?") { toggleKbdHelp(); return; }
+  if (e.key === "u" || e.key === "U") { fileInput.click(); return; }
+
+  const card = focusedCard();
+  if (!card) return;
+
+  if (e.key === "ArrowDown") { e.preventDefault(); moveFocus(1); return; }
+  if (e.key === "ArrowUp")   { e.preventDefault(); moveFocus(-1); return; }
+
+  // Card-specific
+  if (card.dataset.status === "predicted") {
+    if (e.key === "c" || e.key === "C") { e.preventDefault(); confirmCard(card); return; }
+    if (e.key === "e" || e.key === "E") { e.preventDefault(); toggleEdit(card); return; }
+  }
+  if (e.key === " ") {
+    e.preventDefault();
+    const src = el(".thumb", card).src;
+    if (src) openLightbox(src);
+  }
+});
+
+function toggleKbdHelp() {
+  const help = el("#kbd-help");
+  const showing = help.classList.contains("flex");
+  help.classList.toggle("flex", !showing);
+  help.classList.toggle("hidden", showing);
+}
+el("#kbd-help-btn").addEventListener("click", toggleKbdHelp);
+el("#kbd-close").addEventListener("click", toggleKbdHelp);
+el("#kbd-help").addEventListener("click", e => {
+  if (e.target === el("#kbd-help")) toggleKbdHelp();
+});
+
+// =================== Poll ===================
 async function poll() {
   try {
     const resp = await fetch("/api/pending?limit=40");
@@ -358,21 +799,22 @@ async function poll() {
     renderTrainingSetSize(data.training_set_size);
     (data.photos || []).forEach(p => {
       const card = getOrCreateCard(p);
-      if (p.thumb_url) {
-        el(".thumb", card).src = p.thumb_url;
-        el(".thumb-link", card).href = p.thumb_url;
-      }
       updateCard(card, p);
     });
-    if (!cardsEl.querySelector("[data-photo-id]")) {
+    if (!els(".card", cardsEl).length) {
       el("#empty-state").classList.remove("hidden");
+      toolbar.classList.add("hidden");
+    } else {
+      el("#empty-state").classList.add("hidden");
+      toolbar.classList.remove("hidden");
     }
   } catch (e) {
-    // silent — transient network issues shouldn't spam the user
+    // silent
   }
 }
 poll();
 setInterval(poll, 4000);
 updateStats();
+applyFilter();
 </script>
 {% endblock %}

@@ -1,3 +1,133 @@
-/* Minimal custom tweaks on top of Tailwind CDN */
+/* ===== Custom polish on top of Tailwind CDN ===== */
+
 details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
+
+/* Smoother card insertions */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card-enter { animation: slideIn 200ms ease-out both; }
+
+/* Pulsing dot for pending state */
+@keyframes pendingPulse {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+.pulse-dot { animation: pendingPulse 1.4s ease-in-out infinite; }
+
+/* Confidence ring (built with conic-gradient, no SVG needed) */
+.conf-ring {
+  --pct: 0;
+  --color: rgb(16 185 129);   /* emerald-500 */
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  background:
+    conic-gradient(var(--color) calc(var(--pct) * 1%), rgb(226 232 240) 0);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+.conf-ring::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  background: white;
+  border-radius: 9999px;
+}
+.conf-ring > span {
+  position: relative;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgb(51 65 85);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Confidence band colors — applied to the card border */
+.band-high   { border-color: rgb(167 243 208); }   /* emerald-200 */
+.band-medium { border-color: rgb(253 230 138); }   /* amber-200 */
+.band-low    { border-color: rgb(254 205 211); }   /* rose-200 */
+
+/* Skeleton shimmer for the thumbnail while it loads */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton-thumb {
+  background: linear-gradient(90deg,
+    rgb(241 245 249) 0px,
+    rgb(226 232 240) 200px,
+    rgb(241 245 249) 400px);
+  background-size: 800px 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Toast (undo / saved notification) */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%) translateY(20px);
+  opacity: 0;
+  transition: opacity 200ms ease, transform 200ms ease;
+  pointer-events: none;
+  z-index: 50;
+}
+.toast.toast-show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+/* Subtle glow when a card just transitioned to reviewed */
+@keyframes celebrate {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+  60%  { box-shadow: 0 0 0 14px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.celebrate { animation: celebrate 700ms ease-out; }
+
+/* Drag-over glow */
+.drop-active {
+  border-color: rgb(16 185 129) !important;
+  background: rgb(236 253 245) !important;
+  box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.12);
+}
+
+/* Make focus states visible (accessibility) */
+button:focus-visible,
+[role="button"]:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgb(16 185 129);
+  outline-offset: 2px;
+}
+
+/* Lightbox for clicking thumbnails */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+.lightbox.show { display: flex; }
+.lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* Stat number that pops on update */
+@keyframes statBump {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.18); color: rgb(16 185 129); }
+  100% { transform: scale(1); }
+}
+.stat-bump { animation: statBump 320ms ease-out; }

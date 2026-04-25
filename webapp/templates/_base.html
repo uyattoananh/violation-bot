@@ -3,43 +3,102 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10b981">
   <title>{% block title %}Violation AI{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/static/app.css">
+  <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%2310b981'/%3E%3Cpath d='M30 52l13 13 27-27' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
 </head>
-<body class="bg-slate-50 text-slate-900 antialiased">
-  <header class="bg-white border-b border-slate-200">
-    <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-      <a href="/" class="flex items-center gap-2 font-semibold text-slate-900">
-        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-        Violation AI
+<body class="bg-slate-50 text-slate-900 antialiased min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white/95 backdrop-blur sticky top-0 z-30 border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+      <a href="/" class="flex items-center gap-2.5 font-semibold text-slate-900 hover:text-emerald-700 transition-colors">
+        <span class="w-7 h-7 rounded-full bg-emerald-500 grid place-items-center shadow-sm">
+          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+        </span>
+        <span>Violation <span class="text-emerald-600">AI</span></span>
       </a>
-      <div class="text-xs text-slate-500 hidden sm:block">
-        model: <code>{{ model or "?" }}</code>
+      <div class="flex items-center gap-3">
+        <div class="hidden sm:flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 rounded-full px-3 py-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span>
+          <span>{{ (model or "model").split("/")[-1] }}</span>
+        </div>
+        <button id="kbd-help-btn" type="button"
+                class="hidden sm:inline-flex text-xs text-slate-500 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-md px-2 py-1 transition-colors"
+                title="Keyboard shortcuts">
+          <kbd class="font-mono">?</kbd>
+        </button>
       </div>
     </div>
   </header>
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+
+  <main class="max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 flex-1 pb-24">
     {% block body %}{% endblock %}
   </main>
+
+  <!-- Sticky stats footer -->
   <footer id="app-footer"
           class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-slate-200 z-40">
-    <div class="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-between text-xs text-slate-600">
-      <div>
-        Training set:
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4 text-xs text-slate-600">
+      <div class="flex items-center gap-2">
+        <svg class="w-3.5 h-3.5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 4a1 1 0 10-2 0v4a1 1 0 00.3.7l2.5 2.5a1 1 0 001.4-1.4L11 9.6V6z"/>
+        </svg>
+        <span>Training set:</span>
         <span id="stat-training" class="font-semibold text-slate-900 tabular-nums">—</span>
-        examples
       </div>
-      <div class="hidden sm:block">
-        Session:
-        <span id="stat-session-uploaded" class="font-semibold tabular-nums">0</span> uploaded ·
-        <span id="stat-session-confirmed" class="font-semibold tabular-nums">0</span> confirmed ·
-        <span id="stat-session-corrected" class="font-semibold tabular-nums">0</span> corrected
+      <div class="hidden sm:flex items-center gap-3">
+        <span class="text-slate-400">Session:</span>
+        <span class="flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+          <span id="stat-session-uploaded" class="font-semibold tabular-nums">0</span>
+          <span class="text-slate-500">uploaded</span>
+        </span>
+        <span class="flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span id="stat-session-confirmed" class="font-semibold tabular-nums text-emerald-700">0</span>
+          <span class="text-slate-500">confirmed</span>
+        </span>
+        <span class="flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+          <span id="stat-session-corrected" class="font-semibold tabular-nums text-sky-700">0</span>
+          <span class="text-slate-500">corrected</span>
+        </span>
       </div>
-      <div class="text-slate-400">
-        every confirmation trains the AI
-      </div>
+      <div class="text-slate-400 italic hidden md:block">every confirmation trains the AI</div>
     </div>
   </footer>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Photo preview">
+    <img id="lightbox-img" src="" alt="">
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast" class="toast bg-slate-900 text-white text-sm rounded-full px-4 py-2.5 shadow-lg flex items-center gap-3"></div>
+
+  <!-- Keyboard shortcuts modal -->
+  <div id="kbd-help" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold">Keyboard shortcuts</h3>
+        <button id="kbd-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
+      </div>
+      <ul class="text-sm space-y-2.5 text-slate-700">
+        <li class="flex items-center justify-between"><span>Confirm focused card</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">C</kbd></li>
+        <li class="flex items-center justify-between"><span>Edit focused card</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">E</kbd></li>
+        <li class="flex items-center justify-between"><span>Open photo full-size</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">Space</kbd></li>
+        <li class="flex items-center justify-between"><span>Move focus next/prev</span><span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">↑</kbd> <kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">↓</kbd></span></li>
+        <li class="flex items-center justify-between"><span>Upload (open file picker)</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">U</kbd></li>
+        <li class="flex items-center justify-between"><span>Close dialog</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">Esc</kbd></li>
+      </ul>
+    </div>
+  </div>
+
 </body>
 </html>
