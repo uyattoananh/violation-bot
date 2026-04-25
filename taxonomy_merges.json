@@ -85,17 +85,6 @@
       ]
     },
     {
-      "slug": "Access_walkway_unsafe",
-      "label_en": "Unsafe access or obstructed walkway",
-      "label_vn": "Lối đi / lối tiếp cận không an toàn",
-      "absorbs": [
-        "Unsafe_walkway_Materials_falling_from_above_obstructive_objects_risk_of_falling_",
-        "No_access_unsafe_access",
-        "No_safety_ways_or_unsafe_movement_there_are_obstacles_too_narrow",
-        "No_safe_walkway_is_provided"
-      ]
-    },
-    {
       "slug": "Equipment_machinery_unsafe",
       "label_en": "Unsafe or undocumented machinery/equipment",
       "label_vn": "Máy móc/thiết bị không an toàn hoặc thiếu chứng từ",
@@ -158,6 +147,17 @@
       "absorbs": [
         "No_fire_extinguisher",
         "Not_prevent_sparks"
+      ]
+    },
+    {
+      "slug": "Access_walkway_unsafe",
+      "label_en": "Unsafe access or obstructed walkway",
+      "label_vn": "Lối đi / lối tiếp cận không an toàn",
+      "absorbs": [
+        "Unsafe_walkway_Materials_falling_from_above_obstructive_objects_risk_of_falling_",
+        "No_access_unsafe_access",
+        "No_safety_ways_or_unsafe_movement_there_are_obstacles_too_narrow",
+        "No_safe_walkway_is_provided"
       ]
     },
     {

@@ -127,24 +127,6 @@
       ]
     },
     {
-      "slug": "Access_walkway_unsafe",
-      "label_en": "Unsafe access or obstructed walkway",
-      "label_vn": "Lối đi / lối tiếp cận không an toàn",
-      "photo_count": 43,
-      "absorbs": [
-        "Unsafe_walkway_Materials_falling_from_above_obstructive_objects_risk_of_falling_",
-        "No_access_unsafe_access",
-        "No_safety_ways_or_unsafe_movement_there_are_obstacles_too_narrow",
-        "No_safe_walkway_is_provided"
-      ],
-      "component_labels_en": [
-        "Unsafe walkway: Materials falling from above, obstructive objects, risk of falling, no handrail for stair, no warning tapes, etc.",
-        "No access/unsafe access",
-        "No safety ways or unsafe movement: there are obstacles, too narrow…",
-        "No safe walkway is provided"
-      ]
-    },
-    {
       "slug": "Fall_protection_personal",
       "label_en": "Working at heights without personal fall protection",
       "label_vn": "Làm việc trên cao không có dây an toàn",
@@ -205,6 +187,24 @@
         "There is no access to the electrical panel or the access is obstructed",
         "MSB/DBs panel don't have cover, internal lock, or emergency button",
         "No information of the PIC on the electrical panel"
+      ]
+    },
+    {
+      "slug": "Access_walkway_unsafe",
+      "label_en": "Unsafe access or obstructed walkway",
+      "label_vn": "Lối đi / lối tiếp cận không an toàn",
+      "photo_count": 43,
+      "absorbs": [
+        "Unsafe_walkway_Materials_falling_from_above_obstructive_objects_risk_of_falling_",
+        "No_access_unsafe_access",
+        "No_safety_ways_or_unsafe_movement_there_are_obstacles_too_narrow",
+        "No_safe_walkway_is_provided"
+      ],
+      "component_labels_en": [
+        "Unsafe walkway: Materials falling from above, obstructive objects, risk of falling, no handrail for stair, no warning tapes, etc.",
+        "No access/unsafe access",
+        "No safety ways or unsafe movement: there are obstacles, too narrow…",
+        "No safe walkway is provided"
       ]
     },
     {

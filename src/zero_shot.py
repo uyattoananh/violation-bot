@@ -180,6 +180,9 @@ class if the photo is genuinely just a messy site.
                                     missing fire extinguisher or permit
   - `Materials_storage_signage`   — materials at risk of falling, or
                                     unmarked storage
+  - `Chemicals_hazmat_unsafe`     — visible chemical drums/jerry cans,
+                                    leaking liquid, oil spills, gas/oxygen
+                                    cylinders without secure storage
   - `Site_conditions_unsafe`      — poor lighting, weak ground, exposed
                                     rebar tips, missing roof
   - `Housekeeping_general`        — scattered waste, disorganized materials,

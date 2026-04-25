@@ -104,8 +104,95 @@ def _sha256_file(p: Path) -> str:
     return h.hexdigest()
 
 
+_TITLE_CACHE_PATH = REPO_ROOT / "scripts" / ".title_mapping_cache.json"
+
+
+def _load_title_cache() -> dict[str, dict[str, str]]:
+    if _TITLE_CACHE_PATH.exists():
+        try:
+            return json.loads(_TITLE_CACHE_PATH.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return {}
+    return {}
+
+
+def _save_title_cache(c: dict[str, dict[str, str]]) -> None:
+    _TITLE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _TITLE_CACHE_PATH.write_text(json.dumps(c, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _map_title_via_llm(title_en: str, title_vn: str, tax: dict) -> tuple[str | None, str | None]:
+    """Identical mapping logic to auto_seed_from_disk._map_title_via_llm so
+    eval GT slugs go through the same LLM-decision as seeded rows did."""
+    from openai import OpenAI
+    client = OpenAI(
+        api_key=os.environ["OPENROUTER_API_KEY"],
+        base_url="https://openrouter.ai/api/v1",
+    )
+    hse_list = "\n".join(f"  - {h['slug']}: {h['label_en']}" for h in tax["hse_types"])
+    loc_list = "\n".join(f"  - {l['slug']}: {l['label_en']}" for l in tax["locations"])
+    prompt = (
+        "Map the following AECIS issue title to the closest HSE-type slug AND "
+        "location slug from these vocabularies. Return ONE JSON object, no prose.\n\n"
+        "IMPORTANT: some titles are administrative reminders, paperwork notes, "
+        "insurance-expiration alerts, or document submission nudges — NOT visual "
+        "site-safety violations. If the title clearly describes an administrative "
+        "or paperwork matter (e.g., 'submit documents', 'renew insurance', 'update "
+        "contractor records', 'training schedule', 'meeting note'), return "
+        '`{"hse_type_slug": null, "location_slug": null}` so the photo is skipped.\n\n'
+        "Only map titles that describe a visible physical safety violation "
+        "(fall hazard, missing PPE, scaffolding issue, electrical, fire, spill, "
+        "housekeeping, lifting, etc).\n\n"
+        f"HSE_TYPES:\n{hse_list}\n\n"
+        f"LOCATIONS:\n{loc_list}\n\n"
+        f'Issue title (EN): "{title_en}"\n'
+        f'Issue title (VN): "{title_vn}"\n\n'
+        'Return: {"hse_type_slug": "...", "location_slug": "..."}  '
+        '(or both null if not a visual violation)'
+    )
+    resp = client.chat.completions.create(
+        model=os.environ.get("OPENROUTER_MODEL", "anthropic/claude-sonnet-4.5"),
+        max_tokens=150,
+        messages=[{"role": "user", "content": prompt}],
+        extra_headers={"X-Title": os.environ.get("OPENROUTER_TITLE", "violation-bot")},
+    )
+    raw = resp.choices[0].message.content or ""
+    s, e = raw.find("{"), raw.rfind("}")
+    if s < 0 or e <= s:
+        return None, None
+    try:
+        j = json.loads(raw[s : e + 1])
+        hse = j.get("hse_type_slug")
+        loc = j.get("location_slug")
+        valid_hse = {h["slug"] for h in tax["hse_types"]}
+        valid_loc = {l["slug"] for l in tax["locations"]}
+        if hse not in valid_hse:
+            hse = None
+        if loc not in valid_loc:
+            loc = None
+        return hse, loc
+    except Exception:  # noqa: BLE001
+        return None, None
+
+
 def _sample(root: Path, n: int, seed: int,
-            hse_map: dict[str, str], loc_map: dict[str, str]) -> list[dict[str, Any]]:
+            hse_map: dict[str, str], loc_map: dict[str, str],
+            tax: dict,
+            include_projects: set[str] | None = None,
+            exclude_projects: set[str] | None = None) -> list[dict[str, Any]]:
+    """include_projects: keep only photos whose project_code is in this set
+    (None = keep all). exclude_projects: drop photos in this set
+    (applied after include). Use this to test on out-of-distribution data."""
+    valid_hse = {h["slug"] for h in tax["hse_types"]}
+    valid_loc = {l["slug"] for l in tax["locations"]}
+
+    title_cache = _load_title_cache()
+    cache_dirty = False
+    n_llm_calls = 0
+    n_dropped = 0
+    n_mapped_from_cache = 0
+    n_filtered_project = 0
+
     pool: list[dict[str, Any]] = []
     for meta_path in root.glob("*/*/metadata.json"):
         try:
@@ -114,11 +201,59 @@ def _sample(root: Path, n: int, seed: int,
             continue
         if (meta.get("label_source") or "dtag") != "dtag":
             continue
+        proj = meta.get("project_code") or ""
+        if include_projects and proj not in include_projects:
+            n_filtered_project += 1
+            continue
+        if exclude_projects and proj in exclude_projects:
+            n_filtered_project += 1
+            continue
         src_hse = meta_path.parent.parent.name
         src_loc_en = meta.get("location_en") or ""
         src_loc = src_loc_en.replace(" ", "_") if src_loc_en else ""
         gt_hse = hse_map.get(src_hse, src_hse)
         gt_loc = loc_map.get(src_loc, src_loc) if src_loc else ""
+
+        # If gt_hse isn't in the valid taxonomy, LLM-map via the same path
+        # auto_seed uses (shared cache file). Skip the photo if even the LLM
+        # decides it's administrative/unmappable.
+        if gt_hse not in valid_hse:
+            pseudo_title = src_hse.replace("_", " ")
+            cache_key = f"slug::{pseudo_title}"
+            cached = title_cache.get(cache_key)
+            if cached is not None:
+                n_mapped_from_cache += 1
+                gt_hse = cached.get("hse")
+                if not gt_loc and cached.get("loc") in valid_loc:
+                    gt_loc = cached["loc"]
+            else:
+                hse2, loc2 = _map_title_via_llm(pseudo_title, "", tax)
+                n_llm_calls += 1
+                title_cache[cache_key] = {"hse": hse2, "loc": loc2}
+                cache_dirty = True
+                gt_hse = hse2
+                if not gt_loc and loc2 in valid_loc:
+                    gt_loc = loc2
+            if gt_hse not in valid_hse:
+                n_dropped += 1
+                continue
+
+        # Same treatment for gt_loc — if set but not valid, try to fix
+        if gt_loc and gt_loc not in valid_loc:
+            cache_key = f"loc::{gt_loc}"
+            cached = title_cache.get(cache_key)
+            if cached is not None:
+                n_mapped_from_cache += 1
+                gt_loc = cached.get("loc") or ""
+            else:
+                _, loc3 = _map_title_via_llm(gt_loc.replace("_", " "), "", tax)
+                n_llm_calls += 1
+                title_cache[cache_key] = {"hse": None, "loc": loc3}
+                cache_dirty = True
+                gt_loc = loc3 or ""
+            if gt_loc and gt_loc not in valid_loc:
+                gt_loc = ""  # don't penalize location if unmappable, just drop it
+
         for ph in (meta.get("photos") or []):
             fname = ph.get("file")
             if not fname:
@@ -136,6 +271,13 @@ def _sample(root: Path, n: int, seed: int,
                 "src_hse": src_hse,
                 "src_loc": src_loc,
             })
+
+    if cache_dirty:
+        _save_title_cache(title_cache)
+    log.info("Sample pool: %d photos with valid GT "
+             "(LLM=%d, cache-hits=%d, dropped-unmappable=%d, project-filtered=%d)",
+             len(pool), n_llm_calls, n_mapped_from_cache, n_dropped, n_filtered_project)
+
     rng = random.Random(seed)
     return rng.sample(pool, min(n, len(pool)))
 
@@ -342,12 +484,27 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--no-rag", action="store_true",
                     help="Disable retrieval (compare against pure zero-shot)")
+    ap.add_argument("--project", action="append", default=None,
+                    help="Limit eval pool to this project_code (repeatable). "
+                         "E.g. --project H9. If unset, all projects are eligible.")
+    ap.add_argument("--exclude-project", action="append", default=None,
+                    help="Exclude this project_code from the eval pool "
+                         "(repeatable). Use to test out-of-distribution: "
+                         "--exclude-project SVN --exclude-project MJNT")
     ap.add_argument("--out", type=str, default=None)
     args = ap.parse_args()
 
     root = Path(args.root).expanduser().resolve() if args.root else DEFAULT_ROOT
     hse_map, loc_map = _source_to_consolidated_maps()
-    sample = _sample(root, args.n, args.seed, hse_map, loc_map)
+    tax = load_taxonomy()
+    include_set = set(args.project) if args.project else None
+    exclude_set = set(args.exclude_project) if args.exclude_project else None
+    if include_set:
+        log.info("Filtering pool to projects: %s", sorted(include_set))
+    if exclude_set:
+        log.info("Excluding projects from pool: %s", sorted(exclude_set))
+    sample = _sample(root, args.n, args.seed, hse_map, loc_map, tax,
+                     include_projects=include_set, exclude_projects=exclude_set)
     log.info("Sampled %d photos for evaluation", len(sample))
 
     s = evaluate(sample, use_rag=not args.no_rag)
