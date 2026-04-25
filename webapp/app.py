@@ -361,12 +361,15 @@ def api_pending(limit: int = 40):
     )
     cls_by_photo = {c["photo_id"]: c for c in cls_rows}
     # Also fetch the latest correction action per photo so the UI can mark
-    # photos as already-reviewed.
+    # photos as already-reviewed AND show the inspector's final label
+    # (which differs from the AI prediction when action='correct').
     corr_rows = (
-        db.table("corrections").select("photo_id, action, created_at")
-          .in_("photo_id", photo_ids)
-          .order("created_at", desc=True)
-          .execute().data or []
+        db.table("corrections").select(
+            "photo_id, action, hse_type_slug, location_slug, created_at"
+        )
+        .in_("photo_id", photo_ids)
+        .order("created_at", desc=True)
+        .execute().data or []
     )
     latest_correction: dict[str, dict] = {}
     for c in corr_rows:
@@ -387,6 +390,7 @@ def api_pending(limit: int = 40):
             raw = cls.get("raw_response") or {}
             alts_hse = raw.get("hse_type_alternatives") or []
             alts_loc = raw.get("location_alternatives") or []
+        corr = latest_correction.get(p["id"]) or {}
         out.append({
             "id": p["id"],
             "thumb_url": thumb,
@@ -404,8 +408,13 @@ def api_pending(limit: int = 40):
                     "model": cls.get("model"),
                 } if cls else None
             ),
-            "reviewed": p["id"] in latest_correction,
-            "review_action": (latest_correction.get(p["id"]) or {}).get("action"),
+            "reviewed": bool(corr),
+            "review_action": corr.get("action"),
+            # Final labels — what the inspector actually saved (could differ
+            # from the AI prediction on a correction). UI shows these on
+            # reviewed cards so the user sees their own choice, not the AI's.
+            "final_hse_type_slug": corr.get("hse_type_slug") or (cls.get("hse_type_slug") if cls else None),
+            "final_location_slug": corr.get("location_slug") or (cls.get("location_slug") if cls else None),
         })
     return {
         "photos": out,

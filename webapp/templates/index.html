@@ -198,7 +198,7 @@
 
     <button type="button" class="thumb-btn block group bg-slate-100 relative" aria-label="View full image">
       <div class="skeleton-thumb thumb-skeleton w-full h-56"></div>
-      <img class="thumb hidden w-full h-56 object-cover transition-transform group-hover:scale-[1.02]" loading="lazy" alt="Site photo">
+      <img class="thumb hidden w-full h-56 object-cover transition-transform group-hover:scale-[1.02]" alt="Site photo">
     </button>
 
     <div class="p-3 flex-1 flex flex-col gap-2">
@@ -284,6 +284,13 @@
 </template>
 
 <script>
+// Wrap the whole script in DOMContentLoaded so that elements defined in
+// _base.html AFTER this body block (#lightbox, #toast, #kbd-help) are
+// already in the DOM when we query them. Without this wrapper, those
+// el() lookups returned null and the very next addEventListener threw,
+// silently aborting the rest of script execution — breaking export menu,
+// filter buttons, kbd-help button, dropzone file picker, etc.
+document.addEventListener("DOMContentLoaded", () => {
 // =================== I18N ===================
 const I18N = {
   en: {
@@ -680,11 +687,16 @@ function updateCard(card, photo) {
   const skel   = el(".thumb-skeleton", card);
 
   if (photo.thumb_url && thumb.src !== photo.thumb_url) {
-    thumb.src = photo.thumb_url;
-    thumb.onload = () => {
+    // Attach onload BEFORE setting src so that an instantly-cached image
+    // still triggers the swap (otherwise the load fires before the handler
+    // is wired up and the skeleton stays visible forever).
+    const reveal = () => {
       skel.classList.add("hidden");
       thumb.classList.remove("hidden");
     };
+    thumb.onload = reveal;
+    thumb.src = photo.thumb_url;
+    if (thumb.complete && thumb.naturalWidth > 0) reveal();
   }
 
   const cached = photoCache.get(photo.id) || { status: "pending", conf: 0 };
@@ -694,6 +706,11 @@ function updateCard(card, photo) {
     pendEl.classList.add("hidden");
     predEl.classList.add("hidden");
     revEl.classList.remove("hidden");
+    // Hide the prediction-state conf ring + pill on reviewed cards. They
+    // were set with the AI's pre-review confidence and the pill text was
+    // localized at predict time, so they go stale on language swap.
+    el(".conf-ring", card).classList.add("hidden");
+    el(".status-pill", card).classList.add("hidden");
     const isConfirm = photo.review_action === "confirm";
     const lbl = el(".reviewed-label", revEl);
     const ico = el(".reviewed-icon", revEl);
@@ -708,9 +725,13 @@ function updateCard(card, photo) {
       ico.className = "reviewed-icon w-4 h-4 text-sky-500";
       card.classList.add("band-medium");
     }
+    // Use the final labels (corrections override AI prediction) so a
+    // corrected card shows the inspector's choice, not the AI's pick.
     const cls = photo.classification || {};
+    const finalHse = photo.final_hse_type_slug || cls.hse_type_slug;
+    const finalLoc = photo.final_location_slug || cls.location_slug;
     el(".reviewed-detail", revEl).textContent =
-      `${displayLabel(HSE_BY_SLUG, cls.hse_type_slug)} · ${displayLabel(LOC_BY_SLUG, cls.location_slug)}`;
+      `${displayLabel(HSE_BY_SLUG, finalHse)} · ${displayLabel(LOC_BY_SLUG, finalLoc)}`;
     cached.status = "reviewed";
     photoCache.set(photo.id, cached);
     card.dataset.status = "reviewed";
@@ -1069,7 +1090,10 @@ exportBtn.addEventListener("click", e => {
   exportMenu.classList.toggle("hidden");
 });
 document.addEventListener("click", e => {
-  if (!exportMenu.contains(e.target) && e.target !== exportBtn) {
+  // Use closest() so clicks on the button's child SVG/span still count
+  // as clicks "on" the button — otherwise the menu opens then immediately
+  // closes because e.target was a child node of #export-btn.
+  if (!exportMenu.contains(e.target) && !e.target.closest("#export-btn")) {
     exportMenu.classList.add("hidden");
   }
 });
@@ -1213,5 +1237,7 @@ applyFilter();
 updateStats();
 poll();
 setInterval(poll, 4000);
+
+});  // end DOMContentLoaded
 </script>
 {% endblock %}
