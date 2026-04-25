@@ -15,21 +15,23 @@
               d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
       </svg>
     </div>
-    <div class="font-semibold text-slate-800 text-base sm:text-lg">
+    <div class="font-semibold text-slate-800 text-base sm:text-lg" data-i18n="drop_main">
       Drop site photos here, or <span class="text-emerald-600 underline">click to select</span>
     </div>
-    <div class="text-xs text-slate-500 max-w-md">
-      JPG · PNG · HEIC · up to 50 at once. On a phone? Tap to open the camera and upload directly.
-      Each confirmation grows the AI's reference library.
+    <div class="text-xs text-slate-500 max-w-md" data-i18n="drop_sub">
+      JPG · PNG · HEIC · drop hundreds at once. Each confirmation grows the AI's reference library.
     </div>
   </div>
 
   <!-- Upload progress overlay -->
   <div id="upload-progress" class="hidden absolute inset-0 rounded-2xl bg-white/95 backdrop-blur grid place-items-center">
-    <div class="text-center">
-      <div class="w-14 h-14 mx-auto mb-3 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin"></div>
-      <div class="font-semibold text-slate-800">Uploading…</div>
-      <div id="upload-progress-detail" class="text-xs text-slate-500 mt-1 tabular-nums">0 / 0</div>
+    <div class="text-center w-full max-w-sm px-6">
+      <div class="w-12 h-12 mx-auto mb-3 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin"></div>
+      <div class="font-semibold text-slate-800 mb-1" data-i18n="upload_uploading">Uploading…</div>
+      <div id="upload-progress-detail" class="text-xs text-slate-500 tabular-nums">0 / 0</div>
+      <div class="mt-3 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+        <div id="upload-progress-bar" class="h-full bg-emerald-500 transition-all" style="width: 0%"></div>
+      </div>
     </div>
   </div>
 </section>
@@ -46,21 +48,109 @@
           class="text-rose-400 hover:text-rose-600 text-lg leading-none">&times;</button>
 </div>
 
-<!-- Toolbar: filter + sort + bulk actions -->
-<div id="toolbar" class="hidden mt-6 flex flex-wrap items-center gap-2 text-sm">
+<!-- Batch summary card (shows when there are reviewed photos) -->
+<details id="summary-card" class="hidden mt-4 bg-white border border-slate-200 rounded-xl shadow-sm">
+  <summary class="flex items-center justify-between px-4 py-3 cursor-pointer">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-emerald-100 grid place-items-center">
+        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="font-semibold text-slate-900" data-i18n="summary_title">Batch summary</div>
+        <div id="summary-headline" class="text-xs text-slate-500"></div>
+      </div>
+    </div>
+    <svg class="w-4 h-4 text-slate-400 transition-transform" id="summary-caret" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+    </svg>
+  </summary>
+  <div class="px-4 pb-4 pt-1 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+    <div>
+      <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1" data-i18n="summary_top_hse">Top HSE types</div>
+      <ul id="summary-top-hse" class="space-y-1"></ul>
+    </div>
+    <div>
+      <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1" data-i18n="summary_top_loc">Top locations</div>
+      <ul id="summary-top-loc" class="space-y-1"></ul>
+    </div>
+    <div>
+      <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1" data-i18n="summary_stats">Stats</div>
+      <ul class="space-y-1 text-slate-700">
+        <li class="flex justify-between"><span data-i18n="summary_total">Total</span><span id="summary-total" class="tabular-nums font-semibold">0</span></li>
+        <li class="flex justify-between"><span data-i18n="summary_reviewed">Reviewed</span><span id="summary-reviewed" class="tabular-nums font-semibold text-emerald-700">0</span></li>
+        <li class="flex justify-between"><span data-i18n="summary_pending">Pending</span><span id="summary-pending" class="tabular-nums font-semibold text-amber-700">0</span></li>
+        <li class="flex justify-between"><span data-i18n="summary_avg_conf">Avg confidence</span><span id="summary-conf" class="tabular-nums font-semibold">—</span></li>
+      </ul>
+    </div>
+  </div>
+</details>
+
+<!-- Toolbar: filter + sort + export + bulk actions -->
+<div id="toolbar" class="hidden mt-4 flex flex-wrap items-center gap-2 text-sm">
   <div class="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
-    <button data-filter="all"     class="filter-btn active px-3 py-1.5 rounded-md font-medium text-slate-700">All <span class="filter-count text-slate-400 ml-1">0</span></button>
-    <button data-filter="pending" class="filter-btn px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900">Pending <span class="filter-count text-slate-400 ml-1">0</span></button>
-    <button data-filter="reviewed"class="filter-btn px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900">Reviewed <span class="filter-count text-slate-400 ml-1">0</span></button>
+    <button data-filter="all"     class="filter-btn active px-3 py-1.5 rounded-md font-medium text-slate-700"><span data-i18n="filter_all">All</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
+    <button data-filter="pending" class="filter-btn px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900"><span data-i18n="filter_pending">Pending</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
+    <button data-filter="reviewed"class="filter-btn px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900"><span data-i18n="filter_reviewed">Reviewed</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
   </div>
 
   <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm">
-    <span class="text-slate-500 text-xs">Sort:</span>
+    <span class="text-slate-500 text-xs" data-i18n="sort_label">Sort:</span>
     <select id="sort-select" class="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer">
-      <option value="newest">Newest</option>
-      <option value="confidence-low">Low confidence first</option>
-      <option value="confidence-high">High confidence first</option>
+      <option value="newest" data-i18n="sort_newest">Newest</option>
+      <option value="confidence-low" data-i18n="sort_low_first">Low confidence first</option>
+      <option value="confidence-high" data-i18n="sort_high_first">High confidence first</option>
     </select>
+  </div>
+
+  <!-- Export menu -->
+  <div class="relative">
+    <button id="export-btn"
+            class="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100
+                   text-slate-700 text-sm font-medium rounded-lg px-3 py-2 shadow-sm
+                   flex items-center gap-1.5 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+      </svg>
+      <span data-i18n="export_btn">Download</span>
+      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+      </svg>
+    </button>
+    <div id="export-menu"
+         class="hidden absolute right-0 mt-1 w-72 bg-white border border-slate-200 rounded-lg shadow-lg p-1 z-20">
+      <a href="/api/export/zip" download
+         class="flex items-start gap-3 px-3 py-2 hover:bg-slate-50 rounded-md group">
+        <svg class="w-5 h-5 mt-0.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-2.25-1.313M21 7.5v2.25m0-2.25l-2.25 1.313M3 7.5l2.25-1.313M3 7.5l2.25 1.313M3 7.5v2.25m9 3l2.25-1.313M12 12.75l-2.25-1.313M12 12.75V15m0 6.75l2.25-1.313M12 21.75V19.5m0 2.25l-2.25-1.313m0-16.875L12 2.25l2.25 1.313M21 14.25v2.25l-2.25 1.313m-13.5 0L3 16.5v-2.25"/>
+        </svg>
+        <div>
+          <div class="font-medium text-slate-900 text-sm" data-i18n="export_zip_title">Renamed photos ZIP</div>
+          <div class="text-xs text-slate-500" data-i18n="export_zip_desc">Photos renamed by class, plus manifest.csv. Drag straight into folders.</div>
+        </div>
+      </a>
+      <a href="/api/export/csv" download
+         class="flex items-start gap-3 px-3 py-2 hover:bg-slate-50 rounded-md">
+        <svg class="w-5 h-5 mt-0.5 text-sky-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+        </svg>
+        <div>
+          <div class="font-medium text-slate-900 text-sm" data-i18n="export_csv_title">CSV (spreadsheet)</div>
+          <div class="text-xs text-slate-500" data-i18n="export_csv_desc">All photos + AI prediction + final label. Open in Excel.</div>
+        </div>
+      </a>
+      <a href="/api/export/json" download
+         class="flex items-start gap-3 px-3 py-2 hover:bg-slate-50 rounded-md">
+        <svg class="w-5 h-5 mt-0.5 text-violet-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/>
+        </svg>
+        <div>
+          <div class="font-medium text-slate-900 text-sm" data-i18n="export_json_title">JSON (programmatic)</div>
+          <div class="text-xs text-slate-500" data-i18n="export_json_desc">Full structured data for downstream pipelines.</div>
+        </div>
+      </a>
+    </div>
   </div>
 
   <button id="bulk-confirm-high"
@@ -69,7 +159,8 @@
     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
     </svg>
-    Confirm all high-confidence (<span id="bulk-confirm-count">0</span>)
+    <span data-i18n="bulk_confirm_high">Confirm all high-confidence</span>
+    (<span id="bulk-confirm-count">0</span>)
   </button>
 </div>
 
@@ -84,8 +175,8 @@
                 d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
         </svg>
       </div>
-      <div class="font-medium text-slate-700">No photos yet.</div>
-      <div class="text-xs text-slate-500 mt-1">Drop some above to get started — predictions land here in a few seconds.</div>
+      <div class="font-medium text-slate-700" data-i18n="empty_title">No photos yet.</div>
+      <div class="text-xs text-slate-500 mt-1" data-i18n="empty_sub">Drop some above to get started — predictions land here in a few seconds.</div>
     </div>
   </div>
 </section>
@@ -98,7 +189,6 @@
            data-status="pending"
            data-confidence="0">
 
-    <!-- Confidence ring + status pill (overlaid on top-right of image) -->
     <div class="absolute top-2 right-2 z-10 flex items-center gap-1.5">
       <div class="conf-ring hidden bg-white shadow-sm" style="--pct: 0; --color: rgb(16 185 129)">
         <span class="conf-text">0%</span>
@@ -109,20 +199,17 @@
     <button type="button" class="thumb-btn block group bg-slate-100 relative" aria-label="View full image">
       <div class="skeleton-thumb thumb-skeleton w-full h-56"></div>
       <img class="thumb hidden w-full h-56 object-cover transition-transform group-hover:scale-[1.02]" loading="lazy" alt="Site photo">
-      <div class="absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/0 group-hover:from-black/0 group-hover:via-black/0 group-hover:to-black/30 transition-colors"></div>
     </button>
 
     <div class="p-3 flex-1 flex flex-col gap-2">
 
-      <!-- Pending state -->
       <div class="state-pending text-sm text-slate-500 flex items-center gap-2">
         <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot"></span>
-        Analyzing photo…
+        <span data-i18n="state_analyzing">Analyzing photo…</span>
       </div>
 
-      <!-- Predicted state -->
       <div class="state-predicted hidden">
-        <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5">AI suggests</div>
+        <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5" data-i18n="ai_suggests">AI suggests</div>
         <div class="space-y-1">
           <div class="flex items-baseline gap-2 text-sm">
             <span class="text-slate-400 text-xs uppercase w-9">hse</span>
@@ -135,7 +222,6 @@
         </div>
         <div class="rationale text-[11px] text-slate-500 italic mt-2 line-clamp-2"></div>
 
-        <!-- Action row -->
         <div class="mt-3 flex gap-2">
           <button type="button" class="btn-confirm flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
                                        text-white text-sm font-medium rounded-lg px-3 py-2
@@ -143,7 +229,7 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
             </svg>
-            Confirm
+            <span data-i18n="btn_confirm">Confirm</span>
           </button>
           <button type="button" class="btn-edit bg-white border border-slate-300 hover:bg-slate-50 active:bg-slate-100
                                        text-slate-700 text-sm font-medium rounded-lg px-3 py-2
@@ -151,40 +237,39 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.687a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13L2.25 21.75l.798-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125"/>
             </svg>
-            <span class="hidden sm:inline">Edit</span>
+            <span class="hidden sm:inline" data-i18n="btn_edit">Edit</span>
           </button>
         </div>
 
-        <!-- Alternative quick-picks -->
         <div class="alt-section hidden mt-2.5 pt-2.5 border-t border-slate-100">
-          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1.5">
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1.5" data-i18n="alt_label">
             One-click runner-up
           </div>
           <div class="alt-row-hse flex flex-wrap gap-1 mb-1"></div>
           <div class="alt-row-loc flex flex-wrap gap-1"></div>
         </div>
 
-        <!-- Full edit form -->
         <form class="edit-form hidden mt-3 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-          <label class="block font-medium mb-0.5 text-slate-700">HSE type</label>
+          <label class="block font-medium mb-0.5 text-slate-700" data-i18n="edit_hse_label">HSE type</label>
           <select name="hse_type_slug" class="hse-select w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white"></select>
-          <label class="block font-medium mb-0.5 text-slate-700">Location</label>
+          <label class="block font-medium mb-0.5 text-slate-700" data-i18n="edit_loc_label">Location</label>
           <select name="location_slug" class="loc-select w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white"></select>
           <input type="text" name="note" placeholder="optional note for the audit log"
-                 class="w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white">
+                 class="edit-note w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white">
           <div class="flex gap-1.5">
             <button type="submit"
-                    class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded px-3 py-1.5 flex-1">
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded px-3 py-1.5 flex-1"
+                    data-i18n="edit_save">
               Save correction
             </button>
-            <button type="button" class="btn-edit-cancel text-slate-500 hover:text-slate-900 text-xs px-2">
+            <button type="button" class="btn-edit-cancel text-slate-500 hover:text-slate-900 text-xs px-2"
+                    data-i18n="edit_cancel">
               Cancel
             </button>
           </div>
         </form>
       </div>
 
-      <!-- Reviewed state -->
       <div class="state-reviewed hidden">
         <div class="reviewed-banner flex items-center gap-2 text-sm font-medium">
           <svg class="reviewed-icon w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -199,26 +284,223 @@
 </template>
 
 <script>
+// =================== I18N ===================
+const I18N = {
+  en: {
+    drop_main: "Drop site photos here, or <span class='text-emerald-600 underline'>click to select</span>",
+    drop_sub: "JPG · PNG · HEIC · drop hundreds at once. Each confirmation grows the AI's reference library.",
+    upload_uploading: "Uploading…",
+    upload_classifying: "Photos uploaded — classifying in background",
+    upload_done_notif: "Batch finished classifying",
+    upload_failed: "Upload failed",
+    state_analyzing: "Analyzing photo…",
+    ai_suggests: "AI suggests",
+    btn_confirm: "Confirm",
+    btn_edit: "Edit",
+    alt_label: "One-click runner-up",
+    edit_hse_label: "HSE type",
+    edit_loc_label: "Location",
+    edit_note_ph: "optional note for the audit log",
+    edit_save: "Save correction",
+    edit_cancel: "Cancel",
+    reviewed_confirmed: "Confirmed",
+    reviewed_corrected: "Corrected",
+    confirm_toast: "Confirmed — added to training set",
+    correct_toast: "Correction saved — added to training set",
+    undo: "Undo",
+    undo_local: "Undid your last action — locally only (re-confirm to persist)",
+    bulk_confirming: "Confirming high-confidence photos…",
+    bulk_done: "confirmed",
+    filter_all: "All",
+    filter_pending: "Pending",
+    filter_reviewed: "Reviewed",
+    sort_label: "Sort:",
+    sort_newest: "Newest",
+    sort_low_first: "Low confidence first",
+    sort_high_first: "High confidence first",
+    bulk_confirm_high: "Confirm all high-confidence",
+    export_btn: "Download",
+    export_zip_title: "Renamed photos ZIP",
+    export_zip_desc: "Photos renamed by class, plus manifest.csv. Drag straight into folders.",
+    export_csv_title: "CSV (spreadsheet)",
+    export_csv_desc: "All photos + AI prediction + final label. Open in Excel.",
+    export_json_title: "JSON (programmatic)",
+    export_json_desc: "Full structured data for downstream pipelines.",
+    summary_title: "Batch summary",
+    summary_top_hse: "Top HSE types",
+    summary_top_loc: "Top locations",
+    summary_stats: "Stats",
+    summary_total: "Total",
+    summary_reviewed: "Reviewed",
+    summary_pending: "Pending",
+    summary_avg_conf: "Avg confidence",
+    summary_headline: (n, r) => `${n} photos · ${r} reviewed`,
+    pill_high: "Likely correct",
+    pill_medium: "Quick check",
+    pill_low: "Needs review",
+    empty_title: "No photos yet.",
+    empty_sub: "Drop some above to get started — predictions land here in a few seconds.",
+    footer_training_set: "Training set:",
+    footer_session: "Session:",
+    footer_uploaded: "uploaded",
+    footer_confirmed: "confirmed",
+    footer_corrected: "corrected",
+    footer_tagline: "every confirmation trains the AI",
+    kbd_title: "Keyboard shortcuts",
+    kbd_confirm: "Confirm focused card",
+    kbd_edit: "Edit focused card",
+    kbd_lightbox: "Open photo full-size",
+    kbd_move: "Move focus next/prev",
+    kbd_upload: "Upload (open file picker)",
+    kbd_close: "Close dialog",
+    notif_done_title: "Batch complete",
+    notif_done_body: (n) => `${n} photos finished classifying. Open the tab to review.`,
+    tab_progress: (done, total) => `(${done}/${total}) Violation AI`,
+  },
+  vn: {
+    drop_main: "Thả ảnh hiện trường vào đây, hoặc <span class='text-emerald-600 underline'>bấm để chọn</span>",
+    drop_sub: "JPG · PNG · HEIC · thả hàng trăm ảnh cùng lúc. Mỗi lần xác nhận giúp AI học thêm.",
+    upload_uploading: "Đang tải lên…",
+    upload_classifying: "Đã tải xong — AI đang phân loại trong nền",
+    upload_done_notif: "Phân loại lô ảnh đã xong",
+    upload_failed: "Tải lên thất bại",
+    state_analyzing: "Đang phân tích ảnh…",
+    ai_suggests: "AI gợi ý",
+    btn_confirm: "Xác nhận",
+    btn_edit: "Sửa",
+    alt_label: "Chọn nhanh phương án thay thế",
+    edit_hse_label: "Loại vi phạm HSE",
+    edit_loc_label: "Vị trí",
+    edit_note_ph: "ghi chú (không bắt buộc) cho nhật ký kiểm tra",
+    edit_save: "Lưu chỉnh sửa",
+    edit_cancel: "Hủy",
+    reviewed_confirmed: "Đã xác nhận",
+    reviewed_corrected: "Đã chỉnh sửa",
+    confirm_toast: "Đã xác nhận — thêm vào tập huấn luyện",
+    correct_toast: "Đã lưu chỉnh sửa — thêm vào tập huấn luyện",
+    undo: "Hoàn tác",
+    undo_local: "Đã hoàn tác — chỉ ở giao diện (xác nhận lại để lưu)",
+    bulk_confirming: "Đang xác nhận hàng loạt ảnh độ tin cậy cao…",
+    bulk_done: "đã xác nhận",
+    filter_all: "Tất cả",
+    filter_pending: "Chờ xử lý",
+    filter_reviewed: "Đã xét duyệt",
+    sort_label: "Sắp xếp:",
+    sort_newest: "Mới nhất",
+    sort_low_first: "Độ tin cậy thấp trước",
+    sort_high_first: "Độ tin cậy cao trước",
+    bulk_confirm_high: "Xác nhận hết ảnh tin cậy cao",
+    export_btn: "Tải về",
+    export_zip_title: "ZIP ảnh đã đổi tên",
+    export_zip_desc: "Ảnh đổi tên theo lớp, kèm manifest.csv. Kéo thẳng vào thư mục.",
+    export_csv_title: "CSV (bảng tính)",
+    export_csv_desc: "Toàn bộ ảnh + AI dự đoán + nhãn cuối cùng. Mở bằng Excel.",
+    export_json_title: "JSON (lập trình)",
+    export_json_desc: "Dữ liệu cấu trúc đầy đủ cho hệ thống khác.",
+    summary_title: "Tổng kết lô ảnh",
+    summary_top_hse: "Loại HSE phổ biến",
+    summary_top_loc: "Vị trí phổ biến",
+    summary_stats: "Thống kê",
+    summary_total: "Tổng",
+    summary_reviewed: "Đã xét duyệt",
+    summary_pending: "Còn chờ",
+    summary_avg_conf: "Độ tin cậy TB",
+    summary_headline: (n, r) => `${n} ảnh · ${r} đã xét duyệt`,
+    pill_high: "Có khả năng đúng",
+    pill_medium: "Cần kiểm tra nhanh",
+    pill_low: "Cần xét duyệt",
+    empty_title: "Chưa có ảnh nào.",
+    empty_sub: "Thả ảnh ở trên để bắt đầu — kết quả hiện sau vài giây.",
+    footer_training_set: "Tập huấn luyện:",
+    footer_session: "Phiên này:",
+    footer_uploaded: "đã tải lên",
+    footer_confirmed: "đã xác nhận",
+    footer_corrected: "đã sửa",
+    footer_tagline: "mỗi lần xác nhận giúp AI học",
+    kbd_title: "Phím tắt",
+    kbd_confirm: "Xác nhận thẻ đang chọn",
+    kbd_edit: "Sửa thẻ đang chọn",
+    kbd_lightbox: "Mở ảnh phóng to",
+    kbd_move: "Di chuyển trước/sau",
+    kbd_upload: "Tải ảnh lên (mở hộp thoại chọn tệp)",
+    kbd_close: "Đóng hộp thoại",
+    notif_done_title: "Hoàn tất lô ảnh",
+    notif_done_body: (n) => `${n} ảnh đã phân loại xong. Mở tab để xét duyệt.`,
+    tab_progress: (done, total) => `(${done}/${total}) Violation AI`,
+  },
+};
+
+let LANG = localStorage.getItem("violation-ai-lang") || "en";
+function t(key) {
+  return (I18N[LANG] && I18N[LANG][key]) || (I18N.en && I18N.en[key]) || key;
+}
+
+function applyLang() {
+  document.documentElement.lang = LANG;
+  // Static elements with data-i18n
+  document.querySelectorAll("[data-i18n]").forEach(elt => {
+    const key = elt.dataset.i18n;
+    const v = I18N[LANG] && I18N[LANG][key];
+    if (typeof v === "string") elt.innerHTML = v;
+  });
+  // Edit-form note placeholders
+  document.querySelectorAll(".edit-note").forEach(i => {
+    i.placeholder = t("edit_note_ph");
+  });
+  // Header lang button states
+  document.querySelectorAll(".lang-btn").forEach(b => {
+    if (b.dataset.lang === LANG) {
+      b.classList.add("bg-white", "text-slate-900", "shadow-sm");
+      b.classList.remove("text-slate-500");
+    } else {
+      b.classList.remove("bg-white", "text-slate-900", "shadow-sm");
+      b.classList.add("text-slate-500");
+    }
+  });
+  // Re-render labels on existing cards
+  els(".card", cardsEl).forEach(c => {
+    const cached = photoCache.get(c.dataset.photoId);
+    if (cached && cached.photo) updateCard(c, cached.photo);
+  });
+  // Refresh status pills, etc.
+  updateBulkConfirmButton();
+  // Refresh summary copy if visible
+  refreshSummary();
+}
+
+document.querySelectorAll(".lang-btn").forEach(b => {
+  b.addEventListener("click", () => {
+    LANG = b.dataset.lang;
+    localStorage.setItem("violation-ai-lang", LANG);
+    applyLang();
+  });
+});
+
 // =================== Constants ===================
 const TAXONOMY = {{ taxonomy | tojson }};
 const LOC_BY_SLUG = Object.fromEntries(TAXONOMY.locations.map(l => [l.slug, l]));
 const HSE_BY_SLUG = Object.fromEntries(TAXONOMY.hse_types.map(h => [h.slug, h]));
 
-// Confidence thresholds — match the deployment story:
-//   high   ≥ 0.85 → auto-applyable
-//   medium 0.60–0.85 → quick check
-//   low    < 0.60   → manual review needed
 const CONF_HIGH = 0.85;
 const CONF_MED  = 0.60;
+
+// Batch upload chunking — Cloudflare/Supabase don't love huge multiparts
+const UPLOAD_CHUNK_SIZE = 25;
 
 const el  = (sel, root = document) => root.querySelector(sel);
 const els = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 // =================== State ===================
 const SESSION = { uploaded: 0, confirmed: 0, corrected: 0 };
-let activeFilter = "all";
-let activeSort   = "newest";
-const photoCache = new Map(); // photo_id → {photo, card, status, conf, ts}
+let activeFilter = localStorage.getItem("violation-ai-filter") || "all";
+let activeSort   = localStorage.getItem("violation-ai-sort") || "newest";
+const photoCache = new Map();
+
+// Tab-title bookkeeping
+let tabPendingTotal = 0;
+let tabPendingDone  = 0;
+let lastPendingCount = 0;
+let notifPermissionAsked = false;
 
 // =================== Refs ===================
 const cardsEl    = el("#cards");
@@ -239,7 +521,7 @@ function showError(msg) {
 
 function bumpStat(elt) {
   elt.classList.remove("stat-bump");
-  void elt.offsetWidth; // trigger reflow
+  void elt.offsetWidth;
   elt.classList.add("stat-bump");
 }
 
@@ -262,7 +544,10 @@ function renderTrainingSetSize(n) {
 }
 
 function displayLabel(lookup, slug) {
-  return (lookup[slug] && lookup[slug].label_en) || slug || "?";
+  const item = lookup[slug];
+  if (!item) return slug || "?";
+  if (LANG === "vn" && item.label_vn) return item.label_vn;
+  return item.label_en || slug;
 }
 
 function showToast(msg, opts = {}) {
@@ -295,9 +580,9 @@ function confidenceBand(conf) {
 }
 function bandColors(band) {
   return {
-    high:   { ring: "rgb(16 185 129)", pill: "bg-emerald-100 text-emerald-700", label: "Likely correct" },
-    medium: { ring: "rgb(245 158 11)", pill: "bg-amber-100 text-amber-800",     label: "Quick check" },
-    low:    { ring: "rgb(244 63 94)",  pill: "bg-rose-100 text-rose-800",       label: "Needs review" },
+    high:   { ring: "rgb(16 185 129)", pill: "bg-emerald-100 text-emerald-700", labelKey: "pill_high" },
+    medium: { ring: "rgb(245 158 11)", pill: "bg-amber-100 text-amber-800",     labelKey: "pill_medium" },
+    low:    { ring: "rgb(244 63 94)",  pill: "bg-rose-100 text-rose-800",       labelKey: "pill_low" },
   }[band];
 }
 
@@ -321,7 +606,6 @@ function getOrCreateCard(photo) {
   const card = tmpl.content.firstElementChild.cloneNode(true);
   card.dataset.photoId = photo.id;
 
-  // Populate select dropdowns once
   const hseSel = el(".hse-select", card);
   TAXONOMY.hse_types.forEach(h => {
     const opt = document.createElement("option");
@@ -337,7 +621,6 @@ function getOrCreateCard(photo) {
     locSel.appendChild(opt);
   });
 
-  // Wire actions
   el(".btn-confirm", card).addEventListener("click", () => confirmCard(card));
   el(".btn-edit",    card).addEventListener("click", () => toggleEdit(card));
   el(".btn-edit-cancel", card).addEventListener("click", () => toggleEdit(card));
@@ -347,6 +630,13 @@ function getOrCreateCard(photo) {
     const src = el(".thumb", card).src;
     if (src) openLightbox(src);
   });
+
+  // Apply current language to placeholders/buttons inside the cloned template
+  card.querySelectorAll("[data-i18n]").forEach(elt => {
+    const v = I18N[LANG] && I18N[LANG][elt.dataset.i18n];
+    if (typeof v === "string") elt.innerHTML = v;
+  });
+  el(".edit-note", card).placeholder = t("edit_note_ph");
 
   cardsEl.prepend(card);
   el("#empty-state").classList.add("hidden");
@@ -374,10 +664,9 @@ function setConfidenceRing(card, conf, band) {
 
   const pill = el(".status-pill", card);
   pill.className = `status-pill text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${colors.pill}`;
-  pill.textContent = colors.label;
+  pill.textContent = t(colors.labelKey);
   pill.classList.remove("hidden");
 
-  // Card border colour
   card.classList.remove("band-high", "band-medium", "band-low");
   card.classList.add(`band-${band}`);
   card.dataset.confidence = conf;
@@ -390,7 +679,6 @@ function updateCard(card, photo) {
   const thumb  = el(".thumb", card);
   const skel   = el(".thumb-skeleton", card);
 
-  // Lazy-set thumbnail when URL becomes available
   if (photo.thumb_url && thumb.src !== photo.thumb_url) {
     thumb.src = photo.thumb_url;
     thumb.onload = () => {
@@ -410,12 +698,12 @@ function updateCard(card, photo) {
     const lbl = el(".reviewed-label", revEl);
     const ico = el(".reviewed-icon", revEl);
     if (isConfirm) {
-      lbl.textContent = "Confirmed";
+      lbl.textContent = t("reviewed_confirmed");
       lbl.className = "reviewed-label text-emerald-700";
       ico.className = "reviewed-icon w-4 h-4 text-emerald-500";
       card.classList.add("band-high");
     } else {
-      lbl.textContent = "Corrected";
+      lbl.textContent = t("reviewed_corrected");
       lbl.className = "reviewed-label text-sky-700";
       ico.className = "reviewed-icon w-4 h-4 text-sky-500";
       card.classList.add("band-medium");
@@ -460,7 +748,6 @@ function updateCard(card, photo) {
   el(".loc-select", card).value = cls.location_slug;
   el(".hse-select", card).value = cls.hse_type_slug;
 
-  // Alternatives
   const altSection = el(".alt-section", card);
   const hseRow = el(".alt-row-hse", card);
   const locRow = el(".alt-row-loc", card);
@@ -494,34 +781,59 @@ function updateCard(card, photo) {
   updateBulkConfirmButton();
 }
 
-// =================== Upload ===================
+// =================== Upload (chunked + progress + notifications) ===================
 async function uploadFiles(files) {
   if (!files.length) return;
   const total = files.length;
   const detail = el("#upload-progress-detail");
-  el("#upload-progress").classList.remove("hidden");
+  const bar = el("#upload-progress-bar");
+  const overlay = el("#upload-progress");
+
+  overlay.classList.remove("hidden");
+  el("#upload-progress > div > div:nth-child(2)").textContent = t("upload_uploading");
   detail.textContent = `0 / ${total}`;
+  bar.style.width = "0%";
 
-  const fd = new FormData();
-  for (const f of files) fd.append("files", f);
-
-  try {
-    const resp = await fetch("/api/upload", { method: "POST", body: fd });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    SESSION.uploaded += data.count || 0;
-    updateStats();
-    detail.textContent = `${data.count || 0} / ${total}`;
-    (data.uploaded || []).forEach(u => {
-      getOrCreateCard({ id: u.id, thumb_url: "", classification: null, reviewed: false });
-    });
-    showToast(`${data.count} photo${data.count === 1 ? "" : "s"} uploaded — analyzing now`);
-    poll();
-  } catch (e) {
-    showError(`Upload failed: ${e.message}`);
-  } finally {
-    setTimeout(() => el("#upload-progress").classList.add("hidden"), 600);
+  // Ask for desktop notification permission once, on the first big upload
+  if (!notifPermissionAsked && total >= 10 && "Notification" in window && Notification.permission === "default") {
+    notifPermissionAsked = true;
+    Notification.requestPermission().catch(() => {});
   }
+
+  // Track expected pending count for the tab title and completion notification
+  tabPendingTotal += total;
+  updateTabTitle();
+
+  let uploadedCount = 0;
+  const allCreated = [];
+
+  for (let i = 0; i < files.length; i += UPLOAD_CHUNK_SIZE) {
+    const chunk = files.slice(i, i + UPLOAD_CHUNK_SIZE);
+    const fd = new FormData();
+    for (const f of chunk) fd.append("files", f);
+    try {
+      const resp = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      uploadedCount += data.count || 0;
+      allCreated.push(...(data.uploaded || []));
+      SESSION.uploaded += data.count || 0;
+      updateStats();
+      detail.textContent = `${uploadedCount} / ${total}`;
+      bar.style.width = `${Math.round((uploadedCount / total) * 100)}%`;
+      // Show pending placeholders immediately so the user sees something
+      (data.uploaded || []).forEach(u => {
+        getOrCreateCard({ id: u.id, thumb_url: "", classification: null, reviewed: false });
+      });
+      poll();  // eager refresh, classifications may already be coming in
+    } catch (e) {
+      showError(`${t("upload_failed")}: ${e.message}`);
+      break;
+    }
+  }
+
+  setTimeout(() => overlay.classList.add("hidden"), 600);
+  showToast(t("upload_classifying"));
 }
 
 dropzone.addEventListener("click", (e) => {
@@ -544,10 +856,39 @@ dropzone.addEventListener("drop", e => {
   uploadFiles(files);
 });
 
-// =================== Confirm / Correct (with undo) ===================
+// =================== Tab title + completion notification ===================
+function updateTabTitle() {
+  if (tabPendingTotal > 0 && tabPendingDone < tabPendingTotal) {
+    document.title = t("tab_progress")(tabPendingDone, tabPendingTotal);
+  } else {
+    document.title = "Violation AI";
+  }
+}
+
+function maybeFireCompletionNotification(currentPending) {
+  // Detect "transition to zero pending" — i.e. a batch just finished
+  if (lastPendingCount > 0 && currentPending === 0 && tabPendingTotal > 0) {
+    const finished = tabPendingTotal;
+    tabPendingTotal = 0;
+    tabPendingDone = 0;
+    updateTabTitle();
+    if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+      try {
+        const n = new Notification(t("notif_done_title"), {
+          body: t("notif_done_body")(finished),
+          icon: "data:image/svg+xml," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='#10b981'/><path d='M30 52l13 13 27-27' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>"),
+        });
+        n.onclick = () => { window.focus(); n.close(); };
+      } catch (e) { /* notifications can throw on some browsers */ }
+    }
+    showToast(t("upload_done_notif"), { timeoutMs: 5000 });
+  }
+  lastPendingCount = currentPending;
+}
+
+// =================== Confirm / Correct ===================
 async function confirmCard(card, opts = {}) {
   const id = card.dataset.photoId;
-  // Optimistic UI
   const prevState = captureState(card);
   applyReviewedState(card, "confirm");
   card.classList.add("celebrate");
@@ -559,8 +900,8 @@ async function confirmCard(card, opts = {}) {
     SESSION.confirmed++;
     updateStats();
     if (!opts.silent) {
-      showToast("Confirmed — added to training set", {
-        action: { label: "Undo", handler: () => undoReview(card, prevState) },
+      showToast(t("confirm_toast"), {
+        action: { label: t("undo"), handler: () => undoReview(card, prevState) },
       });
     }
     poll();
@@ -591,8 +932,8 @@ async function correctCard(card, override = null) {
     if (!resp.ok) throw new Error("server returned " + resp.status);
     SESSION.corrected++;
     updateStats();
-    showToast("Correction saved — added to training set", {
-      action: { label: "Undo", handler: () => undoReview(card, prevState) },
+    showToast(t("correct_toast"), {
+      action: { label: t("undo"), handler: () => undoReview(card, prevState) },
     });
     poll();
   } catch (e) {
@@ -617,13 +958,13 @@ function applyReviewedState(card, action) {
   const lbl = el(".reviewed-label", card);
   const ico = el(".reviewed-icon", card);
   if (action === "confirm") {
-    lbl.textContent = "Confirmed";
+    lbl.textContent = t("reviewed_confirmed");
     lbl.className = "reviewed-label text-emerald-700";
     ico.className = "reviewed-icon w-4 h-4 text-emerald-500";
     card.classList.remove("band-medium", "band-low");
     card.classList.add("band-high");
   } else {
-    lbl.textContent = "Corrected";
+    lbl.textContent = t("reviewed_corrected");
     lbl.className = "reviewed-label text-sky-700";
     ico.className = "reviewed-icon w-4 h-4 text-sky-500";
   }
@@ -639,10 +980,8 @@ function restoreState(card, st) {
   applyFilter();
 }
 async function undoReview(card, prev) {
-  // Best-effort: tell server to mark not-reviewed isn't part of the public API
-  // for this MVP, so just restore local UI. Server-side undo would need a new endpoint.
   restoreState(card, prev);
-  showToast("Undid your last action — locally only (re-confirm to persist)", { timeoutMs: 4500 });
+  showToast(t("undo_local"), { timeoutMs: 4500 });
 }
 
 // =================== Filter / Sort / Bulk ===================
@@ -662,12 +1001,11 @@ function applyFilter() {
   els(".filter-btn").forEach(b => {
     const f = b.dataset.filter;
     el(".filter-count", b).textContent = counts[f];
-    b.classList.toggle("bg-slate-900", b.classList.contains("active") && false); // reset
     if (b.dataset.filter === activeFilter) {
-      b.classList.add("bg-slate-900", "text-white");
+      b.classList.add("bg-slate-900", "text-white", "active");
       b.classList.remove("text-slate-500", "text-slate-700");
     } else {
-      b.classList.remove("bg-slate-900", "text-white");
+      b.classList.remove("bg-slate-900", "text-white", "active");
       b.classList.add("text-slate-500");
     }
   });
@@ -676,27 +1014,25 @@ function applyFilter() {
 function applySort() {
   const cards = els(".card", cardsEl);
   cards.sort((a, b) => {
-    if (activeSort === "newest") {
-      // Already in DOM-prepend order (newest first)
-      return 0;
-    }
+    if (activeSort === "newest") return 0;
     const ca = parseFloat(a.dataset.confidence) || 0;
     const cb = parseFloat(b.dataset.confidence) || 0;
     return activeSort === "confidence-low" ? ca - cb : cb - ca;
   });
-  if (activeSort !== "newest") {
-    cards.forEach(c => cardsEl.appendChild(c));
-  }
+  if (activeSort !== "newest") cards.forEach(c => cardsEl.appendChild(c));
 }
 
 els(".filter-btn").forEach(b => {
   b.addEventListener("click", () => {
     activeFilter = b.dataset.filter;
+    localStorage.setItem("violation-ai-filter", activeFilter);
     applyFilter();
   });
 });
+el("#sort-select").value = activeSort;
 el("#sort-select").addEventListener("change", e => {
   activeSort = e.target.value;
+  localStorage.setItem("violation-ai-sort", activeSort);
   applySort();
 });
 
@@ -717,13 +1053,61 @@ el("#bulk-confirm-high").addEventListener("click", async () => {
     c.dataset.status === "predicted" && parseFloat(c.dataset.confidence) >= CONF_HIGH
   );
   el("#bulk-confirm-high").classList.add("hidden");
-  showToast(`Confirming ${high.length} high-confidence photos…`, { timeoutMs: 0 });
+  showToast(t("bulk_confirming"), { timeoutMs: 0 });
   for (const c of high) {
     await confirmCard(c, { silent: true });
   }
   hideToast();
-  showToast(`${high.length} confirmed`, { timeoutMs: 3000 });
+  showToast(`${high.length} ${t("bulk_done")}`, { timeoutMs: 3000 });
 });
+
+// =================== Export menu ===================
+const exportBtn  = el("#export-btn");
+const exportMenu = el("#export-menu");
+exportBtn.addEventListener("click", e => {
+  e.stopPropagation();
+  exportMenu.classList.toggle("hidden");
+});
+document.addEventListener("click", e => {
+  if (!exportMenu.contains(e.target) && e.target !== exportBtn) {
+    exportMenu.classList.add("hidden");
+  }
+});
+
+// =================== Summary card ===================
+async function refreshSummary() {
+  try {
+    const resp = await fetch("/api/export/summary");
+    if (!resp.ok) return;
+    const s = await resp.json();
+    const card = el("#summary-card");
+    if (!s.total_photos) {
+      card.classList.add("hidden");
+      return;
+    }
+    card.classList.remove("hidden");
+    el("#summary-headline").textContent = t("summary_headline")(s.total_photos, s.reviewed);
+    el("#summary-total").textContent = s.total_photos;
+    el("#summary-reviewed").textContent = s.reviewed;
+    el("#summary-pending").textContent = s.pending;
+    el("#summary-conf").textContent = s.avg_confidence
+      ? Math.round(s.avg_confidence * 100) + "%"
+      : "—";
+    const renderTopList = (parentSel, lookup, items) => {
+      const ul = el(parentSel);
+      ul.innerHTML = "";
+      items.forEach(([slug, n]) => {
+        const li = document.createElement("li");
+        li.className = "flex justify-between items-baseline";
+        li.innerHTML = `<span class="text-slate-700 truncate pr-2">${displayLabel(lookup, slug)}</span>
+                        <span class="text-slate-400 tabular-nums text-xs">${n}</span>`;
+        ul.appendChild(li);
+      });
+    };
+    renderTopList("#summary-top-hse", HSE_BY_SLUG, s.top_hse_types);
+    renderTopList("#summary-top-loc", LOC_BY_SLUG, s.top_locations);
+  } catch (e) { /* silent */ }
+}
 
 // =================== Keyboard nav ===================
 function focusedCard() {
@@ -741,7 +1125,6 @@ function moveFocus(dir) {
 }
 
 document.addEventListener("keydown", e => {
-  // Ignore when typing
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "select" || tag === "textarea") return;
 
@@ -749,6 +1132,7 @@ document.addEventListener("keydown", e => {
     if (lightbox.classList.contains("show")) { closeLightbox(); return; }
     const help = el("#kbd-help");
     if (!help.classList.contains("hidden")) { help.classList.add("hidden"); help.classList.remove("flex"); return; }
+    if (!exportMenu.classList.contains("hidden")) { exportMenu.classList.add("hidden"); return; }
     const c = focusedCard();
     if (c) {
       const f = el(".edit-form", c);
@@ -766,7 +1150,6 @@ document.addEventListener("keydown", e => {
   if (e.key === "ArrowDown") { e.preventDefault(); moveFocus(1); return; }
   if (e.key === "ArrowUp")   { e.preventDefault(); moveFocus(-1); return; }
 
-  // Card-specific
   if (card.dataset.status === "predicted") {
     if (e.key === "c" || e.key === "C") { e.preventDefault(); confirmCard(card); return; }
     if (e.key === "e" || e.key === "E") { e.preventDefault(); toggleEdit(card); return; }
@@ -797,24 +1180,38 @@ async function poll() {
     if (!resp.ok) return;
     const data = await resp.json();
     renderTrainingSetSize(data.training_set_size);
+
+    let pendingNow = 0;
     (data.photos || []).forEach(p => {
       const card = getOrCreateCard(p);
       updateCard(card, p);
+      if (!p.classification && !p.reviewed) pendingNow++;
     });
+
+    // Tab title progress
+    if (tabPendingTotal > 0) {
+      tabPendingDone = Math.max(0, tabPendingTotal - pendingNow);
+      updateTabTitle();
+    }
+    maybeFireCompletionNotification(pendingNow);
+
     if (!els(".card", cardsEl).length) {
       el("#empty-state").classList.remove("hidden");
       toolbar.classList.add("hidden");
+      el("#summary-card").classList.add("hidden");
     } else {
       el("#empty-state").classList.add("hidden");
       toolbar.classList.remove("hidden");
+      refreshSummary();
     }
-  } catch (e) {
-    // silent
-  }
+  } catch (e) { /* silent */ }
 }
+
+// =================== Boot ===================
+applyLang();
+applyFilter();
+updateStats();
 poll();
 setInterval(poll, 4000);
-updateStats();
-applyFilter();
 </script>
 {% endblock %}

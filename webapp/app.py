@@ -51,7 +51,10 @@ from fastapi import (
     FastAPI, File, Form, HTTPException, Request, UploadFile,
     status,
 )
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import (
+    HTMLResponse, JSONResponse, RedirectResponse,
+    StreamingResponse, PlainTextResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -470,6 +473,258 @@ def correct(
     # Feedback loop: inspector-corrected label is high-quality — add to retrieval index
     _upsert_embedding_for_correction(photo_id, hse_type_slug, location_slug)
     return {"ok": True}
+
+
+# ---------- export ----------
+
+def _slug_safe(s: str | None) -> str:
+    """Sanitize for use in a filename: keep alnum/_/-, replace others with _."""
+    if not s:
+        return "unlabeled"
+    return "".join(c if c.isalnum() or c in "_-" else "_" for c in s)[:60]
+
+
+def _collect_export_rows(tenant_id: str, limit: int = 5000) -> list[dict]:
+    """Pull every photo for a tenant joined with its current classification,
+    latest correction, and the original filename. Used by all 3 export formats."""
+    db = get_db()
+    photos = (
+        db.table("photos").select("*")
+          .eq("tenant_id", tenant_id)
+          .order("uploaded_at", desc=True).limit(limit)
+          .execute().data or []
+    )
+    if not photos:
+        return []
+
+    photo_ids = [p["id"] for p in photos]
+
+    # Chunk IN-queries to stay under PostgREST URL limits (~100 IDs/chunk safe)
+    def _fetch_chunked(table: str, select_cols: str, extra_filter=None):
+        out = []
+        for i in range(0, len(photo_ids), 100):
+            chunk = photo_ids[i:i + 100]
+            q = db.table(table).select(select_cols).in_("photo_id", chunk)
+            if extra_filter:
+                q = extra_filter(q)
+            out.extend(q.execute().data or [])
+        return out
+
+    cls_rows = _fetch_chunked("classifications", "*",
+                              lambda q: q.eq("is_current", True))
+    cls_by_photo = {c["photo_id"]: c for c in cls_rows}
+
+    corr_rows = _fetch_chunked(
+        "corrections",
+        "photo_id, action, hse_type_slug, location_slug, note, created_at",
+        lambda q: q.order("created_at", desc=True),
+    )
+    latest_correction: dict[str, dict] = {}
+    for c in corr_rows:
+        latest_correction.setdefault(c["photo_id"], c)
+
+    rows: list[dict] = []
+    for p in photos:
+        cls = cls_by_photo.get(p["id"]) or {}
+        corr = latest_correction.get(p["id"])
+        ai_hse = cls.get("hse_type_slug")
+        ai_loc = cls.get("location_slug")
+        # Final = corrected if present, else AI's pick
+        final_hse = (corr or {}).get("hse_type_slug") or ai_hse
+        final_loc = (corr or {}).get("location_slug") or ai_loc
+        rows.append({
+            "id": p["id"],
+            "sha256": p.get("sha256"),
+            "original_filename": p.get("original_filename"),
+            "uploaded_at": p.get("uploaded_at"),
+            "storage_key": p["storage_key"],
+            "ai_hse_type_slug": ai_hse,
+            "ai_location_slug": ai_loc,
+            "ai_hse_confidence": cls.get("hse_type_confidence") or 0,
+            "ai_location_confidence": cls.get("location_confidence") or 0,
+            "ai_rationale": cls.get("rationale", ""),
+            "ai_model": cls.get("model", ""),
+            "reviewed": bool(corr),
+            "review_action": (corr or {}).get("action"),
+            "review_note": (corr or {}).get("note"),
+            "reviewed_at": (corr or {}).get("created_at"),
+            "final_hse_type_slug": final_hse,
+            "final_location_slug": final_loc,
+        })
+    return rows
+
+
+def _enrich_with_labels(rows: list[dict], tax: dict) -> None:
+    """Add label_en / label_vn columns from the taxonomy in place."""
+    hse_lookup = {h["slug"]: h for h in tax["hse_types"]}
+    loc_lookup = {l["slug"]: l for l in tax["locations"]}
+    for r in rows:
+        for axis, lookup in (("hse_type", hse_lookup), ("location", loc_lookup)):
+            for prefix in ("ai_", "final_"):
+                slug = r.get(f"{prefix}{axis}_slug")
+                lbl = lookup.get(slug or "") or {}
+                r[f"{prefix}{axis}_label_en"] = lbl.get("label_en", slug or "")
+                r[f"{prefix}{axis}_label_vn"] = lbl.get("label_vn", "")
+
+
+@app.get("/api/export/csv")
+def export_csv(limit: int = 5000):
+    """Stream a CSV of every photo + AI prediction + final label."""
+    if not DEFAULT_TENANT_ID:
+        raise HTTPException(500, "tenant not configured")
+    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit)
+    tax = app.state.taxonomy or load_taxonomy()
+    _enrich_with_labels(rows, tax)
+
+    import csv
+    import io
+    buf = io.StringIO()
+    cols = [
+        "original_filename", "uploaded_at", "sha256",
+        "ai_hse_type_slug", "ai_hse_type_label_en", "ai_hse_type_label_vn",
+        "ai_hse_confidence",
+        "ai_location_slug", "ai_location_label_en", "ai_location_label_vn",
+        "ai_location_confidence",
+        "ai_rationale", "ai_model",
+        "reviewed", "review_action", "review_note", "reviewed_at",
+        "final_hse_type_slug", "final_hse_type_label_en", "final_hse_type_label_vn",
+        "final_location_slug", "final_location_label_en", "final_location_label_vn",
+    ]
+    w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
+    w.writeheader()
+    for r in rows:
+        w.writerow(r)
+    csv_text = buf.getvalue()
+
+    from datetime import datetime, timezone
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+    return PlainTextResponse(
+        csv_text,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="violations_{stamp}.csv"',
+        },
+    )
+
+
+@app.get("/api/export/json")
+def export_json(limit: int = 5000):
+    """JSON dump of every photo + AI prediction + final label."""
+    if not DEFAULT_TENANT_ID:
+        raise HTTPException(500, "tenant not configured")
+    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit)
+    tax = app.state.taxonomy or load_taxonomy()
+    _enrich_with_labels(rows, tax)
+
+    from datetime import datetime, timezone
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+    return JSONResponse(
+        {
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "count": len(rows),
+            "photos": rows,
+        },
+        headers={"Content-Disposition": f'attachment; filename="violations_{stamp}.json"'},
+    )
+
+
+@app.get("/api/export/zip")
+def export_zip(limit: int = 5000):
+    """Stream a ZIP with each photo renamed to <hse>__<location>__<seq>.<ext>
+    and a manifest.csv listing the mapping. Killer feature for non-technical
+    users — drag back into Windows folders organized by violation class."""
+    if not DEFAULT_TENANT_ID:
+        raise HTTPException(500, "tenant not configured")
+    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit)
+    if not rows:
+        raise HTTPException(404, "no photos to export")
+
+    tax = app.state.taxonomy or load_taxonomy()
+    _enrich_with_labels(rows, tax)
+
+    import csv
+    import io
+    import tempfile
+    import zipfile
+    r2 = get_r2()
+
+    # SpooledTemporaryFile keeps the ZIP in RAM until it exceeds 50 MiB,
+    # then transparently spills to disk. Lets us serve big batches without
+    # blowing memory or requiring a streaming-zip dependency.
+    spool = tempfile.SpooledTemporaryFile(max_size=50 * 1024 * 1024)
+    seq_per_class: dict[str, int] = {}
+    manifest_buf = io.StringIO()
+    mw = csv.writer(manifest_buf)
+    mw.writerow([
+        "exported_filename", "original_filename",
+        "final_hse", "final_location",
+        "ai_hse", "ai_location", "reviewed",
+    ])
+
+    with zipfile.ZipFile(spool, "w", zipfile.ZIP_DEFLATED, compresslevel=4) as zf:
+        for r in rows:
+            try:
+                obj = r2.get_object(Bucket=R2_BUCKET, Key=r["storage_key"])
+                body = obj["Body"].read()
+            except Exception as e:  # noqa: BLE001
+                log.warning("export_zip: skip %s (R2 fetch failed: %s)", r["sha256"][:10], e)
+                continue
+            ext = (Path(r.get("original_filename") or "").suffix.lower() or ".jpg")
+            hse = _slug_safe(r["final_hse_type_slug"])
+            loc = _slug_safe(r["final_location_slug"])
+            key = f"{hse}__{loc}"
+            seq_per_class[key] = seq_per_class.get(key, 0) + 1
+            new_name = f"{hse}/{hse}__{loc}__{seq_per_class[key]:03d}{ext}"
+            zf.writestr(new_name, body)
+            mw.writerow([
+                new_name,
+                r.get("original_filename") or "",
+                r.get("final_hse_type_label_en") or r["final_hse_type_slug"] or "",
+                r.get("final_location_label_en") or r["final_location_slug"] or "",
+                r.get("ai_hse_type_label_en") or r["ai_hse_type_slug"] or "",
+                r.get("ai_location_label_en") or r["ai_location_slug"] or "",
+                "yes" if r["reviewed"] else "no",
+            ])
+        zf.writestr("manifest.csv", manifest_buf.getvalue())
+
+    spool.seek(0)
+    from datetime import datetime, timezone
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+    # StreamingResponse iterates the spool in chunks so big ZIPs don't
+    # block the event loop loading into memory all at once.
+    def _iter():
+        while True:
+            chunk = spool.read(64 * 1024)
+            if not chunk:
+                spool.close()
+                break
+            yield chunk
+    return StreamingResponse(
+        _iter(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="violations_{stamp}.zip"'},
+    )
+
+
+@app.get("/api/export/summary")
+def export_summary():
+    """Per-batch digest used by the UI's summary card. Cheap aggregate query."""
+    if not DEFAULT_TENANT_ID:
+        raise HTTPException(500, "tenant not configured")
+    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=5000)
+    from collections import Counter
+    hse_counts = Counter(r["final_hse_type_slug"] for r in rows if r.get("final_hse_type_slug"))
+    loc_counts = Counter(r["final_location_slug"] for r in rows if r.get("final_location_slug"))
+    reviewed = sum(1 for r in rows if r["reviewed"])
+    confs = [r["ai_hse_confidence"] for r in rows if r.get("ai_hse_confidence")]
+    return {
+        "total_photos": len(rows),
+        "reviewed": reviewed,
+        "pending": len(rows) - reviewed,
+        "avg_confidence": round(sum(confs) / len(confs), 3) if confs else 0,
+        "top_hse_types": hse_counts.most_common(5),
+        "top_locations": loc_counts.most_common(5),
+    }
 
 
 @app.get("/metrics")

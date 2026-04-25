@@ -23,10 +23,19 @@
         </span>
         <span>Violation <span class="text-emerald-600">AI</span></span>
       </a>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
         <div class="hidden sm:flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 rounded-full px-3 py-1">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span>
           <span>{{ (model or "model").split("/")[-1] }}</span>
+        </div>
+        <!-- Language toggle (EN / VN) -->
+        <div class="flex items-center bg-slate-100 rounded-full p-0.5 text-xs">
+          <button id="lang-en" type="button" data-lang="en"
+                  class="lang-btn px-2.5 py-1 rounded-full font-semibold text-slate-700 transition-colors"
+                  title="English">EN</button>
+          <button id="lang-vn" type="button" data-lang="vn"
+                  class="lang-btn px-2.5 py-1 rounded-full font-semibold text-slate-500 transition-colors"
+                  title="Tiếng Việt">VN</button>
         </div>
         <button id="kbd-help-btn" type="button"
                 class="hidden sm:inline-flex text-xs text-slate-500 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-md px-2 py-1 transition-colors"
@@ -49,28 +58,28 @@
         <svg class="w-3.5 h-3.5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
           <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 4a1 1 0 10-2 0v4a1 1 0 00.3.7l2.5 2.5a1 1 0 001.4-1.4L11 9.6V6z"/>
         </svg>
-        <span>Training set:</span>
+        <span data-i18n="footer_training_set">Training set:</span>
         <span id="stat-training" class="font-semibold text-slate-900 tabular-nums">—</span>
       </div>
       <div class="hidden sm:flex items-center gap-3">
-        <span class="text-slate-400">Session:</span>
+        <span class="text-slate-400" data-i18n="footer_session">Session:</span>
         <span class="flex items-center gap-1">
           <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
           <span id="stat-session-uploaded" class="font-semibold tabular-nums">0</span>
-          <span class="text-slate-500">uploaded</span>
+          <span class="text-slate-500" data-i18n="footer_uploaded">uploaded</span>
         </span>
         <span class="flex items-center gap-1">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
           <span id="stat-session-confirmed" class="font-semibold tabular-nums text-emerald-700">0</span>
-          <span class="text-slate-500">confirmed</span>
+          <span class="text-slate-500" data-i18n="footer_confirmed">confirmed</span>
         </span>
         <span class="flex items-center gap-1">
           <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
           <span id="stat-session-corrected" class="font-semibold tabular-nums text-sky-700">0</span>
-          <span class="text-slate-500">corrected</span>
+          <span class="text-slate-500" data-i18n="footer_corrected">corrected</span>
         </span>
       </div>
-      <div class="text-slate-400 italic hidden md:block">every confirmation trains the AI</div>
+      <div class="text-slate-400 italic hidden md:block" data-i18n="footer_tagline">every confirmation trains the AI</div>
     </div>
   </footer>
 
@@ -86,16 +95,16 @@
   <div id="kbd-help" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="font-semibold">Keyboard shortcuts</h3>
+        <h3 class="font-semibold" data-i18n="kbd_title">Keyboard shortcuts</h3>
         <button id="kbd-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
       </div>
       <ul class="text-sm space-y-2.5 text-slate-700">
-        <li class="flex items-center justify-between"><span>Confirm focused card</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">C</kbd></li>
-        <li class="flex items-center justify-between"><span>Edit focused card</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">E</kbd></li>
-        <li class="flex items-center justify-between"><span>Open photo full-size</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">Space</kbd></li>
-        <li class="flex items-center justify-between"><span>Move focus next/prev</span><span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">↑</kbd> <kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">↓</kbd></span></li>
-        <li class="flex items-center justify-between"><span>Upload (open file picker)</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">U</kbd></li>
-        <li class="flex items-center justify-between"><span>Close dialog</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">Esc</kbd></li>
+        <li class="flex items-center justify-between"><span data-i18n="kbd_confirm">Confirm focused card</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">C</kbd></li>
+        <li class="flex items-center justify-between"><span data-i18n="kbd_edit">Edit focused card</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">E</kbd></li>
+        <li class="flex items-center justify-between"><span data-i18n="kbd_lightbox">Open photo full-size</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">Space</kbd></li>
+        <li class="flex items-center justify-between"><span data-i18n="kbd_move">Move focus next/prev</span><span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">↑</kbd> <kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">↓</kbd></span></li>
+        <li class="flex items-center justify-between"><span data-i18n="kbd_upload">Upload (open file picker)</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">U</kbd></li>
+        <li class="flex items-center justify-between"><span data-i18n="kbd_close">Close dialog</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">Esc</kbd></li>
       </ul>
     </div>
   </div>
