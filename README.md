@@ -192,6 +192,13 @@ fly scale memory 1024   # torch needs >512 MB
 fly deploy
 ```
 
+### 7b. Deploy to Ubuntu Linux (bare server / VPS)
+
+See **[`deploy/UBUNTU.md`](deploy/UBUNTU.md)** — four paste-and-go shell
+blocks (system deps, venv + pip, `.env` heredoc, start webapp + worker)
+plus optional systemd unit installation, log/restart commands, and a
+rotation checklist. Tested on Ubuntu 22.04 and 24.04.
+
 `fly.toml` defines `app` (uvicorn) and `worker` (python -m webapp.worker).
 
 ---
