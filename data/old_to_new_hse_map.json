@@ -1,0 +1,18 @@
+{
+  "old_to_new_hse_type_slug": {
+    "Housekeeping_general": "Housekeeping_general",
+    "Scaffolding_unsafe": "Scaffolding_unsafe",
+    "Edge_protection_missing": "Edge_protection_missing",
+    "Equipment_machinery_unsafe": "Equipment_machinery_unsafe",
+    "Access_walkway_unsafe": "Site_access_unsafe",
+    "Fall_protection_personal": "Fall_protection_personal",
+    "Lifting_unsafe": "Lifting_unsafe",
+    "Electrical_unsafe": "Electrical_unsafe",
+    "Site_conditions_unsafe": "Site_general_unsafe",
+    "Chemicals_hazmat_unsafe": "Chemicals_hazmat_unsafe",
+    "PPE_missing": "PPE_missing",
+    "Fire_hot_work_hazard": "Hot_work_hazard",
+    "Ladder_unsafe": "Ladder_unsafe"
+  },
+  "notes": "Run this on the VPS after deploying the new taxonomy: it updates all photo_embeddings, classifications, and corrections rows so the existing 1108 labels keep working under the new vocab. See scripts/migrate_pgvector_to_new_hse.py."
+}

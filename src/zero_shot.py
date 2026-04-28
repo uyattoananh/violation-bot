@@ -156,45 +156,48 @@ Both labels MUST be chosen from the provided vocabularies below. Return the
 show any violation, pick the most plausible location and the `hse_type` whose
 `label_en` best matches what you see (do not refuse).
 
-==== HSE_TYPE QUICK-REFERENCE ====
-These visual cues map to each class. Use them as a MENU — pick the class
-whose cues best match the photo's DOMINANT subject. Do not force a rare
-class if the photo is genuinely just a messy site.
+==== HOW TO PICK AN HSE_TYPE ====
+The HSE_TYPES vocabulary below contains 33 categories aligned with the
+AECIS canonical safety taxonomy. Each category has an EN/VN label.
 
-  - `Fall_protection_personal`    — worker >2m with no harness/anchor
-  - `PPE_missing`                 — missing hard hat, gloves, hi-vis
-  - `Scaffolding_unsafe`          — scaffold itself is the subject, with
-                                    missing planks/braces/tags/clamps
-  - `Edge_protection_missing`     — unprotected edge, uncovered manhole,
-                                    pit or floor opening without guardrail
-  - `Access_walkway_unsafe`       — narrow/obstructed path a worker crosses
-  - `Equipment_machinery_unsafe`  — exposed moving parts, damaged machinery,
-                                    missing inspection tag, unsecured gas
-                                    cylinder
-  - `Lifting_unsafe`              — crane / hoist / rigging / cable hooks
-                                    visibly unsafe
-  - `Ladder_unsafe`               — damaged ladder as the subject
-  - `Electrical_unsafe`           — exposed wires, unsecured panel, wet
-                                    conditions near electrical
-  - `Fire_hot_work_hazard`        — welding/grinding/open flames with
-                                    missing fire extinguisher or permit
-  - `Materials_storage_signage`   — materials at risk of falling, or
-                                    unmarked storage
-  - `Chemicals_hazmat_unsafe`     — visible chemical drums/jerry cans,
-                                    leaking liquid, oil spills, gas/oxygen
-                                    cylinders without secure storage
-  - `Site_conditions_unsafe`      — poor lighting, weak ground, exposed
-                                    rebar tips, missing roof
-  - `Housekeeping_general`        — scattered waste, disorganized materials,
-                                    eating/resting in work area, general
-                                    mess (common; use whenever the photo's
-                                    primary story is "dirty/disorganized")
+Decide in this order:
 
-If RETRIEVED REFERENCE PHOTOS appear in the taxonomy block, treat them as
-a prior — the label that dominates the neighbour list is usually the right
-answer. Override the neighbour consensus only when the photo shows a
-specific hazard (worker at a ledge, exposed machinery, etc.) that the
-neighbours don't reflect.
+1. WHAT IS THE SUBJECT of the photo?
+   - A specific worker visibly at risk        → Fall_protection_personal /
+                                                 PPE_missing / Ladder_unsafe
+   - A specific PIECE OF EQUIPMENT             → Scaffolding_unsafe /
+     (scaffold, ladder, crane, panel, etc.)     Lifting_unsafe / Electrical_unsafe /
+                                                 Pressure_equipment_unsafe / etc.
+   - A SITE FEATURE (edge, opening, pit)       → Edge_protection_missing /
+                                                 Excavation_unsafe / Floor_opening
+   - A WORK ACTIVITY in progress               → Welding_unsafe / Hot_work_hazard /
+     (welding, hot work, concrete pump)         Concrete_work_unsafe
+   - GENERAL MESS / DEBRIS                     → Housekeeping_general
+   - SOMETHING ELSE that is unsafe but does
+     not fit any specific category             → Site_general_unsafe (catch-all)
+
+2. ESCAPE-FROM-CATCH-ALL THRESHOLD
+   Housekeeping_general and Site_general_unsafe are the residual catch-alls.
+   To pick anything else, you must be able to point at a SPECIFIC visible
+   feature (a wire, a scaffold, a hook, a worker without a harness, a
+   chemical drum, a pile head). If the photo is just messy without a
+   specific hazard, pick Housekeeping_general.
+
+3. SPECIFICITY TIE-BREAK
+   When two classes both apply, pick the MORE SPECIFIC one. Examples:
+   - "Worker without harness on scaffold" → Fall_protection_personal
+     (NOT Scaffolding_unsafe — the worker is the subject)
+   - "Damaged scaffold standing alone"     → Scaffolding_unsafe
+     (NOT Site_general_unsafe — scaffold is the specific subject)
+   - "Welder welding without sparks contained" → Welding_unsafe
+     (NOT Hot_work_hazard — welding is more specific)
+   - "Crane hook with no safety latch"     → Lifting_unsafe
+     (the hook is the specific feature)
+
+4. RAG NEIGHBOURS as prior
+   If RETRIEVED REFERENCE PHOTOS appear below, treat the dominant label
+   among them as a strong prior. Override only when the photo shows a
+   specific hazard the neighbours don't reflect.
 
 ==== OUTPUT ====
 ONE JSON object, no prose before or after, no markdown fences. Include your

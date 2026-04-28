@@ -1,31 +1,232 @@
 {
-  "version": 1,
-  "notes": "Phase-1 consolidation of the 71 raw AECIS DTag hse_types into 13 visually-distinct clusters. Edit this file and re-run scripts/consolidate_taxonomy.py to change the groupings.",
+  "version": 2,
+  "notes": "Consolidation v2: maps the 294 photographable AECIS-canonical hse_types AND the legacy 13-class slugs into 33 parent classes. Source: data/aecis_consolidation.json. Edit that file (or the PARENTS rules in scripts/consolidate_aecis.py) and re-run scripts/apply_aecis_consolidation.py to regenerate.",
   "hse_type_clusters": [
     {
-      "slug": "Housekeeping_general",
-      "label_en": "Housekeeping / site cleanliness / disorganized materials",
-      "label_vn": "Vệ sinh chung / sắp xếp vật tư",
+      "slug": "Lifting_unsafe",
+      "label_en": "Unsafe lifting / rigging / crane operation",
+      "label_vn": "Nâng hạ / cẩu / cáp không an toàn",
       "absorbs": [
-        "Garbage_outside_designated_areas",
-        "No_implement_5S_standards_for_area",
-        "Cleaning_Maintenance_inadequate",
-        "Worker_eat_and_drink_at_the_workplace_causing_unhygienic_conditions_Cng_nhn_n_un",
-        "Workers_resting_at_the_workplace_resting_is_only_allowed_in_designated_areas",
-        "Concrete_or_waste_materials_are_not_stored_in_designated_areas",
-        "Do_not_pump_water_regularly_leaving_stagnant_water_causes_unsanitary_conditions",
-        "Materials_are_not_arranged_neatly",
-        "Smoking_or_cigarette_butts_at_the_workplace",
-        "Do_not_isolate_the_area_to_prevent_dust_from_spreading_outside",
-        "No_signs_to_define_the_material_storage_area_such_as_warning_tape_signal_board",
-        "Not_or_lacking_Signal_board_warning_tape",
+        "Lifting_unsafe",
+        "Cable_shackle_not_inspected_or_damaged",
+        "No_guide_ropes",
+        "No_load_test_before_lifting_should_apply_3_3_3",
+        "Inadequate_installation_area_warning_signs",
+        "Materials_falling_from_height",
+        "Materials_left_in_disarray",
+        "No_load_display_or_damaged",
+        "Crane_operating_in_rain_Wind_greater_than_level_5",
+        "No_installation_area_isolation",
+        "Cranes_is_at_risk_of_collision",
+        "No_signalman_for_crane",
+        "Unsafe_crane_standing_position",
+        "Crane_legs_not_fully_extended_or_not_firmly_supported",
+        "No_access_unsafe_access",
+        "The_cable_end_screws_are_not_tightened_correctly",
+        "Lift_equipment_people_at_risk_of_collision_with_the_object_lifting",
+        "No_isolated_installation_area",
+        "Overloaded_operating_capacity",
+        "Quantity_of_people_on_platform_or_cabin_exceeds_the_permitted_limit",
+        "Using_lifting_equipment_for_the_wrong_purpose_poses_a_safety_risk",
+        "The_crane_or_load_lifting_is_risk_of_collision_with_people_or_objects",
+        "Cables_and_shackles_are_not_inspected_or_damaged",
+        "There_is_someone_below_the_object_lifting_in_the_hazardous_drop_area",
+        "The_lifting_work_is_unsafe_Lifting_two_objects_at_the_same_time_or_using_two_ind",
+        "No_guide_wire",
+        "Unsafe_position_of_crane_standing",
+        "The_crane_is_operating_in_the_rain_Wind_is_than_level_5",
+        "No_signalman",
         "No_lack_of_installation_area_signs",
+        "The_crane_legs_are_not_fully_extended_or_are_not_certain",
+        "Unsafety_cable_hook",
+        "Cable_hooks_used_to_lift_objects_are_unsafe",
+        "Cable_hook_without_tongue",
+        "Cable_hook_without_safety_latch_or_not_good",
+        "The_cable_end_is_not_properly_installed",
+        "No_signalman_for_excavators",
+        "The_support_system_for_pulling_materials_winch_to_lift_materials_and_equipment_i",
+        "The_motor_and_equipment_used_for_lifting_and_lowering_goods_are_not_safe_or_have",
+        "No_isolation_of_dangerous_area",
+        "Counterweight_load_is_unsafe",
+        "No_limit_switch_or_damaged",
+        "No_roof",
+        "The_cable_is_not_inspected_or_unsafe",
+        "CO_CQ_record_inspection_or_maintenance_records_not_maintained",
+        "The_loading_unloading_doors_of_the_hoist_or_the_lifting_area_unsafe_have_risks_o",
+        "The_material_and_equipment_trans_lifting_area_must_not_be_isolated_without_warni",
+        "Let_the_other_holding_on_vehicles",
+        "Not_transportation_on_time"
+      ]
+    },
+    {
+      "slug": "Electrical_unsafe",
+      "label_en": "Electrical hazard (wiring, panel, equipment)",
+      "label_vn": "Nguy cơ điện (dây / tủ / thiết bị)",
+      "absorbs": [
+        "Electrical_unsafe",
+        "Unsafe_electrical_system",
+        "Worker_working_in_the_area_where_electric_submersible_pumps_are_operating",
+        "The_equipment_has_no_or_unclear_specifications_documentation",
+        "There_is_no_tray_to_prevent_sparks_from_the_cutting_machine",
+        "Using_damaged_hand_made_or_unsafe_machinery_and_equipment",
+        "Use_plug_for_2_or_more_wires",
+        "Temporary_electrical_panel_has_not_been_checked_approved_for_use",
+        "Using_power_without_RCD_ELCB_RCCB_RCBO_or_damaged",
+        "Using_unsuitable_size_of_wire_with_capacity_of_CB_or_RCD",
+        "Outdoor_electrical_panel_are_not_carefully_shielded_risk_of_water_infiltration",
+        "Electrical_equipment_use_electricity_in_wet_place_near_water",
+        "Electric_wires_are_not_hung_high",
+        "Unsafe_wiring_or_insulation_at_connection_points",
+        "No_warning_signs_handrail_fences_to_separate_with_submersible_pumps",
+        "Electric_machines_are_not_safe_No_grounding_no_cover_for_cutting_stone_or_no_han",
+        "Electric_machines_without_safety_passed",
+        "No_RCD_ELCB_RCCB_RCBO_ELR",
+        "No_signs_for_underground_cable",
+        "No_grounding_connection_or_yes_but_not_good",
+        "MSB_DBs_panel_don_t_have_cover_internal_lock_or_emergency_button",
+        "Lack_of_guarding_on_moving_parts",
+        "Cutting_wheel_installed_incorrectly_broken_unsafe",
+        "Damaged",
+        "There_is_no_access_to_the_electrical_panel_or_the_access_is_obstructed",
+        "The_CB_and_switches_are_not_securely_installed_loose",
+        "There_is_no_emergency_stop_button",
+        "Welding_machine_without_grounding_or_damaged",
+        "Welding_wire_is_damaged",
+        "Not_grounding_for_welding_machine",
+        "Damaged_welding_tong_ground_clamp_electrical_wire",
+        "No_information_of_the_PIC_on_the_electrical_panel",
+        "Dy_in_khng_c_treo_cao"
+      ]
+    },
+    {
+      "slug": "PPE_missing",
+      "label_en": "Missing or inadequate personal protective equipment",
+      "label_vn": "Thiếu hoặc không đầy đủ trang bị bảo hộ cá nhân",
+      "absorbs": [
+        "PPE_missing",
+        "Inadequate_PPEs",
+        "Working_at_height_without_safety_harness",
+        "Wearing_safety_harnessbut_not_hooking",
+        "Driver_without_insufficient_PPEs",
+        "Wearing_safety_harness_but_no_hooking",
+        "Working_at_heights_without_safety_harness",
+        "PPE_for_guests_not_available_inadequate",
+        "Wearing_safety_harness_but_not_hooking",
+        "No_Safety_helmet_or_no_strap",
+        "Using_PPEs_on_malfunction",
+        "Using_damaged",
+        "No_wearing_safety_vest",
+        "PPEs_are_not_use_as_required",
+        "No_Apron_for_welding_painting",
+        "No_Safety_Glasses_full_face",
+        "No_Welding_Mask",
+        "No_Hearing_Protection",
+        "No_Welding_Gloves",
+        "No_Safety_Harness",
+        "No_Safety_shoes_Boots",
+        "Working_with_metal_without_gloves",
+        "There_is_no_safety_harness_hook_position_from_2m_high",
+        "Operator_not_degree_Group_3_safety_card"
+      ]
+    },
+    {
+      "slug": "Scaffolding_unsafe",
+      "label_en": "Scaffolding unsafe or missing components",
+      "label_vn": "Giàn giáo không an toàn hoặc thiếu chi tiết",
+      "absorbs": [
+        "Scaffolding_unsafe",
+        "I_beam_anchor_cable_not_good",
+        "Using_scaffolding_that_has_not_been_checked_approved_for_use_or_don_t_have_tag",
+        "Standing_is_in_tilt_position",
+        "Scaffolding_collapsed",
+        "I_beam_lack_of_bolts_not_tightly_tightened",
+        "I_beam_not_according_to_drawing",
+        "Scaffolding_missing_details_cross_clamp_toeboard_or_unsafe",
+        "Scaffolding_Working_platform_without_handrails_or_unsafe",
+        "Scaffolding_Working_platform_not_checking",
+        "Scaffolding_Working_platform_at_risk_of_collapse",
+        "Scaffolding_installed_incorrectly_according_to_scaffolding_mockup",
+        "Scaffolding_wheels_smaller_than_150mm_or_damaged",
+        "Unsafe_Scaffolding_Lack_of_Planks_Crossbars_Supports_Ladders",
+        "Unsafe_standing_position_weak_ground_no_padding_uneven_surface",
+        "The_scaffolding_using_to_support_objects_is_not_safe_and_needs_additional_suppor",
+        "Components_such_as_cross_braces_supports_clamps_and_handrails_are_not_securely_c",
+        "Scaffolding_systems_are_not_securely_connected_or_adequately_braced",
+        "Scaffolding_used_for_access_going_up_and_down_is_not_covered_with_safety_net_to_",
+        "The_anchoring_reinforcement_positions_of_the_scaffolding_system_are_unsafe",
+        "Scaffolding_is_not_installed_according_to_the_required_ratio_of_1_4_indoor_or_1_",
+        "The_scaffold_supports_are_not_installed_fixed_missing_A_clamps_or_not_properly_f",
+        "no_type__Scaffolding_and_Platform",
+        "Components_such_as_cross_braces_supports_clamps_and_handrails...are_not_securely"
+      ]
+    },
+    {
+      "slug": "Excavation_unsafe",
+      "label_en": "Excavation / pit / deep hole hazard",
+      "label_vn": "Đào đất / hố sâu nguy hiểm",
+      "absorbs": [
+        "No_place_for_materials_and_equipment",
+        "No_landslide_prevention_excavation_slope",
+        "The_area_around_the_edge_of_the_pit_still_has_materials_equipment_or_concrete_un",
+        "No_monitoring_confirmation_of_Oxy_gas_in_the_pit_area",
+        "No_way_up_down_the_pit_with_handrails_on_both_sides",
+        "Excavators_stand_too_close_to_the_edge_of_the_pit_within_1m",
+        "No_cover_or_warning_below_when_above_machines_operating_near_the_edge_of_the_pit",
+        "No_ventilation_exhaust_fans_when_need",
+        "Excavation_Area_Hazardous_Objects_Detected_Electrical_Systems_Fire_Protection_Eq",
+        "The_excavator_key_must_not_be_removed_and_kept_by_the_supervisor_the_driver_must",
+        "Not_covering_the_manhole",
+        "The_excavation_area_has_not_been_Scanning_for_underground_structures",
+        "Do_not_pump_water_regularly_leaving_stagnant_water_causes_unsanitary_conditions",
+        "Working_place_of_workers_has_a_lot_of_water",
+        "No_chemical_spill_containment_pit"
+      ]
+    },
+    {
+      "slug": "Site_general_unsafe",
+      "label_en": "Other unsafe site condition",
+      "label_vn": "Điều kiện công trường không an toàn (khác)",
+      "absorbs": [
+        "Site_conditions_unsafe",
+        "Working_below_without_protection",
+        "Not_tied_tightly_no_tool_equipment_bag",
+        "Non_functioning_unsafe_platform",
+        "Excess_equipment_left_on_the_floor_close_to_the_edge",
+        "The_purlins_planks_and_trays_are_not_securely_fastened",
+        "Unsafe_working_position_Risk_of_falling_collision_slipping",
+        "No_have_warning_below_at_working_at_height_position",
         "Materials_are_risk_of_falling_from_height",
-        "Materials_falling",
-        "The_ends_of_the_iron_rods_are_not_covered",
-        "Rc_khng_ng_ni_quy_nh",
-        "Khng_thc_hin_5S_khu_vc",
-        "Khng_dn_v_sinh_sch_s"
+        "Unreinforced",
+        "Materials_are_messy_not_arranged_properly",
+        "Risk_of_safety_hazards_such_as_sharp_edges_fire_and_explosion_slipping_and_falli",
+        "The_material_and_equipment_trans_lifting_area_must_not_be_isolated_without_warni",
+        "Workers_are_working_overtime_without_any_supervisor_to_oversee_the_work",
+        "Lack_or_missing_of_lighting_for_walkway_or_working_areas",
+        "Unsafe_standing_position_weak_ground_no_padding_uneven_surface",
+        "No_roof",
+        "The_pressure_testing_area_has_no_warnings_signal_board_handrails..._or_if_there_"
+      ]
+    },
+    {
+      "slug": "Edge_protection_missing",
+      "label_en": "Missing handrails, edge or opening protection",
+      "label_vn": "Thiếu lan can bảo vệ mép, lỗ mở",
+      "absorbs": [
+        "Edge_protection_missing",
+        "No_signs_hard_handrail_warning_around_the_pit",
+        "Standing_on_handrails_to_work_or_working_in_position_unsafety",
+        "No_safety_handrail",
+        "Unsafe_walkway_Materials_falling_from_above_obstructive_objects_risk_of_falling_",
+        "Standing_on_handrails_to_work_or_working_in_unsafety_position",
+        "No_guardrail_handrail_edge_warning",
+        "No_platform_or_platform_of_elevator_shaft_is_not_good_or_unsafe",
+        "No_cover_for_Elevator_door",
+        "Openings_not_properly_covered_risk_of_fall_hazard",
+        "The_floor_opening_is_not_covered_with_a_safety_net_or_platform",
+        "Lack_of_hard_handrails_at_edges_deeper_than_1_5_meters_or_or_request",
+        "Lack_of_hard_handrails_at_edges_deeper_than_1.5_meters_or_or_request",
+        "Not_covering_the_manhole",
+        "Khng_c_lan_can_an_ton"
       ]
     },
     {
@@ -33,50 +234,53 @@
       "label_en": "Hazardous chemicals / waste / spills / improper storage",
       "label_vn": "Hóa chất / chất thải nguy hại / rò rỉ / lưu trữ không an toàn",
       "absorbs": [
-        "Hazardous_waste_is_not_collected_regularly",
-        "Hazardous_chemicals_or_waste_that_are_not_properly_collected_or_treated",
-        "Let_the_paint_gasoline_chemicals..._spill_and_fall_into_the_environment",
+        "Chemicals_hazmat_unsafe",
+        "Risk_of_fire_due_to_direct_heat",
+        "Flammable_materials_placed_in_chemical_areas",
         "Chemicals_stored_out_of_regulation",
-        "Spilled_chemicals"
+        "Spilled_chemicals",
+        "Not_covered_from_direct_sunlight",
+        "No_spill_trays_edge",
+        "Hazardous_chemicals_or_waste_that_are_not_properly_collected_or_treated",
+        "Fuel_and_chemicals_are_not_stored_in_designated_areas",
+        "Hazardous_waste_is_not_placed_in_the_right_place",
+        "Hazardous_waste_is_not_collected_regularly",
+        "Let_the_paint_gasoline_chemicals_spill_and_fall_into_the_environment",
+        "Let_the_paint_gasoline_chemicals..._spill_and_fall_into_the_environment"
       ]
     },
     {
-      "slug": "Edge_protection_missing",
-      "label_en": "Missing handrails / edge or opening protection",
-      "label_vn": "Thiếu lan can bảo vệ mép, lỗ mở",
+      "slug": "Pressure_equipment_unsafe",
+      "label_en": "Pressure vessel / gas cylinder / pneumatic hazard",
+      "label_vn": "Thiết bị áp lực / bình khí",
       "absorbs": [
-        "Lack_of_hard_handrails_at_edges_deeper_than_1.5_meters_or_or_request",
-        "No_signs_hard_handrail_warning_around_the_pit",
-        "No_safety_handrail",
-        "Not_covering_the_manhole",
-        "Openings_not_properly_covered_risk_of_fall_hazard",
-        "Standing_on_handrails_to_work_or_working_in_position_unsafety",
-        "Khng_c_lan_can_an_ton"
-      ]
-    },
-    {
-      "slug": "Scaffolding_unsafe",
-      "label_en": "Scaffolding unsafe or missing components",
-      "label_vn": "Giàn giáo thiếu/không an toàn",
-      "absorbs": [
-        "Scaffolding_Working_platform_without_handrails_or_unsafe",
-        "Unsafe_Scaffolding_Lack_of_Planks_Crossbars_Supports_Ladders",
-        "no_type__Scaffolding_and_Platform",
-        "Using_scaffolding_that_has_not_been_checked_approved_for_use_or_don_t_have_tag",
-        "Components_such_as_cross_braces_supports_clamps_and_handrails...are_not_securely",
-        "The_scaffolding_using_to_support_objects_is_not_safe_and_needs_additional_suppor",
-        "Scaffolding_missing_details_cross_clamp_toeboard_or_unsafe",
-        "Scaffolding_wheels_smaller_than_150mm_or_damaged",
-        "Scaffolding_Working_platform_at_risk_of_collapse",
-        "Scaffolding_Working_platform_not_checking",
-        "The_anchoring_reinforcement_positions_of_the_scaffolding_system_are_unsafe"
+        "Missing_inspection_stamp_or_certificates",
+        "Connection_details_goat_neck_tightening_condition_of_gas_pipelines",
+        "No_non_return_valve_or_flashback_arrestor",
+        "Unsafe_storage",
+        "No_safety_valve_or_damaged",
+        "No_gas_cylinder_cap",
+        "Near_heat_source",
+        "Risk_of_collision",
+        "The_pressure_testing_area_has_no_warnings_signal_board_handrails_or_if_there_are",
+        "No_warning_isolation_for_work_areas_in_shafts_pipelines_pressure_testing_X_rays_"
       ]
     },
     {
       "slug": "Fall_protection_personal",
       "label_en": "Working at heights without personal fall protection",
-      "label_vn": "Làm việc trên cao không có dây an toàn",
+      "label_vn": "Làm việc trên cao không có dây an toàn cá nhân",
       "absorbs": [
+        "Fall_protection_personal",
+        "No_lifeline",
+        "No_lifeline_or_safety_lock",
+        "Need_to_have_a_separate_lifeline_Lifeline_must_have_a_certification",
+        "No_safety_net_or_damaged_or_unsafe",
+        "No_3_square_safety_net_to_protect_falling_objects",
+        "Lifeline_damaged_or_unsafe",
+        "Mobile_working_frame_MWF_are_unsafe_such_as_not_having_foot_restraints_falling_r",
+        "The_lifeline_has_not_been_inspected_or_load_tested",
+        "The_safety_net_has_not_been_inspected_or_load_tested",
         "Working_at_heights_without_safety_harness",
         "Wearing_safety_harness_but_no_hooking",
         "Working_below_without_protection",
@@ -85,10 +289,187 @@
       ]
     },
     {
-      "slug": "Equipment_machinery_unsafe",
-      "label_en": "Unsafe or undocumented machinery/equipment",
-      "label_vn": "Máy móc/thiết bị không an toàn hoặc thiếu chứng từ",
+      "slug": "Truck_vehicle_unsafe",
+      "label_en": "Unsafe truck or vehicle operation on site",
+      "label_vn": "Xe tải / phương tiện không an toàn",
       "absorbs": [
+        "Risk_of_falling_driver_people_working_on_the_system",
+        "Materials_falling",
+        "Exceeding_the_speed_limit",
+        "Not_following_the_designated_route",
+        "Not_allowed_to_enter_the_site",
+        "Materials_at_risk_of_falling",
+        "No_safe_passage_for_vehicles",
+        "Vehicles_are_moving_in_violation_of_designated_pathways",
+        "The_concrete_pump_truck_legs_are_not_fully_extended_or_aren_t_stable"
+      ]
+    },
+    {
+      "slug": "Welding_unsafe",
+      "label_en": "Welding / cutting hazard",
+      "label_vn": "Hàn / cắt không an toàn",
+      "absorbs": [
+        "Risk_of_fire_due_to_proximity_of_flammable_materials",
+        "No_non_return_valve_Flashback_Arrestor",
+        "No_fire_extinguisher",
+        "No_tray_for_welding_work",
+        "Gas_cylinder_compressed_air_not_fixed_on_shelf_trolley",
+        "Electrode_holder_are_damaged_and_require_replace",
+        "The_pressure_gauge_is_missing_or_damaged",
+        "The_welding_machine_is_placed_in_a_damp_area_which_is_unsafe_need_to_be_placed_a"
+      ]
+    },
+    {
+      "slug": "Hot_work_hazard",
+      "label_en": "Hot work spark or fire hazard",
+      "label_vn": "Công việc sinh nhiệt / nguy cơ tia lửa",
+      "absorbs": [
+        "Fire_hot_work_hazard",
+        "Work_area_not_checked_1_hour_and_3_hours_after_finishing_work",
+        "Not_isolating_the_area_from_other_flammable_explosive_substances",
+        "Fire_extinguishers_and_water_are_missing_or_insufficient",
+        "Not_prevent_sparks",
+        "Prevent_sparks_with_non_fire_resistant_material",
+        "Lack_of_fire_resistant_tarp_in_designated_areas_where_required",
+        "No_tray_for_machine_have_sparks",
+        "No_spark_protection",
+        "No_fire_extinguisher"
+      ]
+    },
+    {
+      "slug": "Fire_prevention_unsafe",
+      "label_en": "Fire prevention deficiency",
+      "label_vn": "Thiếu sót phòng cháy chữa cháy",
+      "absorbs": [
+        "No_fire_extinguishers_regulation_instructions_of_fire_and_fighting_etc",
+        "No_assembly_point_or_signs_are_blurred_or_damaged",
+        "Missing_damaged_fire_extinguisher",
+        "No_emergency_exit",
+        "No_exit_signs",
+        "There_is_no_access_route_to_the_location_of_firefighting_equipment_Fire_extingui",
+        "Emergency_exit_is_unavailable",
+        "Fire_extinguishers_are_missing_damaged"
+      ]
+    },
+    {
+      "slug": "Housekeeping_general",
+      "label_en": "General housekeeping / 5S / cleanliness",
+      "label_vn": "Vệ sinh chung / 5S",
+      "absorbs": [
+        "Housekeeping_general",
+        "Cleaning_Maintenance_inadequate",
+        "No_implement_5S_standards_for_area",
+        "No_vacuum_cleaner_available_where_required",
+        "Not_treating_stagnant_water_causes_unsanitary_conditions_and_harmful_insects",
+        "Do_not_isolate_the_area_to_prevent_dust_from_spreading_outside",
+        "Do_not_isolate_the_water_source_to_let_it_flow_outside_the_permitted_area",
+        "Concrete_or_waste_materials_are_not_stored_in_designated_areas",
+        "The_ends_of_the_iron_rods_are_not_covered",
+        "Garbage_outside_designated_areas",
+        "Worker_eat_and_drink_at_the_workplace_causing_unhygienic_conditions_Cng_nhn_n_un",
+        "Workers_resting_at_the_workplace_resting_is_only_allowed_in_designated_areas",
+        "Do_not_pump_water_regularly_leaving_stagnant_water_causes_unsanitary_conditions",
+        "Materials_are_not_arranged_neatly",
+        "Smoking_or_cigarette_butts_at_the_workplace",
+        "No_signs_to_define_the_material_storage_area_such_as_warning_tape_signal_board",
+        "Not_or_lacking_Signal_board_warning_tape",
+        "No_lack_of_installation_area_signs",
+        "Materials_are_risk_of_falling_from_height",
+        "Materials_falling",
+        "Rc_khng_ng_ni_quy_nh",
+        "Khng_thc_hin_5S_khu_vc",
+        "Khng_dn_v_sinh_sch_s"
+      ]
+    },
+    {
+      "slug": "Ladder_unsafe",
+      "label_en": "Ladder damaged, unsafe or used incorrectly",
+      "label_vn": "Thang hỏng / dùng không an toàn",
+      "absorbs": [
+        "Ladder_unsafe",
+        "Placing_a_ladder_a_chair_etc_on_the_equipment_s_working_platform_is_unsafe",
+        "Ladder_have_not_been_checked_and_approved_for_use",
+        "Ladder_is_damaged_unsafe_such_as_cracked_bent_warped_etc",
+        "Ladder_is_placed_on_uneven_floors_at_risk_of_falling",
+        "Ladder_feet_are_not_protected_against_slipping",
+        "Ladder_is_placed_against_unstable_unstable_surfaces"
+      ]
+    },
+    {
+      "slug": "Site_access_unsafe",
+      "label_en": "Site access / gate / walkway hazard",
+      "label_vn": "Cổng / lối đi không an toàn",
+      "absorbs": [
+        "Access_walkway_unsafe",
+        "Other_items_not_safe",
+        "Entrance_to_site_not_safe",
+        "Fence_security_gate_damaged_unsafe",
+        "Car_wash_not_cleaned",
+        "No_safe_walkway_is_provided",
+        "No_safety_ways_or_unsafe_movement_there_are_obstacles_too_narrow",
+        "Unsafe_walkway_Materials_falling_from_above_obstructive_objects_risk_of_falling_",
+        "No_access_unsafe_access"
+      ]
+    },
+    {
+      "slug": "Concrete_work_unsafe",
+      "label_en": "Concrete pump / pour hazard",
+      "label_vn": "Đổ bê tông / bơm bê tông không an toàn",
+      "absorbs": [
+        "The_concrete_pipeline_is_not_fixed",
+        "The_concrete_pipeline_is_risk_of_collapsing",
+        "No_working_platform_or_have_but_it_is_not_safe",
+        "Unsafe_concrete_pump_position",
+        "The_pump_boom_is_at_risk_of_collision"
+      ]
+    },
+    {
+      "slug": "Mass_piling_unsafe",
+      "label_en": "Pile pressing / unprotected pile heads",
+      "label_vn": "Ép cọc / đầu cọc không che chắn",
+      "absorbs": [
+        "No_marking_of_pile_head_locations",
+        "Someone_is_still_in_the_danger_are_when_the_machine_is_pressing_piles_can_break_",
+        "Pile_pressing_system_robot_hydraulic_load_pressing_anchor_pressing_no_missing_in",
+        "Unprotected_pile_heads",
+        "Uninspected_machinery"
+      ]
+    },
+    {
+      "slug": "Workshop_area_unsafe",
+      "label_en": "Workshop / fabrication area hazard",
+      "label_vn": "Khu vực gia công không an toàn",
+      "absorbs": [
+        "No_safety_way",
+        "Painting_area_is_not_safe_Not_properly_covered_lack_of_exhaust_fan_etc",
+        "No",
+        "No_implement_5S_standards_for_area_or_no_rack_to_store_materials",
+        "Not_using_a_tarp_or_protective_covering_for_the_painting_area"
+      ]
+    },
+    {
+      "slug": "Materials_storage_unsafe",
+      "label_en": "Material storage hazard (stacking, falling, blocking access)",
+      "label_vn": "Tập kết vật tư không an toàn",
+      "absorbs": [
+        "Too_many_materials_are_stored_at_height_have_a_risk_of_falling",
+        "Materials_are_not_arranged_neatly",
+        "Materials_at_risk_of_collapse_rolling_sliding",
+        "No_signs_to_define_the_material_storage_area_such_as_warning_tape_signal_board",
+        "Materials_temporarily_stored_unsafely_obstructing_pathways_or_posing_a_risk_of_c"
+      ]
+    },
+    {
+      "slug": "Equipment_machinery_unsafe",
+      "label_en": "Machinery / equipment unsafe or damaged",
+      "label_vn": "Máy móc / thiết bị không an toàn",
+      "absorbs": [
+        "Equipment_machinery_unsafe",
+        "No_technical_safety_and_environmental_protection_inspection",
+        "No_watchman",
+        "No_warning_for_work_area_Barrier_warning_tape_signal_board",
+        "Using_Mechanical_equipment_on_malfunction",
+        "Machinery_and_equipment_leaking_oil",
         "Lack_of_guarding_on_moving_parts",
         "Using_damaged_hand-made_or_unsafe_machinery_and_equipment",
         "Missing_inspection_stamp_or_certificates",
@@ -98,77 +479,109 @@
       ]
     },
     {
-      "slug": "Electrical_unsafe",
-      "label_en": "Electrical hazards / unsafe panel",
-      "label_vn": "Nguy cơ điện / tủ điện không an toàn",
+      "slug": "Confined_space_unsafe",
+      "label_en": "Confined space hazard",
+      "label_vn": "Không gian hạn chế",
       "absorbs": [
-        "Electric_wires_are_not_hung_high",
-        "There_is_no_access_to_the_electrical_panel_or_the_access_is_obstructed",
-        "MSB_DBs_panel_don_t_have_cover_internal_lock_or_emergency_button",
-        "No_information_of_the_PIC_on_the_electrical_panel",
-        "Dy_in_khng_c_treo_cao"
+        "Unsafe_access_and_exit",
+        "Lighting_not_good",
+        "No_warning_and_isolation_of_Confined_spacearea_to_prevent_unauthorized_people_fr",
+        "Ventilation_exhaust_fan_not_good"
       ]
     },
     {
-      "slug": "Lifting_unsafe",
-      "label_en": "Unsafe lifting operations / rigging",
-      "label_vn": "Thao tác nâng hạ không an toàn",
+      "slug": "Formwork_unsafe",
+      "label_en": "Formwork install or strip hazard",
+      "label_vn": "Cốp pha / tháo cốp pha không an toàn",
       "absorbs": [
-        "The_crane_or_load_lifting_is_risk_of_collision_with_people_or_objects",
-        "The_material_and_equipment_trans_lifting_area_must_not_be_isolated_without_warni",
-        "Cable_hooks_used_to_lift_objects_are_unsafe",
-        "Cable_hook_without_safety_latch_or_not_good",
-        "Cable_hook_without_tongue",
-        "Let_the_other_holding_on_vehicles",
-        "Not_transportation_on_time"
+        "Sharp_edges_or_end_of_steel_rebar_are_not_covered_or_protected",
+        "Work_area_not_isolated_no_warning",
+        "Not_fixed",
+        "The_formwork_dismantling_area_is_not_safe_no_cover_warning_no_measures_to_preven"
       ]
     },
     {
-      "slug": "Ladder_unsafe",
-      "label_en": "Ladder damaged or unsafe",
-      "label_vn": "Thang không an toàn",
+      "slug": "First_aid_kit_unsafe",
+      "label_en": "First-aid station deficiency",
+      "label_vn": "Khu vực sơ cấp cứu thiếu sót",
       "absorbs": [
-        "Ladder_is_damaged_unsafe_such_as_cracked_bent_warped_etc"
+        "First_aid_kit_incorrect",
+        "Improper_storage_of_medicines_in_the_first_aid_cabinet_bag",
+        "The_first_aid_cabinet_bag_is_not_placed_in_the_correct_location",
+        "First_aid_cabinet_bag_is_not_kept_clean"
       ]
     },
     {
-      "slug": "PPE_missing",
-      "label_en": "Missing or inadequate personal protective equipment",
-      "label_vn": "Thiếu trang bị bảo hộ cá nhân",
+      "slug": "Warning_signs_missing",
+      "label_en": "Site warning signs / barricades missing or damaged",
+      "label_vn": "Biển báo / cảnh báo / hàng rào thiếu hoặc hỏng",
       "absorbs": [
-        "Working_with_metal_without_gloves",
-        "Operator_not_degree_Group_3_safety_card"
+        "Signal_board_warning_tape_damaged",
+        "Signal_board_incorrect_with_work",
+        "Not_or_lacking_Signal_board_warning_tape",
+        "No_supports_for_hanging_warning_tape_or_not_good"
       ]
     },
     {
-      "slug": "Fire_hot_work_hazard",
-      "label_en": "Fire or hot-work hazard",
-      "label_vn": "Nguy cơ cháy / công việc sinh nhiệt",
+      "slug": "Garbage_waste_unsafe",
+      "label_en": "Garbage / waste handling deficiency",
+      "label_vn": "Thu gom / xử lý rác không đúng",
       "absorbs": [
-        "No_fire_extinguisher",
-        "Not_prevent_sparks"
+        "Garbage_outside_designated_areas",
+        "Unsorted",
+        "Not_transportation_on_time",
+        "Not_stored_neatly"
       ]
     },
     {
-      "slug": "Access_walkway_unsafe",
-      "label_en": "Unsafe access or obstructed walkway",
-      "label_vn": "Lối đi / lối tiếp cận không an toàn",
+      "slug": "Warehouse_unsafe",
+      "label_en": "Warehouse storage hazard",
+      "label_vn": "Khu vực kho không an toàn",
       "absorbs": [
-        "Unsafe_walkway_Materials_falling_from_above_obstructive_objects_risk_of_falling_",
-        "No_access_unsafe_access",
-        "No_safety_ways_or_unsafe_movement_there_are_obstacles_too_narrow",
-        "No_safe_walkway_is_provided"
+        "Not_clean",
+        "Non_compliance_with_5S_standards"
       ]
     },
     {
-      "slug": "Site_conditions_unsafe",
-      "label_en": "Unsafe physical site conditions",
-      "label_vn": "Điều kiện công trường không an toàn",
+      "slug": "Smoking_area_unsafe",
+      "label_en": "Designated smoking area issue",
+      "label_vn": "Khu vực hút thuốc không đảm bảo",
       "absorbs": [
-        "Lack_or_missing_of_lighting_for_walkway_or_working_areas",
-        "Unsafe_standing_position_weak_ground_no_padding_uneven_surface",
-        "No_roof",
-        "The_pressure_testing_area_has_no_warnings_signal_board_handrails..._or_if_there_"
+        "Incorrect_location",
+        "Smoking_or_cigarette_butts_at_the_workplace"
+      ]
+    },
+    {
+      "slug": "Common_area_unsafe",
+      "label_en": "Common eating / rest area unhygienic",
+      "label_vn": "Khu vực ăn uống / nghỉ ngơi không vệ sinh",
+      "absorbs": [
+        "Area_with_many_insects",
+        "Food_water_bottles_are_not_placed_in_the_right_place"
+      ]
+    },
+    {
+      "slug": "Parking_area_unsafe",
+      "label_en": "Parking area deficiency",
+      "label_vn": "Khu vực đậu xe không đảm bảo",
+      "absorbs": [
+        "No_neatly_arranged"
+      ]
+    },
+    {
+      "slug": "Drinking_water_unsafe",
+      "label_en": "Drinking water area unhygienic",
+      "label_vn": "Khu vực nước uống không vệ sinh",
+      "absorbs": [
+        "Drinking_water_area_not_cleaned"
+      ]
+    },
+    {
+      "slug": "Site_lighting_unsafe",
+      "label_en": "Site lighting deficiency",
+      "label_vn": "Thiếu chiếu sáng",
+      "absorbs": [
+        "Lack_or_missing_of_lighting_for_walkway_or_working_areas"
       ]
     }
   ],
@@ -198,7 +611,9 @@
       "slug": "Scaffolding_and_Platform",
       "label_en": "Scaffolding and platform",
       "label_vn": "Giàn giáo và sàn công tác",
-      "absorbs": ["Scaffolding_and_Platform"]
+      "absorbs": [
+        "Scaffolding_and_Platform"
+      ]
     },
     {
       "slug": "Material_area",
@@ -213,25 +628,34 @@
       "slug": "Gate_and_safety_walkway",
       "label_en": "Gate and safety walkway",
       "label_vn": "Cổng / lối đi an toàn",
-      "absorbs": ["Gate_and_safety_walkway"]
+      "absorbs": [
+        "Gate_and_safety_walkway"
+      ]
     },
     {
       "slug": "Excavation",
       "label_en": "Excavation / deep hole",
       "label_vn": "Đào đất / hố sâu",
-      "absorbs": ["Digging/Deep_hole"]
+      "absorbs": [
+        "Digging/Deep_hole"
+      ]
     },
     {
       "slug": "Lifting_work",
       "label_en": "Lifting operations area",
       "label_vn": "Khu vực nâng hạ",
-      "absorbs": ["Lifting_work", "Construction_equipment_(Gondola,_Suspended_scaffold,_Hoist,_Lifting_equipment…)"]
+      "absorbs": [
+        "Lifting_work",
+        "Construction_equipment_(Gondola,_Suspended_scaffold,_Hoist,_Lifting_equipment…)"
+      ]
     },
     {
       "slug": "Electrical_equipment",
       "label_en": "Electricity and electrical equipment",
       "label_vn": "Khu vực điện / thiết bị điện",
-      "absorbs": ["Electricity_and_Electrical_Equipment"]
+      "absorbs": [
+        "Electricity_and_Electrical_Equipment"
+      ]
     },
     {
       "slug": "Hot_work_and_chemicals",
