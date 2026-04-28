@@ -537,32 +537,6 @@
       ]
     },
     {
-      "slug": "Welding_unsafe",
-      "label_en": "Welding / cutting hazard",
-      "label_vn": "Hàn / cắt không an toàn",
-      "photo_count": 0,
-      "absorbs": [
-        "Risk_of_fire_due_to_proximity_of_flammable_materials",
-        "No_non_return_valve_Flashback_Arrestor",
-        "No_fire_extinguisher",
-        "No_tray_for_welding_work",
-        "Gas_cylinder_compressed_air_not_fixed_on_shelf_trolley",
-        "Electrode_holder_are_damaged_and_require_replace",
-        "The_pressure_gauge_is_missing_or_damaged",
-        "The_welding_machine_is_placed_in_a_damp_area_which_is_unsafe_need_to_be_placed_a"
-      ],
-      "component_labels_en": [
-        "Risk of fire due to proximity of flammable materials",
-        "No non-return valve, Flashback Arrestor",
-        "No fire extinguisher",
-        "No tray for welding work.",
-        "Gas cylinder, compressed air not fixed on shelf/trolley",
-        "Electrode holder are damaged and require replace",
-        "The pressure gauge is missing or damaged",
-        "The welding machine is placed in a damp area, which is unsafe (need to be placed at height)"
-      ]
-    },
-    {
       "slug": "Hot_work_hazard",
       "label_en": "Hot work spark or fire hazard",
       "label_vn": "Công việc sinh nhiệt / nguy cơ tia lửa",
@@ -885,24 +859,6 @@
       ]
     },
     {
-      "slug": "Garbage_waste_unsafe",
-      "label_en": "Garbage / waste handling deficiency",
-      "label_vn": "Thu gom / xử lý rác không đúng",
-      "photo_count": 0,
-      "absorbs": [
-        "Garbage_outside_designated_areas",
-        "Unsorted",
-        "Not_transportation_on_time",
-        "Not_stored_neatly"
-      ],
-      "component_labels_en": [
-        "Garbage outside designated areas",
-        "Unsorted",
-        "Not transportation on time",
-        "Not stored neatly"
-      ]
-    },
-    {
       "slug": "Warehouse_unsafe",
       "label_en": "Warehouse storage hazard",
       "label_vn": "Khu vực kho không an toàn",
@@ -914,20 +870,6 @@
       "component_labels_en": [
         "Not clean",
         "Non-compliance with 5S standards"
-      ]
-    },
-    {
-      "slug": "Smoking_area_unsafe",
-      "label_en": "Designated smoking area issue",
-      "label_vn": "Khu vực hút thuốc không đảm bảo",
-      "photo_count": 0,
-      "absorbs": [
-        "Incorrect_location",
-        "Smoking_or_cigarette_butts_at_the_workplace"
-      ],
-      "component_labels_en": [
-        "Incorrect location",
-        "Smoking or cigarette butts at the workplace"
       ]
     },
     {
@@ -966,18 +908,6 @@
       ],
       "component_labels_en": [
         "Drinking water area not cleaned"
-      ]
-    },
-    {
-      "slug": "Site_lighting_unsafe",
-      "label_en": "Site lighting deficiency",
-      "label_vn": "Thiếu chiếu sáng",
-      "photo_count": 0,
-      "absorbs": [
-        "Lack_or_missing_of_lighting_for_walkway_or_working_areas"
-      ],
-      "component_labels_en": [
-        "Lack or missing of lighting for walkway or working areas"
       ]
     }
   ],
