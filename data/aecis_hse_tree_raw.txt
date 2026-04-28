@@ -1,0 +1,932 @@
+HSE
+Phan Thanh Tung
+Mass piling work/ Công tác ép cọc
+Phan Thanh Tung
+No marking of pile head locations/ Không đánh dấu các vị trí đầu cọc
+Phan Thanh Tung
+Someone is still in the danger are when the machine is pressing (piles can break, shot out during pressing)/ Có người còn ở trong khu vực nguy hiểm khi máy tiến hành ép (cọc có thể bị vỡ, văng bán trong khi ép)
+Phan Thanh Tung
+Pile pressing system (robot, hydraulic, load pressing, anchor pressing) no/missing inspection certificate/ Dàn ép cọc (robot, thuỷ lực, ép tải, ép neo) Không có/ thiếu phiếu kiểm định
+Phan Thanh Tung
+Unsafe electrical system/ Hệ thống điện không đảm bảo an toàn
+Phan Thanh Tung
+Risk of falling (driver, people working on the system)/ Nguy cơ té ngã (tài xế, người làm việc trên dàn)
+Phan Thanh Tung
+Unprotected pile heads/ Các đầu cọc không được che chắn bảo vệ
+Phan Thanh Tung
+Inadequate PPEs/ PPEs không đầy đủ
+Phan Thanh Tung
+Uninspected machinery/ Máy móc chưa được kiểm tra
+Phan Thanh Tung
+Housekeeping / Công tác vệ sinh
+Phan Thanh Tung
+Cleaning/Maintenance inadequate/ Không dọn vệ sinh sạch sẽ
+Phan Thanh Tung
+Garbage outside designated areas/ Rác để không đúng nơi quy định
+Phan Thanh Tung
+No implement 5S standards for area/ Không thực hiện 5S khu vực
+Nguyen Toan Tri
+No vacuum cleaner available where required/ Không có máy hút bụi các vị trí có yêu cầu
+Nguyen Toan Tri
+Not treating stagnant water causes unsanitary conditions and harmful insects/ Không xử lý nước đọng, nước tù gây mất vệ sinh và côn trùng gây hại
+Nguyen Toan Tri
+Do not isolate the area to prevent dust from spreading outside/ Không cô lập khu vực để ngăn bụi bay ra ngoài
+Nguyen Toan Tri
+Do not isolate the water source (to let it flow outside the permitted area)./ Không cô lập nguồn nước (để chảy ra ngoài khu vực cho phép)
+Nguyen Toan Tri
+Concrete or waste materials are not stored in designated areas/ Bê tông hoặc các chất thải không được đổ đúng nơi quy định
+Nguyen Toan Tri
+Steel structures, precast concrete installation/ Lắp dựng kết cấu thép, bê tông đúc sẵn
+Phan Thanh Tung
+Cable, shackle not inspected or damaged/ Dây cáp, ma ní không có kiểm định hoặc hư hỏng
+Phan Thanh Tung
+Working at height without safety harness/ Làm việc trên cao không đeo đai an toàn
+Phan Thanh Tung
+No guide ropes/ Không sử dụng dây dẫn hướng
+Phan Thanh Tung
+No load test before lifting (should apply 3:3:3)/ Không thử tải trước khi tiến hành cẩu (nên áp dụng 3:3:3)
+Phan Thanh Tung
+Inadequate installation area warning signs/ Không có/ thiếu biển báo khu vực lắp đặt
+Phan Thanh Tung
+Materials falling from height/ Vật tư rơi rớt từ trên cao
+Phan Thanh Tung
+Wearing safety harnessbut not hooking/ Đeo đai an toàn nhưng không móc
+Phan Thanh Tung
+Materials left in disarray/ Vật tư để lộn xộn
+Phan Thanh Tung
+No load display or damaged/ Không có đồng hồ báo tải hoặc bị hư
+Phan Thanh Tung
+Crane operating in rain, Wind greater than level 5/ Xe cẩu làm việc khi trời mưa, gió lớn hơn cấp 5
+Phan Thanh Tung
+No lifeline/ Không có dây cứu sinh
+Phan Thanh Tung
+No installation area isolation/ Không cô lập khu vực lắp đặt
+Phan Thanh Tung
+MOS not inspected/ Biện pháp thi công, ĐBAT không có thẩm tra
+Phan Thanh Tung
+Cranes is at risk of collision/ Cần cẩu có nguy cơ va chạm
+Phan Thanh Tung
+No PTW, JSA/ Không có giấy phép làm việc, JSA
+Phan Thanh Tung
+Crane driver doesn't have Group 3 safety card or other document/ Lái xe cẩu không có thẻ AT nhóm 3 hoặc các loại hồ sơ khác
+Phan Thanh Tung
+Throwing materials/equipment/ Quăng ném vật tư, thiết bị
+Phan Thanh Tung
+No signalman for crane/ Không có nhân viên đánh tín hiệu cho xe cẩu
+Phan Thanh Tung
+Crane not inspected daily/ Xe cẩu không được kiểm tra hàng ngày
+Phan Thanh Tung
+Unsafe crane standing position/ Vị trí xe cẩu đứng không an toàn
+Phan Thanh Tung
+Crane legs not fully extended or not firmly supported/ Các chân của xe cẩu không đưa ra hết hoặc kê lót không chắc chắn
+Phan Thanh Tung
+No access/unsafe access/ Không có lối lên/ lối lên không an toàn
+Phan Thanh Tung
+The cable end screws are not tightened correctly/ Các ốc siết đầu cáp không đúng cách
+Nguyen Toan Tri
+Lift equipment, people... at risk of collision with the object lifting/ Xe nâng, người... có nguy cơ va chạm với vật đang nâng
+Nguyen Toan Tri
+Lifting work/ Công việc nâng hạ
+Phan Thanh Tung
+No isolated installation area/ Không cô lập khu vực lắp đặt
+Phan Thanh Tung
+Overloaded operating capacity/ Vận hành quá tải trọng của thiết bị
+Nguyen Toan Tri
+Quantity of people on platform or cabin exceeds the permitted limit/ Số người trên sàn thao tác, buồng lái vượt quá số lượng cho phép
+Nguyen Toan Tri
+Using lifting equipment for the wrong purpose poses a safety risk/ Sử dụng thiết bị nâng sai mục đích có nguy cơ mất an toàn
+Nguyen Toan Tri
+The crane or load lifting is risk of collision with people or objects./ Cần cẩu hoặc tải đang nâng có nguy cơ va chạm với người hoặc các đối tượng xung quanh
+Phan Thanh Tung
+Cables and shackles are not inspected or damaged/ Dây cáp, ma ní không có kiểm định hoặc hư hỏng
+Phan Thanh Tung
+There is someone below the object lifting (in the hazardous drop area)./ Có người bên dưới vật đang nâng (trong khu vực nguy hiểm vật rơi)
+Nguyen Toan Tri
+The lifting work is unsafe: Lifting two objects at the same time or using two independent cables for two objects; risk of collision or collapse/ Công tác nâng hạ không đảm bảo an toàn: Nâng 2 vật cùng 1 lúc hoặc 2 sợi cáp độc lập cho 2 vật; vật nâng có nguy cơ va chạm, sập đổ…
+Nguyen Toan Tri
+No guide wire/ Không sử dụng dây dẫn hướng
+Phan Thanh Tung
+Crane not inspected daily/ Xe cẩu không được kiểm tra hàng ngày
+Phan Thanh Tung
+Not MOS and Plan/ Biện pháp thi công, đánh giá rủi ro (JSA)
+Phan Thanh Tung
+Unsafe position of crane standing/ Vị trí xe cẩu đứng không an toàn
+Phan Thanh Tung
+The crane is operating in the rain, Wind is than level 5/ Xe cẩu làm việc khi trời mưa, gió lớn hơn cấp 5
+Phan Thanh Tung
+Rigger dit not have certificate/ Group 3 safety card/ Người móc cáp không có chứng chỉ nghề/thẻ an toàn nhóm 3
+Nguyen Toan Tri
+No signalman/ Không có nhân viên đánh tín hiệu cho xe cẩu
+Phan Thanh Tung
+No load display or damaged/ Không có đồng hồ báo tải hoặc bị hư
+Phan Thanh Tung
+No/lack of installation area signs/ Không có/ thiếu biển báo khu vực lắp đặt
+Phan Thanh Tung
+No PTW, JSA/ Không có giấy phép nâng hạ
+Phan Thanh Tung
+No load test before lifting (should apply 3:3:3)/ Không thử tải trước khi tiến hành cẩu (nên áp dụng 3:3:3)
+Phan Thanh Tung
+Operator dit not have certificate/ Group 3 safety card/ Người vận hành cẩu không có chứng chỉ nghề/thẻ an toàn nhóm 3
+Phan Thanh Tung
+The crane legs are not fully extended or are not certain/ Các chân của xe cẩu không đưa ra hết hoặc kê lót không chắc chắn
+Phan Thanh Tung
+Unsafety cable hook/ Móc cáp không đảm bảo an toàn
+Nguyen Toan Tri
+Cable hooks used to lift objects are unsafe/ Cáp móc để nâng vật không đảm bảo an toàn
+Nguyen Toan Tri
+Cable hook without tongue/ Móc cáp không có lưỡi gà
+Nguyen Toan Tri
+Cable hook without safety latch or not good/ Móc cáp không có lưỡi gà hoặc có nhưng không đảm bảo
+Nguyen Toan Tri
+The cable end is not properly installed/ Đầu sợi cáp không được siết đúng cách
+Nguyen Toan Tri
+Digging/Deep hole/ Đào đất/ Hố sâu
+Phan Thanh Tung
+Excavators do not have a checklist/ Xe máy đào không có checklist
+Phan Thanh Tung
+Working without PTW, JSA/ Làm việc khi không có giấy phép làm việc, JSA
+Nguyen Toan Tri
+Let the other holding on vehicles/ Cho người đeo bám trên phương tiện (xe đào, xe chở đất…)
+Nguyen Toan Tri
+No emergency response procedures for work/ Không có biện pháp thoát nạn, cứu nạn
+Phan Thanh Tung
+No signalman for excavators/ Không có nhân viên đánh tín hiệu cho xe máy đào
+Phan Thanh Tung
+No place for materials and equipment/ Không có vị trí tập kết vật tư, thiết bị
+Phan Thanh Tung
+Excavator drivers don't have a Group 3 safety card/ Lái xe máy đào không có thẻ AT nhóm 3
+Phan Thanh Tung
+No landslide prevention/excavation slope/ Không chống sạt lở / ta luy hố đào
+Phan Thanh Tung
+The area around the edge of the pit still has materials, equipment or concrete uncleared./ Khu vực mép hố đào còn vật tư thiết bị hoặc đất đá bê tông chưa dọn sạch
+Phan Thanh Tung
+No monitoring, confirmation of Oxy, gas... in the pit area/ Không theo dõi, xác nhận khu vực hố đào có hơi khí độc
+Phan Thanh Tung
+No PTW/ Không có giấy phép đào đất - đục tường
+Phan Thanh Tung
+MOS when digging deeper than 2m are not inspected/ Biện pháp thi công, ĐBAT khi đào sâu hơn 2m không có thẩm tra
+Phan Thanh Tung
+No way up/down the pit with handrails on both sides/ Không có lối lên xuống có lan can tay vịn 2 bên
+Phan Thanh Tung
+No signs, hard handrail/warning around the pit/ Không có biển báo, lan can/ căng dây cảnh báo xung quanh hố đào
+Phan Thanh Tung
+Excavators stand too close to the edge of the pit (within 1m)/ Xe máy đào đứng quá gần mép hố đào (cách ít nhất 1m)
+Phan Thanh Tung
+No cover or warning below when above machines operating near the edge of the pit/ Không che chắn hoặc cảnh báo bên dưới khi bên trên có cơ giới hoạt động vị trí gần mép hố đào
+Phan Thanh Tung
+No ventilation, exhaust fans (when need)/ Không có thông gió, quạt hút gió (khi cần)
+Phan Thanh Tung
+Inadequate PPEs/ Không đầy đủ PPEs
+Phan Thanh Tung
+Worker work alone/ Công nhân làm việc một mình
+Phan Thanh Tung
+Excavation Area – Hazardous Objects Detected: Electrical Systems, Fire Protection Equipment, Other Foreign Objects/ Khu vực đào phát hiện dị vật không an toàn: Hệ thống điện, PCCC, các dị vật khác
+Nguyen Toan Tri
+The excavator key must not be removed and kept by the supervisor (the driver must not keep the excavator key when the excavator isn't in operation)./ Chìa khoá xe đào không được rút ra và cất giữ bởi giám sát (tài xế không được giữ chìa khoá xe đào khi xe không hoạt động)
+Nguyen Toan Tri
+Not covering the manhole/ Không che chắn cho hố ga
+Nguyen Toan Tri
+The excavation area has not been Scanning for underground structures./ Khu vực đào đất chưa được dò tìm công trình ngầm
+Nguyen Toan Tri
+Do not pump water regularly (leaving stagnant water causes unsanitary conditions)/ Không bơm nước thường xuyên (để nước đọng gây mất vệ sinh)
+Nguyen Toan Tri
+Working place of workers has a lot of water/ Vị trí làm việc của công nhân có nhiều nước
+Nguyen Toan Tri
+Electricity and Electrical Equipment/ Điện và Thiết bị sử dụng điện
+Phan Thanh Tung
+Worker working in the area where electric submersible pumps are operating/ Công nhân làm việc trong khu vực bơm chìm dùng điện đang hoạt động
+Phan Thanh Tung
+The equipment has no or unclear specifications documentation/ Thiết bị không có hồ sơ kỹ thuật hoặc các thông số không rõ ràng
+Nguyen Toan Tri
+There is no tray to prevent sparks from the cutting machine/ Không có khay hứng phoi, ngăn ngừa tia lửa từ máy cắt
+Nguyen Toan Tri
+Using damaged, hand-made or unsafe machinery and equipment/ Sử dụng máy móc, thiết bị đã bị hư hỏng, tự chế, không đảm bảo an toàn
+Nguyen Toan Tri
+Use plug for 2 or more wires/ Sử dụng phích cắm cho 2 hay nhiều dây dẫn điện của các máy móc thiết bị
+Nguyen Toan Tri
+Temporary electrical panel has not been checked & approved for use/ Tủ điện tạm chưa được kiểm tra cho phép sử dụng
+Nguyen Toan Tri
+Using power without RCD (ELCB/RCCB/RCBO) or damaged/ Sử dụng nguồn điện không qua thiết bị chống dòng rò (RCD)
+Nguyen Toan Tri
+Using unsuitable size of wire with capacity of CB or RCD/ Sử dụng dây dẫn không đúng với định mức của CB or RCD
+Nguyen Toan Tri
+Outdoor electrical panel are not carefully shielded, risk of water infiltration/ Tủ điện ngoài trời không được che chắn cẩn thận, có nguy cơ nước xâm nhập
+Nguyen Toan Tri
+Electrical equipment, use electricity in wet place, near water/ Thiết bị điện, sử dụng điện nơi ẩm ướt, gần nguồn nước
+Nguyen Toan Tri
+Electric wires are not hung high/ Dây điện không được treo cao
+Phan Thanh Tung
+Unsafe wiring or insulation at connection points/ Dây điện đấu nối hoặc cách điện vị trí đấu nối không an toàn
+Phan Thanh Tung
+No periodic electrical safety inspection (general)/ Không thực hiện kiểm tra an toàn điện định kỳ (chung)
+Phan Thanh Tung
+No warning signs, handrail/fences to separate with submersible pumps/ Không có biển cảnh báo, lan can/ hàng rào ngăn cách tiếp xúc bơm chìm
+Phan Thanh Tung
+No Safety instructions for electrical equipment/ Không có Hướng dẫn an toàn cho các thiết bị điện
+Phan Thanh Tung
+No single-line or tagname for wire/ Không có Sơ đồ nguyên lý tủ điện và đường dây
+Phan Thanh Tung
+Electric machines are not safe/No grounding, no cover for cutting stone, or no handle/ Máy sử dụng điện không đảm bảo an toàn: không có tiếp địa, không có bao che cho đá cắt, thiếu tay cầm…
+Phan Thanh Tung
+No electrical safety inspection record for machinery and equipment/ Không có phiếu kiểm tra an toàn điện cho máy móc thiết bị
+Phan Thanh Tung
+Electric machines without safety passed/ Máy sử dụng điện không có tem an toàn
+Phan Thanh Tung
+No RCD (ELCB, RCCB, RCBO) /ELR/ EFR or not good/ Không có RCD (ELCB, RCCB, RCBO) /ELR/ EFR hoặc không hoạt động
+Phan Thanh Tung
+No warning signs for transfomer area/ Biển cảnh báo khu vực trạm điệm
+Phan Thanh Tung
+No signs for underground cable/ Không có biển báo đánh dấu khu vực cáp ngầm
+Phan Thanh Tung
+No information of the PIC on the electrical panel/ Không có thông tin người phụ trách trên tủ điện
+Phan Thanh Tung
+No grounding connection or yes but not good/ Không có Nối đất/ Nối te hoặc có nhưng không đảm bảo
+Phan Thanh Tung
+MSB/DBs panel don't have cover, internal lock, or emergency button/ Tủ MSB/DBs không có che chắn, khóa trong, nút emergency
+Phan Thanh Tung
+No periodic electrical cabinet safety inspection form/ Không có phiếu kiểm tra an toàn tủ điện định kỳ
+Phan Thanh Tung
+No layout of temporary electrical system/ Không có sơ đồ bố trí hệ thống điện tạm
+Phan Thanh Tung
+Lack of guarding on moving parts:/ Không che chắn bộ phận chuyển động/ truyền động
+Phan Thanh Tung
+Cutting wheel installed incorrectly/broken/unsafe/ Đá cắt lắp không đúng/ bị vỡ/ không đảm bảo an toàn
+Nguyen Toan Tri
+Do not use single-layer insulated wire (must be 2 layers)/ Không được sử dụng dây điện 1 lớp vỏ cách điện (phải từ 2 lớp)
+Nguyen Toan Tri
+Do not arbitrarily connect or install socket inside the electrical panel/ Không được tự ý câu nối hay lắp ổ cắm bên trong tủ điện
+Nguyen Toan Tri
+Only charge batteries in controlled places with low risk of fire explosion/ Chỉ sạc pin tại những nơi có thể kiểm soát và ít nguy cơ cháy lan
+Nguyen Toan Tri
+Damaged/ unsafe electrical wire/ Dây điện bị hư hỏng, không đảm bảo an toàn
+Nguyen Toan Tri
+There is no access to the electrical panel or the access is obstructed/ Không có lối vào tủ điện hoặc lối vào bị che chắn
+Nguyen Toan Tri
+The CB and switches are not securely installed (loose)/ CB, công tắc không được lắp đặt chắc chắn (bị lỏng lẽo)
+Nguyen Toan Tri
+There is no emergency stop button/ Không có nút dừng khẩn cấp
+Nguyen Toan Tri
+Confined space/ Không gian hạn chế
+Phan Thanh Tung
+Unsafe access and exit/ Lối lên xuống không đảm bảo an toàn
+Phan Thanh Tung
+Lighting not good/ Ánh sáng không đảm bảo
+Phan Thanh Tung
+No emergency response procedures for work/ Không có phương án cứu hộ cứu nạn
+Phan Thanh Tung
+Breaks not maintained as regulated (should be 15 minutes break every hour)/ Không nghỉ giải lao theo quy định (nên mỗi 1 tiếng giải lao 15p)
+Phan Thanh Tung
+No watchman, supervisor/ Không có người canh chừng, giám sát
+Phan Thanh Tung
+No warning and isolation of Confined spacearea to prevent unauthorized people from entering/ Không cảnh báo và cô lập khu vực KGHC để ngăn ngừa người không được phép đi vào
+Phan Thanh Tung
+No air testing and periodic testing every 30 minutes (Oxygen from 19.5% to 23.5%)/ Không đo kiểm tra không khí và định kỳ mỗi 30p (Oxy từ 19,5% đến 23,5%)
+Phan Thanh Tung
+No emergency response equipment available at the workplace/ Không có sẵn thiết bị cứu hộ cứu nạn tại nơi làm việc
+Phan Thanh Tung
+No PTW/JSA/ Không có giấy phép làm việc, JSA
+Phan Thanh Tung
+Ventilation, exhaust fan not good/ Thông gió, quạt hút gió không đảm bảo
+Phan Thanh Tung
+No entry and exit record or not fully updated/ Không có nhật ký ra vào hoặc không cập nhật đầy đủ
+Phan Thanh Tung
+Construction equipment (Gondola, Suspended scaffold, Hoist, Lifting equipment…)/ Thiết bị thi công xây dựng (Gondola, Giàn giáo treo, vận thăng, thiết bị nâng…)
+Phan Thanh Tung
+No watchman, supervisor/ Không có người cảnh giới, giám sát
+Phan Thanh Tung
+The support system for pulling materials (winch to lift materials) and equipment is not safe and needs to be reinforced/ Hệ thống giá đỡ để kéo vật tư, thiết bị không đảm bảo an toàn, cần gia cố thêm
+Nguyen Toan Tri
+The motor and equipment used for lifting and lowering goods are not safe or have not been checked/ Mô tơ, thiết bị dùng để nâng hạ hàng không đảm bảo an toàn hoặc chưa được kiểm tra
+Nguyen Toan Tri
+No operator information/ Không có thông tin người vận hành
+Phan Thanh Tung
+No isolation of dangerous area/ Không cách ly vùng khu vực nguy hiểm
+Phan Thanh Tung
+Counterweight load is unsafe/ Tải đối trọng không đảm bảo an toàn
+Phan Thanh Tung
+Operator not degree/Group 3 safety card/ Người vận hành không có chứng chỉ nghề/thẻ an toàn nhóm 3
+Phan Thanh Tung
+No lifeline or safety lock/ Không có dây cứu sinh hoặc khóa an toàn
+Phan Thanh Tung
+No limit switch or damaged/ Không có giới hạn hành trình hoặc bị hư hỏng
+Phan Thanh Tung
+No roof/ fence for dangerous area/ Không có mái che/ Hàng rào che chắn
+Phan Thanh Tung
+The cable is not inspected or unsafe/ Cáp tải không có kiểm định hoặc không đảm bảo an toàn
+Phan Thanh Tung
+No PTW/JSA/ Không có Giấy phép làm việc, JSA
+Phan Thanh Tung
+CO/CQ record, inspection, or maintenance records not maintained/ Không có/ thiếu hồ sơ CO/CQ, kiểm định, bảo trì bảo dưỡng, theo dõi định kỳ…
+Phan Thanh Tung
+The loading/unloading doors of the hoist or the lifting area unsafe: have risks of falls and falling objects/ Cửa ra vào lấy hàng của vận thăng hoặc khu vực nâng hạ không đảm bảo an toàn, có nguy cơ té ngã, rơi vật tư...
+Nguyen Toan Tri
+Need to have a separate lifeline (Lifeline must have a certification)/ Cần phải có dây cứu sinh độc lập (dây cứu sinh phải có kiếm định)
+Nguyen Toan Tri
+Placing a ladder, a chair, etc. on the equipment's working platform is unsafe/ Đặt thang, ghế…lên sàn thao tác của thiết bị không đảm bảo an toàn
+Nguyen Toan Tri
+Standing on handrails to work or working in position unsafety/ Đứng lên lan can làm việc hoặc vị trí làm việc không đảm bảo an toàn
+Nguyen Toan Tri
+Trucks/ Xe tải các loại
+Phan Thanh Tung
+Materials falling/ Rơi vãi vật tư
+Phan Thanh Tung
+Exceeding the speed limit/ Xe tải chạy nhanh, chạy ẩu
+Phan Thanh Tung
+Driver without/insufficient PPEs/ Tài xế không có/ không đủ PPEs
+Phan Thanh Tung
+Not following the designated route/ Xe tải chạy không đúng đường quy định
+Phan Thanh Tung
+Not allowed to enter the site/ Xe chưa được phép vào công trường
+Phan Thanh Tung
+Materials at risk of falling/ Vật tư có nguy cơ rơi rớt
+Phan Thanh Tung
+No signalman/ Không có nhân viên tín hiệu
+Nguyen Toan Tri
+No safe passage for vehicles/ Không có lối di chuyển an toàn cho xe cơ giới
+Nguyen Toan Tri
+Vehicles are moving in violation of designated pathways/ Xe cơ giới di chuyển sai lối đi đã được quy định
+Nguyen Toan Tri
+Electric welding - Gas welding/ Hàn điện - Hàn hơi
+Phan Thanh Tung
+No warning area/ Khu vực không được cảnh báo
+Phan Thanh Tung
+Risk of fire due to proximity of flammable materials/ Có nguy cơ cháy do gần vật liệu dễ cháy
+Phan Thanh Tung
+No non-return valve, Flashback Arrestor/ Không có van 1 chiều, van chống cháy ngược
+Phan Thanh Tung
+No fire extinguisher/ Không có bình chữa cháy
+Phan Thanh Tung
+Electric welder without a certificate/degree/ Thợ hàn điện hàn hơi không có bằng cấp, chứng chỉ
+Phan Thanh Tung
+Welding machine without grounding or damaged/ Máy hàn không có dây tiếp địa hoặc bị hư hỏng
+Phan Thanh Tung
+Welder without Group 3 safety card/ Thợ hàn không có thẻ AT nhóm 3
+Phan Thanh Tung
+No tray for welding work./ Không có khay hứng phoi hàn
+Phan Thanh Tung
+Inadequate PPEs/ Không đầy đủ PPEs
+Phan Thanh Tung
+Gas cylinder, compressed air not fixed on shelf/trolley/ Bình gas, khí nén không được cố định trên kệ/ xe đẩy
+Phan Thanh Tung
+Welding wire is damaged/ unsafe connection/ Dây hàn bị hư hỏng/ đấu nối không đảm bảo an toàn
+Nguyen Toan Tri
+Electrode holder are damaged and require replace/ Kìm hàn bị hư hỏng, yêu cầu thay thế
+Nguyen Toan Tri
+The pressure gauge is missing or damaged/ Đồng hồ báo áp bị thiếu hoặc hư hỏng
+Nguyen Toan Tri
+The welding machine is placed in a damp area, which is unsafe (need to be placed at height)/ Máy hàn để nơi ẩm ướt, không đảm bảo an toàn (Cần phải đặt lên cao)
+Nguyen Toan Tri
+Working at height/ Làm việc trên cao
+Phan Thanh Tung
+No safety net or damaged or unsafe./ Không có lưới an toàn hoặc bị hư hỏng hoặc không đảm bảo an toàn
+Phan Thanh Tung
+No 3-square safety net to protect falling objects/ Không có lưới 3 vuông che chắn vật rơi vị trí sàn thi công và sàn tháo copha
+Phan Thanh Tung
+Throw material, equipment/ Quăng ném vật tư, thiết bị
+Phan Thanh Tung
+Wearing safety harness but no hooking/ Đeo đai an toàn nhưng không móc
+Phan Thanh Tung
+No safety handrail/ Không có lan can an toàn
+Phan Thanh Tung
+Working without PTW or JSA/ Làm việc khi không có giấy phép làm việc, JSA
+Phan Thanh Tung
+Working below without protection/ Làm việc bên dưới khi không có che chắn
+Phan Thanh Tung
+Too many materials are stored at height, have a risk of falling/ Vật tư để trên cao quá nhiều có nguy cơ rơi rớt
+Nguyen Toan Tri
+Working at heights without safety harness/ Làm việc trên cao không đeo đai an toàn
+Phan Thanh Tung
+Not tied tightly, no tool/equipment bag/ Không cột chặt, không có túi đựng dụng cụ/ thiết bị
+Phan Thanh Tung
+No lifeline/ Không có dây cứu sinh
+Phan Thanh Tung
+Materials falling/ Vật tư rơi rớt từ trên cao
+Phan Thanh Tung
+Non-functioning/unsafe platform/ Không có sàn thao tác hoặc có nhưng không đảm bảo an toàn
+Phan Thanh Tung
+No access/unsafe access/ Không có lối lên/ lối lên không an toàn
+Phan Thanh Tung
+Materials left in disarray/ Vật tư để lộn xộn
+Phan Thanh Tung
+Excess equipment left on the floor, close to the edge/ Thiết bị dư thừa để trên sàn, sát mép biên
+Phan Thanh Tung
+The purlins, planks, and trays are not securely fastened/ Không neo buộc chắc chắn các thiết bị xà gồ, ván, mâm
+Phan Thanh Tung
+Unsafe working position: Risk of falling, collision, slipping…/ Vị trí đứng làm việc không đảm bảo an toàn: Nguy cơ té ngã, va chạm, trơn trượt…
+Nguyen Toan Tri
+No have warning below at working at height position/ Không cảnh báo bên dưới vị trí làm việc trên cao
+Nguyen Toan Tri
+Lifeline damaged or unsafe/ Dây cứu sinh bị hư hỏng, không đảm bảo an toàn
+Nguyen Toan Tri
+Mobile working frame (MWF) are unsafe, such as not having foot restraints, falling risk, no lifeline, etc./ Sàn thao tác di động (MWF) không đảm bảo an toàn như không cài chân, có nguy cơ rơi, không có dây cứu sinh…
+Nguyen Toan Tri
+The lifeline has not been inspected or load tested/ Dây cứu sinh chưa được kiểm tra, thử tải
+Nguyen Toan Tri
+The safety net has not been inspected or load tested/ Lưới cứu sinh chưa được kiểm tra, thử tải
+Nguyen Toan Tri
+Materials are risk of falling from height/ Vật tư có nguy cơ rơi rớt từ trên cao
+Nguyen Toan Tri
+Gate and safety walkway/ Khu vực cổng và lối đi an toàn
+Phan Thanh Tung
+Other items not safe/ Các mục khác không đảm bảo an toàn
+Phan Thanh Tung
+Entrance to site not safe/ Lối vào công trường không đảm bảo an toàn
+Phan Thanh Tung
+Fence/security gate damaged, unsafe/ Hàng rào/cổng bảo vệ bị hư hỏng, không đảm bảo an toàn
+Phan Thanh Tung
+Car wash not cleaned/ Trạm rửa xe không được dọn vệ sinh
+Phan Thanh Tung
+PPE for guests not available/inadequate/ PPE cho khách không có/ không đầy đủ
+Phan Thanh Tung
+Unsafe walkway: Materials falling from above, obstructive objects, risk of falling, no handrail for stair, no warning tapes, etc./ Lối đi bộ không đảm bảo an toàn: Vật tư rơi từ trên cao, có chướng ngại vật, nguy cơ té ngã, không có lan can cho cầu thang, không căng dây cảnh báo…
+Nguyen Toan Tri
+No safe walkway is provided/ Không có lối đi bộ an toàn
+Nguyen Toan Tri
+Fire Prevention/ Phòng cháy chữa cháy
+Phan Thanh Tung
+No fire extinguishers, regulation & instructions of fire and fighting, etc./ Không có bình chữa cháy, tiêu lệnh, hướng dẫn…
+Phan Thanh Tung
+No assembly point or signs are blurred or damaged/ Không có bị trí tập trung hoặc biển báo bị mờ, hư
+Phan Thanh Tung
+Missing/damaged fire extinguisher/ Bình chữa cháy thiếu/ hư
+Phan Thanh Tung
+Firefighting team lacks certification/ Đội PCCC bị thiếu chứng nhận PCCC
+Phan Thanh Tung
+No emergency exit/ Không có lối thoát trong trường hợp khẩn cấp
+Phan Thanh Tung
+No fire drills performed or inadequate fire drills/ Không thực hiện diễn tập hoặc diễn tập không đạt yêu cầu
+Phan Thanh Tung
+No fire prevention team assigned or not up to date/ Không có hoặc không cập nhật đội PCCC
+Phan Thanh Tung
+No emergency respond measures/ Không có biện pháp UPKC
+Phan Thanh Tung
+No exit signs/ Không có đèn báo lối thoát hiểm
+Phan Thanh Tung
+There is no access route to the location of firefighting equipment: Fire extinguishers, nozzles, fire valves, etc/ Không có lối đi đến vị trí đặt thiết bị chữa cháy: Bình chữa cháy, vòi phun, van chữa cháy…
+Nguyen Toan Tri
+Gas and chemicals storage/ Hoá chất và khu vực để xăng dầu, hóa chất
+Phan Thanh Tung
+Risk of fire due to direct heat/ Có nguy cơ cháy do nguồn nhiệt trực tiếp
+Phan Thanh Tung
+Flammable materials placed in chemical areas/ Vật liệu dễ cháy ở khu vực hoá chất
+Nguyen Toan Tri
+No emergency response procedures for chemical spills/ Không có biện pháp UPKC tràn đổ hoá chất
+Phan Thanh Tung
+Chemicals stored out of regulation/ Hoá chất để không đúng quy định
+Phan Thanh Tung
+No chemical spill containment pit/ Không có hố thu hoá chất tràn đổ
+Phan Thanh Tung
+No MSDS or lack of/ Không có hoặc thiếu MSDS
+Phan Thanh Tung
+No list of incompatible chemicals/ Không có danh mục các hóa chất không tương thích
+Phan Thanh Tung
+Spilled chemicals/ Hoá chất bị tràn đổ
+Phan Thanh Tung
+Not covered from direct sunlight/ Không được che chắn tránh nắng trực tiếp
+Phan Thanh Tung
+No spill trays/edge/ Không có khay/ gờ bao quanh chống tràn đổ
+Phan Thanh Tung
+No fire extinguisher/ Không trang bị bình chữa cháy
+Phan Thanh Tung
+Hazardous chemicals or waste that are not properly collected or treated/ Hoá chất hoặc các chất thải nguy hại không được thu gom hoặc xử lý đúng cách
+Nguyen Toan Tri
+Safety training/ Huấn luyện an toàn
+Phan Thanh Tung
+Worker is not safety trained yet/ Công nhân chưa được huấn luyện an toàn
+Phan Thanh Tung
+No confirmation of safety training/ Không có xác nhận đã được HLAT
+Phan Thanh Tung
+Scaffolding and Platform/ Giàn giáo và Sàn thao tác
+Phan Thanh Tung
+I-beam anchor cable not good/ Không có cáp neo dầm I hoặc không chắc chắn
+Phan Thanh Tung
+Using scaffolding that has not been checked & approved for use or don't have tag/ Sử dụng giàn giáo chưa được kiểm tra cho phép sử dụng hoặc không có thẻ cho phép sử dụng
+Nguyen Toan Tri
+Standing on handrails to work or working in unsafety position/ Đứng lên lan can làm việc hoặc vị trí làm việc không đảm bảo an toàn
+Nguyen Toan Tri
+Standing is in tilt position/ Giàn giáo bị nghiêng
+Nguyen Toan Tri
+Scaffolding collapsed/ Giàn giáo bị sập đổ
+Nguyen Toan Tri
+Not have technical documents/ Inspection of part of scaffolding / Không có hồ sơ kỹ thuật/ Kiểm định các chi tiết của giàn giáo
+Phan Thanh Tung
+I-beam lack of bolts /not tightly tightened/ Bulong dầm I thiếu/ siết không chặt
+Phan Thanh Tung
+I-beam not according to drawing/ Dầm I không đúng theo bản vẽ
+Phan Thanh Tung
+Scaffolding missing details (cross, clamp, toeboard) or unsafe./ Giàn giáo bị thiếu các chi tiết (chéo, cùm, toeboard…), không đảm bảo an toàn
+Phan Thanh Tung
+Scaffolding/Working platform without handrails or unsafe/ Giàn giáo/ Sàn thao tác không có lan can hoặc lan can không đảm bảo an toàn
+Phan Thanh Tung
+Scaffolding/Working platform not checking/ Giàn giáo/ Sàn thao tác chưa được thẩm tra
+Phan Thanh Tung
+Scaffolding/Working platform at risk of collapse/ Giàn giáo/ Sàn thao tác có nguy cơ sập đổ
+Phan Thanh Tung
+Scaffolding installed incorrectly according to scaffolding mockup/ Giàn giáo lắp đặt không đúng với giàn giáo mẫu
+Phan Thanh Tung
+Scaffolder without certificate/ Thợ lắp giàn giáo không có chứng chỉ lắp đặt
+Phan Thanh Tung
+Scaffolding wheels smaller than 150mm or damaged/ Bánh xe giàn giáo nhỏ hơn 150mm trở lên hoặc bị hư hỏng
+Phan Thanh Tung
+Not have QA/QC- certification/ Không có QA/QC- chứng nhận xuất xưởng
+Phan Thanh Tung
+No safety net for floor by floor (minimum 3 floor/1 Safety net)/ Không có lưới chắn thông tầng (tối thiểu 3 tầng giàn/ 1 hệ lưới chắn)
+Phan Thanh Tung
+Unsafe Scaffolding: Lack of Planks/Crossbars/Supports, Ladders.../ Giàn giáo không đảm bảo an toàn: thiếu mâm/ chéo/ cây chống, thang bộ...
+Nguyen Toan Tri
+Unsafe standing position: weak ground, no padding, uneven surface/ Vị trí đứng của giàn giáo không đảm bảo an toàn: nền đất yếu, không kê lót, mặt bằng không bằng phẳng
+Nguyen Toan Tri
+No have warning below at working at height position/ Không cảnh báo bên dưới vị trí làm việc trên cao
+Nguyen Toan Tri
+The scaffolding using to support objects is not safe and needs additional support/ Giàn giáo đang sử dụng để nâng đỡ vật chưa đảm bảo an toàn, cần được chống đỡ thêm
+Nguyen Toan Tri
+Components such as cross braces, supports, clamps, and handrails...are not securely connected/ Các chi tiết như thành giằng, cây chống, cùm, thanh chắn…không được liên kết chắc chắn.
+Nguyen Toan Tri
+Scaffolding systems are not securely connected or adequately braced/ Các hệ giàn giáo không được liên kết, gia cố chắc chắn
+Nguyen Toan Tri
+Scaffolding used for access (going up and down) is not covered with safety net to prevent falling objects/ Giàn giáo dùng để làm lối lên xuống không được bao che bằng lưới chống vật rơi
+Nguyen Toan Tri
+The anchoring/reinforcement positions of the scaffolding system are unsafe/ Vị trí neo/ gia cố cho hệ giàn giáo không đảm bảo an toàn
+Nguyen Toan Tri
+Scaffolding is not installed according to the required ratio of 1:4 (indoor) or 1:3 (outdoor)/ Giàn giáo không được lắp đúng tỷ lệ 1/4 (trong nhà) hoặc 1/3 (ngoài nhà)
+Nguyen Toan Tri
+The scaffold supports are not installed fixed: missing A-clamps or not properly fixed/ Cây chống của giàn giáo không được lắp chắc chắn: Thiếu cùm A hoặc không cố định chắc chắn
+Nguyen Toan Tri
+Pressure equipment/ Thiết bị áp lực
+Phan Thanh Tung
+No fire extinguisher/ Không có bình chữa cháy
+Phan Thanh Tung
+Missing inspection stamp or certificates/ Không có tem/ thiếu phiếu kiểm định
+Phan Thanh Tung
+Connection details (goat neck tightening), condition of gas pipelines/ Chi tiết liên kết (xiết cổ dê,... ), chất lượng đường ống dẫn khí, ga
+Phan Thanh Tung
+No non-return valve or flashback arrestor/ Không có van 1 chiều, van chống cháy ngược
+Phan Thanh Tung
+Unsafe storage/ Lưu trữ không đảm bảo an toàn
+Phan Thanh Tung
+No safety valve or damaged/ Không có van an toàn hoặc bị hư hỏng
+Phan Thanh Tung
+No gas cylinder cap/ Không có nắp chụp bình khí nén
+Phan Thanh Tung
+Near heat source/ Gần nguồn nhiệt
+Phan Thanh Tung
+Gas cylinder, compressed air not fixed on shelf/trolley/ Bình gas, khí nén không được cố định trên kệ/ xe đẩy
+Phan Thanh Tung
+Risk of collision/ Có nguy cơ va chạm
+Phan Thanh Tung
+The pressure testing area has no warnings (signal board, handrails...) or if there are, they are not clear./ Khu vực thử áp lực không có cảnh báo (biển báo, lan can…) hoặc có nhưng không rõ ràng.
+Nguyen Toan Tri
+Hot work/ Công tác nóng
+Phan Thanh Tung
+Not grounding for welding machine/ Không nối đất vỏ máy hàn
+Phan Thanh Tung
+Work area not checked 1 hour and 3 hours after finishing work/ Không kiểm tra khu vực làm việc sau 1 tiếng và 3 tiếng
+Phan Thanh Tung
+Working without PTW, JSA/ Làm việc khi chưa có Giấy phép làm việc, JSA
+Phan Thanh Tung
+Not isolating the area from other flammable/explosive substances/ Không cách ly khu vực với các chất dễ cháy/ nổ khác
+Phan Thanh Tung
+Fire extinguishers and water are missing or insufficient/ Không có hoặc thiếu bình chữa cháy và nước
+Nguyen Toan Tri
+Not prevent sparks/ Không che chắn tia lửa
+Phan Thanh Tung
+Damaged welding tong, ground clamp, electrical wire/ Kìm hàn, kẹp mát, dây điện bị hư hỏng
+Phan Thanh Tung
+Prevent sparks with non-fire resistant material/ Che chắn tia lửa bằng vật liệu không chống cháy
+Nguyen Toan Tri
+Lack of fire-resistant tarp in designated areas where required/ Không có bạt chống cháy cho khu vực yêu cầu.
+Nguyen Toan Tri
+Warehouse Area/ Khu vực kho
+Phan Thanh Tung
+Emergency exit is unavailable/ Không có lối thoát trong trường hợp khẩn cấp
+Phan Thanh Tung
+Fuel and chemicals are not stored in designated areas/ Xăng dầu, hoá chất để không đúng nơi quy định
+Phan Thanh Tung
+Not clean/ Không được vệ sinh sạch sẽ
+Phan Thanh Tung
+Fire extinguishers are missing/damaged/ Bình chữa cháy thiếu/ hư
+Phan Thanh Tung
+Non-compliance with 5S standards/ Không thực hiện 5S
+Phan Thanh Tung
+Formwork/ Cốp pha
+Phan Thanh Tung
+Sharp edges or end of steel rebar are not covered or protected/ Các cạnh sắc nhọn hoặc đầu cây cắt không được bao che, bảo vệ
+Nguyen Toan Tri
+Work area not isolated, no warning/ Khu vực làm việc không được cô lập, không có cảnh báo
+Nguyen Toan Tri
+No access/unsafe access/ Không có lối lên/ lối lên không an toàn
+Phan Thanh Tung
+No guardrail, handrail, edge warning/ Không có lan can/ cảnh báo rìa biên
+Phan Thanh Tung
+Materials at risk of falling/ Vật tư có nguy cơ rơi rớt
+Phan Thanh Tung
+Not fixed / Không được gia cố chắc chắn
+Phan Thanh Tung
+Wearing safety harness but not hooking/ Đeo đai an toàn nhưng không móc
+Phan Thanh Tung
+Materials left in disarray/ Vật tư để lộn xộn
+Phan Thanh Tung
+Inadequate PPEs/ Không đầy đủ PPEs
+Phan Thanh Tung
+No lifeline/ Không có dây cứu sinh
+Phan Thanh Tung
+Materials falling from height/ Vật tư rơi rớt từ trên cao
+Phan Thanh Tung
+Working at height without safety harness/ Làm việc trên cao không đeo đai an toàn
+Phan Thanh Tung
+Throwing materials/equipment/ Quăng ném vật tư, thiết bị
+Phan Thanh Tung
+The formwork dismantling area is not safe: no cover, warning, no measures to prevent falling objects…/ Khu vực tháo dỡ coffa không đảm bảo an toàn: không che chắn, cảnh báo, bảo vệ chống rơi...
+Nguyen Toan Tri
+Workshop area/ Khu vực gia công
+Phan Thanh Tung
+No safety way/ The object on safety way/ Không có/ Cản trở lối di chuyển
+Phan Thanh Tung
+Painting area is not safe: Not properly covered, lack of exhaust fan, etc./ Khu vực sơn không đảm bảo an toàn: Không được che chắn cẩn thận, thiếu quạt hút gió…
+Nguyen Toan Tri
+No tray for machine (have sparks)/ Không có khay hứng phoi
+Phan Thanh Tung
+No/ lacking of grounding for machines/ Tiếp địa cho máy móc không có/ không tốt
+Phan Thanh Tung
+No spark protection/ Không có che chắn ngăn chặn tia lửa
+Phan Thanh Tung
+Inadequate PPEs/ Không đầy đủ PPEs
+Phan Thanh Tung
+No implement 5S standards for area or no rack to store materials/ Không thực hiện 5S khu vực hoặc không có kệ để chứa vật tư
+Nguyen Toan Tri
+Smoke Area/ Khu vực hút thuốc
+Phan Thanh Tung
+No smoke regulation on site/ Không có quy định cấm hút thuốc trên công trường
+Phan Thanh Tung
+Not clean/ Không được vệ sinh sạch sẽ
+Phan Thanh Tung
+No fire extinguisher/ Không có bình PCCC
+Phan Thanh Tung
+Incorrect location/ Đặt không đúng nơi quy định
+Phan Thanh Tung
+Smoking in the wrong place/ Hút thuốc không đúng nơi quy định
+Nguyen Toan Tri
+Floor opening/ Lỗ thông tầng
+Phan Thanh Tung
+No platform or platform of elevator shaft is not good or unsafe/ Không có hoặc sàn thao tác khu vực lõi thang máy/ lỗ thông tầng không đảm bảo an toàn
+Phan Thanh Tung
+No cover for Elevator door/ Không che chắn Cửa thang máy
+Phan Thanh Tung
+Openings not properly covered – risk of fall hazard/ Không che đậy hoặc Che đậy các lỗ mở không chắn chắn
+Phan Thanh Tung
+The floor opening is not covered with a safety net or platform/ Lỗ thông tầng không được che chắn bằng lưới an toàn hoặc sàn thao tác
+Nguyen Toan Tri
+PPEs/ Bảo hộ lao động
+Phan Thanh Tung
+No Safety helmet or no strap/ Không có Nón bảo hộ hoặc không cài quai
+Phan Thanh Tung
+Using PPEs on malfunction/ Sử dụng PPEs sai chức năng
+Nguyen Toan Tri
+Using damaged/ broken PPEs/ Sử dụng PPEs đã bị hư hỏng
+Nguyen Toan Tri
+No wearing safety vest/ Không mặc áo phản quang
+Nguyen Toan Tri
+PPEs are not use as required/ Không sử dụng PPEs theo yêu cầu
+Nguyen Toan Tri
+No Apron for welding, painting/ Không có Tạp dề cho hàn, sơn
+Phan Thanh Tung
+No Safety Glasses (full face)/ Không có Kính an toàn (full face)
+Phan Thanh Tung
+No Welding Mask/ Không có Mặt nạ hàn
+Phan Thanh Tung
+No Hearing Protection/ Không có Bảo vệ thính giác
+Phan Thanh Tung
+No Welding Gloves/ Không có Găng tay hàn
+Phan Thanh Tung
+No Safety Harness/ Không có Dây an toàn toàn thân
+Phan Thanh Tung
+No Safety shoes, Boots/ Không có Giày, ủng chống đinh
+Phan Thanh Tung
+Working with metal without gloves/ Làm việc với Kim loại không có bao tay
+Nguyen Toan Tri
+Mechanical equipment for construction/ Thiết bị cơ giới phục vụ thi công các loại
+Phan Thanh Tung
+No technical safety and environmental protection inspection / Không có Giấy cn đăng ký đăng kiểm môi trường
+Phan Thanh Tung
+No history/ Không có Hồ sơ lý lịch
+Phan Thanh Tung
+No shift handover record/ Không có Sổ giao ca của người vận hành
+Phan Thanh Tung
+No insurance certificate/ Không có Giấy bảo hiểm xe
+Phan Thanh Tung
+No declaration of equipment with occupational safety requirements/ Không Khai báo thiết bị có YC NN về ATLĐ
+Phan Thanh Tung
+No operator document or lacking/ Không có Hồ sơ người vận hành hoặc bị thiếu
+Phan Thanh Tung
+No technical inspection/ Không có biên bản kiểm tra kỹ thuật
+Phan Thanh Tung
+No inspection certificate/ Không có Phiếu kiểm định
+Phan Thanh Tung
+No maintenance record/ Không có sổ bảo trì bảo dưỡng xe
+Phan Thanh Tung
+No signalman/ Không có nhân viên tín hiệu
+Nguyen Toan Tri
+No watchman/ Không có người canh gác
+Nguyen Toan Tri
+Unsafe standing position: weak ground, no padding, uneven surface/ Vị trí đứng không an toàn: nền đất yếu, không có lớp đệm, bề mặt không bằng phẳng
+Nguyen Toan Tri
+No warning for work area (Barrier, warning tape, signal board)/ Không có cảnh báo khu vực làm việc
+Nguyen Toan Tri
+Using Mechanical equipment on malfunction/ Sử dụng sai chức năng của thiết bị
+Nguyen Toan Tri
+Garbage area - Waste/ Khu vực nhà rác - Rác thải
+Phan Thanh Tung
+Unsorted / Rác không được phân loại
+Phan Thanh Tung
+Not transportation on time/ Không vận chuyển kịp thời
+Phan Thanh Tung
+Not stored neatly / Không lưu trữ gọn gàng
+Phan Thanh Tung
+Hazardous waste is not placed in the right place/ Rác thải nguy hại để không đúng nơi quy định
+Nguyen Toan Tri
+Hazardous waste is not collected regularly./ Rác thải nguy hại không được thu gom thường xuyên
+Nguyen Toan Tri
+Emergency case/ Emergency case - Ứng phó tình trạng khẩn cấp
+Phan Thanh Tung
+Not posted on notice board/ Không dán lên bảng thông tin
+Phan Thanh Tung
+No/not updated emergency number/ Không có/ không cập nhật sđt khẩn cấp
+Phan Thanh Tung
+Contact list is blurred, missing information, damaged…/ Danh sách liên lạc bị mờ, thiếu thông tin, hư hỏng…
+Nguyen Toan Tri
+Temporary lightning pole/ Chống sét tạm
+Phan Thanh Tung
+Unreinforced/ unsafe lightning pole protection pole/ Cột chống sét không gia cố/ không đảm bảo an toàn
+Phan Thanh Tung
+No periodic inspection/ Không đo kiểm tra định kỳ
+Phan Thanh Tung
+No documents: Inspection drawing, Inspection, QA-QC…/ Không có hồ sơ: Bản vẽ thẩm tra, Kiểm định, QA-QC…
+Nguyen Toan Tri
+Concrete work/ Đổ bê tông
+Phan Thanh Tung
+The concrete pipeline is not fixed/ Đường ống dẫn bê tông không được cố định
+Phan Thanh Tung
+The concrete pipeline is risk of collapsing/ Đường ống bê tông có nguy cơ gây sập đổ
+Phan Thanh Tung
+There is no safety harness hook position (from 2m high)/ Không có vị trí móc đai an toàn (trên cao 2m)
+Phan Thanh Tung
+Inadequate PPEs/ Không đầy đủ PPEs
+Phan Thanh Tung
+No working platform or have but it is not safe/ Không có sàn thao tác hoặc có nhưng không đảm bảo an toàn
+Phan Thanh Tung
+The concrete pump truck legs are not fully extended or aren't stable/ Các chân của xe bơm bê tông không đưa ra hết hoặc kê lót không chắc chắn
+Phan Thanh Tung
+Unsafe concrete pump position/ Vị trí xe bơm bê tông đứng không an toàn
+Phan Thanh Tung
+The pump boom is at risk of collision/ Cần bơm có nguy cơ va chạm
+Phan Thanh Tung
+Material area/ Khu tập kết vật tư
+Phan Thanh Tung
+No safety way/ The object on safety way/ Không có/ Cản trở lối di chuyển
+Phan Thanh Tung
+Materials are not arranged neatly/ Sắp xếp vật tư không gọn gàng
+Phan Thanh Tung
+No implement 5S standards for area or no rack to store materials/ Không thực hiện 5S khu vực hoặc không có kệ để chứa vật tư
+Nguyen Toan Tri
+Materials at risk of collapse, rolling, sliding…/ Vật tư có nguy cơ sập đổ, lăn, trượt…
+Nguyen Toan Tri
+No signs to define the material storage area such as warning tape, signal board/ Không có dấu hiệu nhận biết như cách ly khu vực, biển báo khu vực để vật tư
+Nguyen Toan Tri
+Drinking water for worker/ Nguồn nước uống cho công nhân
+Phan Thanh Tung
+Drinking water area not cleaned/ Khu vực uống nước không được vệ sinh
+Phan Thanh Tung
+Not inspected initially, periodically/ Không được kiểm tra lần đầu, định kỳ
+Phan Thanh Tung
+Common area/ Khu vực ăn uống - nghỉ ngơi
+Phan Thanh Tung
+Area with many insects/ Khu vực có nhiều côn trùng
+Phan Thanh Tung
+Not clean/ Không dọn vệ sinh sạch sẽ
+Phan Thanh Tung
+Eating and drinking at the wrong place, do not eat or drink on the site/ Ăn, uống sai vị trí quy định, không được ăn uống trên công trường
+Nguyen Toan Tri
+Signal board, warning tape/ Biển báo, cảnh báo
+Phan Thanh Tung
+Signal board, warning tape damaged/ Biển báo bị hư hỏng
+Phan Thanh Tung
+Signal board incorrect with work/ Biển báo không đúng với công việc
+Phan Thanh Tung
+Not or lacking Signal board, warning tape/ Không có/ thiếu cảnh báo khu vực
+Phan Thanh Tung
+Lack of hard handrails at edges deeper than 1.5 meters or or request/ Không có lan can cứng cho vị trí thấp hơn 1.5m hoặc có yêu cầu
+Nguyen Toan Tri
+No supports for hanging warning tape or not good/ Không có trụ để treo dây cảnh báo hoặc có nhưng không đảm bảo
+Nguyen Toan Tri
+TBM
+Phan Hữu Ánh
+Parking area/ Khu vực để xe
+Nguyen Toan Tri
+No neatly arranged/ Không sắp xếp xe gọn gàng
+Nguyen Toan Tri
+No parking area sign board (including temporary parking areas)/ Không có biển báo khu vực để xe (bao gồm khu vực để tạm)
+Nguyen Toan Tri
+No fire extinguisher/ Không có bình chữa cháy
+Nguyen Toan Tri
+Ladder/ Thang
+Nguyen Toan Tri
+Do not using bamboo and wooden ladder/ Không được sử dụng thang tre, gỗ tại dự án
+Nguyen Toan Tri
+Ladder have not been checked and approved for use/ Thang chưa được kiểm tra và cho phép sử dụng
+Nguyen Toan Tri
+Ladder is damaged, unsafe, such as cracked, bent, warped, etc./ Thang đã bị hư hỏng, không đảm bảo an toàn như nứt, cong, vênh,…
+Nguyen Toan Tri
+Ladder is placed on uneven floors, at risk of falling/ Thang đặt trên nền không bằng phẳng, có nguy cơ ngã đổ
+Nguyen Toan Tri
+Ladder feet are not protected against slipping/ Chân thang không được bảo vệ chống trượt
+Nguyen Toan Tri
+Ladder is placed against unstable, unstable surfaces/ Thang đặt tựa vào các bề mặt không chắc chắn, vững chắc
+Nguyen Toan Tri
+Use ladder on scaffolding or lifting equipment to increase working height/ Sử dụng thang trên dàn giáo hay thiết bị nâng để tăng chiều cao làm việc
+Nguyen Toan Tri
+Place ladder on crate, cart, table, or other unstable surfaces/ Đặt thang lên trên các thùng, xe đẩy, bàn, hay bề mặt không ổn định khác
+Nguyen Toan Tri
+The top of the ladder must not be at least 900mm above the floor/ Đỉnh thang không được nhô lên khỏi mặt sàn ít nhất 900mm
+Nguyen Toan Tri
+Ladders are placed too close to power lines/ Thang đặt quá gần đường đây điện
+Nguyen Toan Tri
+Ladders are not used according to the design/ Thang không được sử dụng đúng thiết kế của thang
+Nguyen Toan Tri
+Ladder must not be connected together to make them longer/ Không được nối các thang lại với nhau cho dài hơn
+Nguyen Toan Tri
+Only one person is allowed to work on the ladder/ Chỉ cho phép một người được làm việc trên thang
+Nguyen Toan Tri
+No wear safety harness when working on a ladder that is 2m high/ Không đeo đai an toàn khi làm thang mà độ cao trên cao từ 2m
+Nguyen Toan Tri
+No people is holding the foot of the ladder/ Không có người giữ chân thang
+Nguyen Toan Tri
+Do not stand on the top of the ladder (sitting only)/ Không được đứng trên đỉnh thang (chỉ cho ngồi)
+Nguyen Toan Tri
+Do not hang heavy objects on the ladder/ Không được treo vật nặng trên thang
+Nguyen Toan Tri
+TBM/ Họp giao ban đầu ca
+Nguyen Toan Tri
+First-aid kit/ Túi y tế/ Khu vực sơ cấp cứu
+Nguyen Toan Tri
+First aid kit incorrect/ insufficient as regulated/ Túi/ tủ đựng dụng cụ sơ cấp cứu không đúng/ không đủ theo quy định
+Nguyen Toan Tri
+Improper storage of medicines in the first aid cabinet/bag/ Để thuốc không đúng quy định trong tủ/ túi đựng dụng cụ sơ cấp cứu
+Nguyen Toan Tri
+The first aid cabinet/bag is not placed in the correct location/ Vị trí để tủ/ túi đựng dụng cụ sơ cấp cứu không đúng vị trí
+Nguyen Toan Tri
+No checklist or checklist not good for the first aid cabinet/bag/ Không có checklist hoặc checklist không đầy đủ cho tủ/ túi đựng dụng cụ sơ cấp cứu
+Nguyen Toan Tri
+First aid cabinet/bag is not kept clean/ Túi/ tủ đựng dụng cụ sơ cấp cứu không được vệ sinh sạch sẽ
+Nguyen Toan Tri
+Common working area/ Khu vực làm việc chung
+Nguyen Toan Tri
+No safety ways or unsafe movement: there are obstacles, too narrow…/ Không có lối di chuyển hoặc lối di chuyển không đảm bảo an toàn: có vật cản, quá hẹp…
+Nguyen Toan Tri
+Urinating, defecating in undesigned place/ Tiểu tiện - Đại tiện không đúng nơi quy định
+Nguyen Toan Tri
+Not using a tarp or protective covering for the painting area/ Không lót bạt hoặc che chắn cho vị trí sơn
+Nguyen Toan Tri
+Let the paint, gasoline, chemicals... spill and fall into the environment/ Để sơn, xăng, hoá chất…tràn đổ, rơi vãi ra môi trường
+Nguyen Toan Tri
+Lack or missing of lighting for walkway or working areas/ Không có hoặc thiếu đèn chiếu sáng cho lối đi hoặc khu vực làm việc
+Nguyen Toan Tri
+Bringing or drinking alcohol at site/ Mang vào hoặc uống rượu bia trong công trường
+Nguyen Toan Tri
+Entering a prohibited area/ Đi vào khu vực cấm
+Nguyen Toan Tri
+Using a phone while walking (phone use is only allowed when standing still in a safe place/ Sử dụng điện thoại khi đang di chuyển (chỉ được sử dụng điện thoại khi đứng lại tại nơi đảm bảo an toàn)
+Nguyen Toan Tri
+Materials are messy, not arranged properly/ Vật tư để lộn xộn, không được sắp xếp hợp lý
+Nguyen Toan Tri
+Risk of safety hazards such as sharp edges, fire and explosion, slipping, and falling objects/ Có nguy cơ mất an toàn như các cạnh sắc nhọn, cháy nổ, trơn trượt, vật rơi
+Nguyen Toan Tri
+Worker working alone (must be 2 people or more)/ Công nhân làm việc một mình (phải từ 2 người trở lên)
+Nguyen Toan Tri
+Worker eat and drink at the workplace, causing unhygienic conditions /Công nhân ăn uống tại nơi làm việc gây mất vệ sinh
+Nguyen Toan Tri
+Food, water bottles... are not placed in the right place/ Thực phẩm, chai nước…không để đúng nơi quy định
+Nguyen Toan Tri
+Smoking or cigarette butts at the workplace/ Hút thuốc hoặc tàn thuốc tại nơi làm việc
+Nguyen Toan Tri
+Worker fighting at the workplace/ Công nhân đánh nhau tại nơi làm việc
+Nguyen Toan Tri
+Worker engaging in threatening or disruptive behavior at the workplace/ Công nhân có hành vi doạ nạt, gây rối tại nơi làm việc
+Nguyen Toan Tri
+Worker threatening or fighting supervisors/ Công nhân có hành vi đe doạ hoặc đánh giám sát
+Nguyen Toan Tri
+Materials temporarily stored unsafely: obstructing pathways or posing a risk of collapse/ Vật tư để tạm không đảm bảo an toàn: cản lối đi, nguy cơ sập đổ
+Nguyen Toan Tri
+Workers resting at the workplace (resting is only allowed in designated areas)/ Công nhân nghỉ ngơi tại nơi làm việc (chỉ được nghỉ ngơi tại nơi cho phép)
+Nguyen Toan Tri
+The ends of the iron rods are not covered/ Các đầu cây sắt không được che chắn
+Nguyen Toan Tri
+The material and equipment trans/lifting area must not be isolated, without warning signs or cover falling objects/ Khu vực vận chuyển vật tư thiết bị không được cô lập, cảnh báo, che chắn vật rơi từ phía trên
+Nguyen Toan Tri
+Machinery and equipment leaking oil/ Máy móc thiết bị bị rò rỉ dầu nhớt
+Nguyen Toan Tri
+No PTW or approval for work in shafts/pipelines/pressure testing/X-rays/Confined spaces/ Không có giấy phép hoặc chưa chấp thuận cho công việc làm việc trong các trục/đường ống/kiểm tra áp suất/chụp tia X/ Không gian hạn chế
+Nguyen Toan Tri
+No warning, isolation for work areas in shafts/pipelines/pressure testing/X-rays/Confined spaces/ Không cảnh báo, cách ly cho khu vực làm việc trong các trục/đường ống/kiểm tra áp suất/chụp tia X/ Không gian hạn chế
+Nguyen Toan Tri
+Workers are working overtime without any supervisor to oversee the work/ Công nhân tăng ca nhưng không có giám sát để giám sát công việc
+Nguyen Toan Tri

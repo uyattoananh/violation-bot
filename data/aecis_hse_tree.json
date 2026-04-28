@@ -1,0 +1,2387 @@
+{
+  "version": "aecis-1.0",
+  "source": "AECIS web app HSE tree (DOM dump, manually curated)",
+  "excluded_branches": [
+    "Safety training",
+    "TBM"
+  ],
+  "stats": {
+    "location_count": 36,
+    "hse_type_total": 424,
+    "hse_type_unique_en": 387
+  },
+  "locations": [
+    {
+      "slug": "Mass_piling_work",
+      "label_en": "Mass piling work",
+      "label_vn": "Công tác ép cọc",
+      "hse_types": [
+        {
+          "slug": "No_marking_of_pile_head_locations",
+          "label_en": "No marking of pile head locations",
+          "label_vn": "Không đánh dấu các vị trí đầu cọc"
+        },
+        {
+          "slug": "Someone_is_still_in_the_danger_are_when_the_machine_is_pressing_piles_can_break_",
+          "label_en": "Someone is still in the danger are when the machine is pressing (piles can break, shot out during pressing)",
+          "label_vn": "Có người còn ở trong khu vực nguy hiểm khi máy tiến hành ép (cọc có thể bị vỡ, văng bán trong khi ép)"
+        },
+        {
+          "slug": "Pile_pressing_system_robot_hydraulic_load_pressing_anchor_pressing_no_missing_in",
+          "label_en": "Pile pressing system (robot, hydraulic, load pressing, anchor pressing) no/missing inspection certificate",
+          "label_vn": "Dàn ép cọc (robot, thuỷ lực, ép tải, ép neo) Không có/ thiếu phiếu kiểm định"
+        },
+        {
+          "slug": "Unsafe_electrical_system",
+          "label_en": "Unsafe electrical system",
+          "label_vn": "Hệ thống điện không đảm bảo an toàn"
+        },
+        {
+          "slug": "Risk_of_falling_driver_people_working_on_the_system",
+          "label_en": "Risk of falling (driver, people working on the system)",
+          "label_vn": "Nguy cơ té ngã (tài xế, người làm việc trên dàn)"
+        },
+        {
+          "slug": "Unprotected_pile_heads",
+          "label_en": "Unprotected pile heads",
+          "label_vn": "Các đầu cọc không được che chắn bảo vệ"
+        },
+        {
+          "slug": "Inadequate_PPEs",
+          "label_en": "Inadequate PPEs",
+          "label_vn": "PPEs không đầy đủ"
+        },
+        {
+          "slug": "Uninspected_machinery",
+          "label_en": "Uninspected machinery",
+          "label_vn": "Máy móc chưa được kiểm tra"
+        }
+      ]
+    },
+    {
+      "slug": "Housekeeping",
+      "label_en": "Housekeeping",
+      "label_vn": "Công tác vệ sinh",
+      "hse_types": [
+        {
+          "slug": "Cleaning_Maintenance_inadequate",
+          "label_en": "Cleaning/Maintenance inadequate",
+          "label_vn": "Không dọn vệ sinh sạch sẽ"
+        },
+        {
+          "slug": "Garbage_outside_designated_areas",
+          "label_en": "Garbage outside designated areas",
+          "label_vn": "Rác để không đúng nơi quy định"
+        },
+        {
+          "slug": "No_implement_5S_standards_for_area",
+          "label_en": "No implement 5S standards for area",
+          "label_vn": "Không thực hiện 5S khu vực"
+        },
+        {
+          "slug": "No_vacuum_cleaner_available_where_required",
+          "label_en": "No vacuum cleaner available where required",
+          "label_vn": "Không có máy hút bụi các vị trí có yêu cầu"
+        },
+        {
+          "slug": "Not_treating_stagnant_water_causes_unsanitary_conditions_and_harmful_insects",
+          "label_en": "Not treating stagnant water causes unsanitary conditions and harmful insects",
+          "label_vn": "Không xử lý nước đọng, nước tù gây mất vệ sinh và côn trùng gây hại"
+        },
+        {
+          "slug": "Do_not_isolate_the_area_to_prevent_dust_from_spreading_outside",
+          "label_en": "Do not isolate the area to prevent dust from spreading outside",
+          "label_vn": "Không cô lập khu vực để ngăn bụi bay ra ngoài"
+        },
+        {
+          "slug": "Do_not_isolate_the_water_source_to_let_it_flow_outside_the_permitted_area",
+          "label_en": "Do not isolate the water source (to let it flow outside the permitted area).",
+          "label_vn": "Không cô lập nguồn nước (để chảy ra ngoài khu vực cho phép)"
+        },
+        {
+          "slug": "Concrete_or_waste_materials_are_not_stored_in_designated_areas",
+          "label_en": "Concrete or waste materials are not stored in designated areas",
+          "label_vn": "Bê tông hoặc các chất thải không được đổ đúng nơi quy định"
+        }
+      ]
+    },
+    {
+      "slug": "Steel_structures_precast_concrete_installation",
+      "label_en": "Steel structures, precast concrete installation",
+      "label_vn": "Lắp dựng kết cấu thép, bê tông đúc sẵn",
+      "hse_types": [
+        {
+          "slug": "Cable_shackle_not_inspected_or_damaged",
+          "label_en": "Cable, shackle not inspected or damaged",
+          "label_vn": "Dây cáp, ma ní không có kiểm định hoặc hư hỏng"
+        },
+        {
+          "slug": "Working_at_height_without_safety_harness",
+          "label_en": "Working at height without safety harness",
+          "label_vn": "Làm việc trên cao không đeo đai an toàn"
+        },
+        {
+          "slug": "No_guide_ropes",
+          "label_en": "No guide ropes",
+          "label_vn": "Không sử dụng dây dẫn hướng"
+        },
+        {
+          "slug": "No_load_test_before_lifting_should_apply_3_3_3",
+          "label_en": "No load test before lifting (should apply 3:3:3)",
+          "label_vn": "Không thử tải trước khi tiến hành cẩu (nên áp dụng 3:3:3)"
+        },
+        {
+          "slug": "Inadequate_installation_area_warning_signs",
+          "label_en": "Inadequate installation area warning signs",
+          "label_vn": "Không có/ thiếu biển báo khu vực lắp đặt"
+        },
+        {
+          "slug": "Materials_falling_from_height",
+          "label_en": "Materials falling from height",
+          "label_vn": "Vật tư rơi rớt từ trên cao"
+        },
+        {
+          "slug": "Wearing_safety_harnessbut_not_hooking",
+          "label_en": "Wearing safety harnessbut not hooking",
+          "label_vn": "Đeo đai an toàn nhưng không móc"
+        },
+        {
+          "slug": "Materials_left_in_disarray",
+          "label_en": "Materials left in disarray",
+          "label_vn": "Vật tư để lộn xộn"
+        },
+        {
+          "slug": "No_load_display_or_damaged",
+          "label_en": "No load display or damaged",
+          "label_vn": "Không có đồng hồ báo tải hoặc bị hư"
+        },
+        {
+          "slug": "Crane_operating_in_rain_Wind_greater_than_level_5",
+          "label_en": "Crane operating in rain, Wind greater than level 5",
+          "label_vn": "Xe cẩu làm việc khi trời mưa, gió lớn hơn cấp 5"
+        },
+        {
+          "slug": "No_lifeline",
+          "label_en": "No lifeline",
+          "label_vn": "Không có dây cứu sinh"
+        },
+        {
+          "slug": "No_installation_area_isolation",
+          "label_en": "No installation area isolation",
+          "label_vn": "Không cô lập khu vực lắp đặt"
+        },
+        {
+          "slug": "MOS_not_inspected",
+          "label_en": "MOS not inspected",
+          "label_vn": "Biện pháp thi công, ĐBAT không có thẩm tra"
+        },
+        {
+          "slug": "Cranes_is_at_risk_of_collision",
+          "label_en": "Cranes is at risk of collision",
+          "label_vn": "Cần cẩu có nguy cơ va chạm"
+        },
+        {
+          "slug": "No_PTW_JSA",
+          "label_en": "No PTW, JSA",
+          "label_vn": "Không có giấy phép làm việc, JSA"
+        },
+        {
+          "slug": "Crane_driver_doesn_t_have_Group_3_safety_card_or_other_document",
+          "label_en": "Crane driver doesn't have Group 3 safety card or other document",
+          "label_vn": "Lái xe cẩu không có thẻ AT nhóm 3 hoặc các loại hồ sơ khác"
+        },
+        {
+          "slug": "Throwing_materials_equipment",
+          "label_en": "Throwing materials/equipment",
+          "label_vn": "Quăng ném vật tư, thiết bị"
+        },
+        {
+          "slug": "No_signalman_for_crane",
+          "label_en": "No signalman for crane",
+          "label_vn": "Không có nhân viên đánh tín hiệu cho xe cẩu"
+        },
+        {
+          "slug": "Crane_not_inspected_daily",
+          "label_en": "Crane not inspected daily",
+          "label_vn": "Xe cẩu không được kiểm tra hàng ngày"
+        },
+        {
+          "slug": "Unsafe_crane_standing_position",
+          "label_en": "Unsafe crane standing position",
+          "label_vn": "Vị trí xe cẩu đứng không an toàn"
+        },
+        {
+          "slug": "Crane_legs_not_fully_extended_or_not_firmly_supported",
+          "label_en": "Crane legs not fully extended or not firmly supported",
+          "label_vn": "Các chân của xe cẩu không đưa ra hết hoặc kê lót không chắc chắn"
+        },
+        {
+          "slug": "No_access_unsafe_access",
+          "label_en": "No access/unsafe access",
+          "label_vn": "Không có lối lên/ lối lên không an toàn"
+        },
+        {
+          "slug": "The_cable_end_screws_are_not_tightened_correctly",
+          "label_en": "The cable end screws are not tightened correctly",
+          "label_vn": "Các ốc siết đầu cáp không đúng cách"
+        },
+        {
+          "slug": "Lift_equipment_people_at_risk_of_collision_with_the_object_lifting",
+          "label_en": "Lift equipment, people... at risk of collision with the object lifting",
+          "label_vn": "Xe nâng, người... có nguy cơ va chạm với vật đang nâng"
+        }
+      ]
+    },
+    {
+      "slug": "Lifting_work",
+      "label_en": "Lifting work",
+      "label_vn": "Công việc nâng hạ",
+      "hse_types": [
+        {
+          "slug": "No_isolated_installation_area",
+          "label_en": "No isolated installation area",
+          "label_vn": "Không cô lập khu vực lắp đặt"
+        },
+        {
+          "slug": "Overloaded_operating_capacity",
+          "label_en": "Overloaded operating capacity",
+          "label_vn": "Vận hành quá tải trọng của thiết bị"
+        },
+        {
+          "slug": "Quantity_of_people_on_platform_or_cabin_exceeds_the_permitted_limit",
+          "label_en": "Quantity of people on platform or cabin exceeds the permitted limit",
+          "label_vn": "Số người trên sàn thao tác, buồng lái vượt quá số lượng cho phép"
+        },
+        {
+          "slug": "Using_lifting_equipment_for_the_wrong_purpose_poses_a_safety_risk",
+          "label_en": "Using lifting equipment for the wrong purpose poses a safety risk",
+          "label_vn": "Sử dụng thiết bị nâng sai mục đích có nguy cơ mất an toàn"
+        },
+        {
+          "slug": "The_crane_or_load_lifting_is_risk_of_collision_with_people_or_objects",
+          "label_en": "The crane or load lifting is risk of collision with people or objects.",
+          "label_vn": "Cần cẩu hoặc tải đang nâng có nguy cơ va chạm với người hoặc các đối tượng xung quanh"
+        },
+        {
+          "slug": "Cables_and_shackles_are_not_inspected_or_damaged",
+          "label_en": "Cables and shackles are not inspected or damaged",
+          "label_vn": "Dây cáp, ma ní không có kiểm định hoặc hư hỏng"
+        },
+        {
+          "slug": "There_is_someone_below_the_object_lifting_in_the_hazardous_drop_area",
+          "label_en": "There is someone below the object lifting (in the hazardous drop area).",
+          "label_vn": "Có người bên dưới vật đang nâng (trong khu vực nguy hiểm vật rơi)"
+        },
+        {
+          "slug": "The_lifting_work_is_unsafe_Lifting_two_objects_at_the_same_time_or_using_two_ind",
+          "label_en": "The lifting work is unsafe: Lifting two objects at the same time or using two independent cables for two objects; risk of collision or collapse",
+          "label_vn": "Công tác nâng hạ không đảm bảo an toàn: Nâng 2 vật cùng 1 lúc hoặc 2 sợi cáp độc lập cho 2 vật; vật nâng có nguy cơ va chạm, sập đổ…"
+        },
+        {
+          "slug": "No_guide_wire",
+          "label_en": "No guide wire",
+          "label_vn": "Không sử dụng dây dẫn hướng"
+        },
+        {
+          "slug": "Crane_not_inspected_daily",
+          "label_en": "Crane not inspected daily",
+          "label_vn": "Xe cẩu không được kiểm tra hàng ngày"
+        },
+        {
+          "slug": "Not_MOS_and_Plan",
+          "label_en": "Not MOS and Plan",
+          "label_vn": "Biện pháp thi công, đánh giá rủi ro (JSA)"
+        },
+        {
+          "slug": "Unsafe_position_of_crane_standing",
+          "label_en": "Unsafe position of crane standing",
+          "label_vn": "Vị trí xe cẩu đứng không an toàn"
+        },
+        {
+          "slug": "The_crane_is_operating_in_the_rain_Wind_is_than_level_5",
+          "label_en": "The crane is operating in the rain, Wind is than level 5",
+          "label_vn": "Xe cẩu làm việc khi trời mưa, gió lớn hơn cấp 5"
+        },
+        {
+          "slug": "Rigger_dit_not_have_certificate",
+          "label_en": "Rigger dit not have certificate",
+          "label_vn": "Group 3 safety card/ Người móc cáp không có chứng chỉ nghề/thẻ an toàn nhóm 3"
+        },
+        {
+          "slug": "No_signalman",
+          "label_en": "No signalman",
+          "label_vn": "Không có nhân viên đánh tín hiệu cho xe cẩu"
+        },
+        {
+          "slug": "No_load_display_or_damaged",
+          "label_en": "No load display or damaged",
+          "label_vn": "Không có đồng hồ báo tải hoặc bị hư"
+        },
+        {
+          "slug": "No_lack_of_installation_area_signs",
+          "label_en": "No/lack of installation area signs",
+          "label_vn": "Không có/ thiếu biển báo khu vực lắp đặt"
+        },
+        {
+          "slug": "No_PTW_JSA",
+          "label_en": "No PTW, JSA",
+          "label_vn": "Không có giấy phép nâng hạ"
+        },
+        {
+          "slug": "No_load_test_before_lifting_should_apply_3_3_3",
+          "label_en": "No load test before lifting (should apply 3:3:3)",
+          "label_vn": "Không thử tải trước khi tiến hành cẩu (nên áp dụng 3:3:3)"
+        },
+        {
+          "slug": "Operator_dit_not_have_certificate",
+          "label_en": "Operator dit not have certificate",
+          "label_vn": "Group 3 safety card/ Người vận hành cẩu không có chứng chỉ nghề/thẻ an toàn nhóm 3"
+        },
+        {
+          "slug": "The_crane_legs_are_not_fully_extended_or_are_not_certain",
+          "label_en": "The crane legs are not fully extended or are not certain",
+          "label_vn": "Các chân của xe cẩu không đưa ra hết hoặc kê lót không chắc chắn"
+        },
+        {
+          "slug": "Unsafety_cable_hook",
+          "label_en": "Unsafety cable hook",
+          "label_vn": "Móc cáp không đảm bảo an toàn"
+        },
+        {
+          "slug": "Cable_hooks_used_to_lift_objects_are_unsafe",
+          "label_en": "Cable hooks used to lift objects are unsafe",
+          "label_vn": "Cáp móc để nâng vật không đảm bảo an toàn"
+        },
+        {
+          "slug": "Cable_hook_without_tongue",
+          "label_en": "Cable hook without tongue",
+          "label_vn": "Móc cáp không có lưỡi gà"
+        },
+        {
+          "slug": "Cable_hook_without_safety_latch_or_not_good",
+          "label_en": "Cable hook without safety latch or not good",
+          "label_vn": "Móc cáp không có lưỡi gà hoặc có nhưng không đảm bảo"
+        },
+        {
+          "slug": "The_cable_end_is_not_properly_installed",
+          "label_en": "The cable end is not properly installed",
+          "label_vn": "Đầu sợi cáp không được siết đúng cách"
+        }
+      ]
+    },
+    {
+      "slug": "Digging_Deep_hole",
+      "label_en": "Digging/Deep hole",
+      "label_vn": "Đào đất/ Hố sâu",
+      "hse_types": [
+        {
+          "slug": "Excavators_do_not_have_a_checklist",
+          "label_en": "Excavators do not have a checklist",
+          "label_vn": "Xe máy đào không có checklist"
+        },
+        {
+          "slug": "Working_without_PTW_JSA",
+          "label_en": "Working without PTW, JSA",
+          "label_vn": "Làm việc khi không có giấy phép làm việc, JSA"
+        },
+        {
+          "slug": "Let_the_other_holding_on_vehicles",
+          "label_en": "Let the other holding on vehicles",
+          "label_vn": "Cho người đeo bám trên phương tiện (xe đào, xe chở đất…)"
+        },
+        {
+          "slug": "No_emergency_response_procedures_for_work",
+          "label_en": "No emergency response procedures for work",
+          "label_vn": "Không có biện pháp thoát nạn, cứu nạn"
+        },
+        {
+          "slug": "No_signalman_for_excavators",
+          "label_en": "No signalman for excavators",
+          "label_vn": "Không có nhân viên đánh tín hiệu cho xe máy đào"
+        },
+        {
+          "slug": "No_place_for_materials_and_equipment",
+          "label_en": "No place for materials and equipment",
+          "label_vn": "Không có vị trí tập kết vật tư, thiết bị"
+        },
+        {
+          "slug": "Excavator_drivers_don_t_have_a_Group_3_safety_card",
+          "label_en": "Excavator drivers don't have a Group 3 safety card",
+          "label_vn": "Lái xe máy đào không có thẻ AT nhóm 3"
+        },
+        {
+          "slug": "No_landslide_prevention_excavation_slope",
+          "label_en": "No landslide prevention/excavation slope",
+          "label_vn": "Không chống sạt lở / ta luy hố đào"
+        },
+        {
+          "slug": "The_area_around_the_edge_of_the_pit_still_has_materials_equipment_or_concrete_un",
+          "label_en": "The area around the edge of the pit still has materials, equipment or concrete uncleared.",
+          "label_vn": "Khu vực mép hố đào còn vật tư thiết bị hoặc đất đá bê tông chưa dọn sạch"
+        },
+        {
+          "slug": "No_monitoring_confirmation_of_Oxy_gas_in_the_pit_area",
+          "label_en": "No monitoring, confirmation of Oxy, gas... in the pit area",
+          "label_vn": "Không theo dõi, xác nhận khu vực hố đào có hơi khí độc"
+        },
+        {
+          "slug": "No_PTW",
+          "label_en": "No PTW",
+          "label_vn": "Không có giấy phép đào đất - đục tường"
+        },
+        {
+          "slug": "MOS_when_digging_deeper_than_2m_are_not_inspected",
+          "label_en": "MOS when digging deeper than 2m are not inspected",
+          "label_vn": "Biện pháp thi công, ĐBAT khi đào sâu hơn 2m không có thẩm tra"
+        },
+        {
+          "slug": "No_way_up_down_the_pit_with_handrails_on_both_sides",
+          "label_en": "No way up/down the pit with handrails on both sides",
+          "label_vn": "Không có lối lên xuống có lan can tay vịn 2 bên"
+        },
+        {
+          "slug": "No_signs_hard_handrail_warning_around_the_pit",
+          "label_en": "No signs, hard handrail/warning around the pit",
+          "label_vn": "Không có biển báo, lan can/ căng dây cảnh báo xung quanh hố đào"
+        },
+        {
+          "slug": "Excavators_stand_too_close_to_the_edge_of_the_pit_within_1m",
+          "label_en": "Excavators stand too close to the edge of the pit (within 1m)",
+          "label_vn": "Xe máy đào đứng quá gần mép hố đào (cách ít nhất 1m)"
+        },
+        {
+          "slug": "No_cover_or_warning_below_when_above_machines_operating_near_the_edge_of_the_pit",
+          "label_en": "No cover or warning below when above machines operating near the edge of the pit",
+          "label_vn": "Không che chắn hoặc cảnh báo bên dưới khi bên trên có cơ giới hoạt động vị trí gần mép hố đào"
+        },
+        {
+          "slug": "No_ventilation_exhaust_fans_when_need",
+          "label_en": "No ventilation, exhaust fans (when need)",
+          "label_vn": "Không có thông gió, quạt hút gió (khi cần)"
+        },
+        {
+          "slug": "Inadequate_PPEs",
+          "label_en": "Inadequate PPEs",
+          "label_vn": "Không đầy đủ PPEs"
+        },
+        {
+          "slug": "Worker_work_alone",
+          "label_en": "Worker work alone",
+          "label_vn": "Công nhân làm việc một mình"
+        },
+        {
+          "slug": "Excavation_Area_Hazardous_Objects_Detected_Electrical_Systems_Fire_Protection_Eq",
+          "label_en": "Excavation Area – Hazardous Objects Detected: Electrical Systems, Fire Protection Equipment, Other Foreign Objects",
+          "label_vn": "Khu vực đào phát hiện dị vật không an toàn: Hệ thống điện, PCCC, các dị vật khác"
+        },
+        {
+          "slug": "The_excavator_key_must_not_be_removed_and_kept_by_the_supervisor_the_driver_must",
+          "label_en": "The excavator key must not be removed and kept by the supervisor (the driver must not keep the excavator key when the excavator isn't in operation).",
+          "label_vn": "Chìa khoá xe đào không được rút ra và cất giữ bởi giám sát (tài xế không được giữ chìa khoá xe đào khi xe không hoạt động)"
+        },
+        {
+          "slug": "Not_covering_the_manhole",
+          "label_en": "Not covering the manhole",
+          "label_vn": "Không che chắn cho hố ga"
+        },
+        {
+          "slug": "The_excavation_area_has_not_been_Scanning_for_underground_structures",
+          "label_en": "The excavation area has not been Scanning for underground structures.",
+          "label_vn": "Khu vực đào đất chưa được dò tìm công trình ngầm"
+        },
+        {
+          "slug": "Do_not_pump_water_regularly_leaving_stagnant_water_causes_unsanitary_conditions",
+          "label_en": "Do not pump water regularly (leaving stagnant water causes unsanitary conditions)",
+          "label_vn": "Không bơm nước thường xuyên (để nước đọng gây mất vệ sinh)"
+        },
+        {
+          "slug": "Working_place_of_workers_has_a_lot_of_water",
+          "label_en": "Working place of workers has a lot of water",
+          "label_vn": "Vị trí làm việc của công nhân có nhiều nước"
+        }
+      ]
+    },
+    {
+      "slug": "Electricity_and_Electrical_Equipment",
+      "label_en": "Electricity and Electrical Equipment",
+      "label_vn": "Điện và Thiết bị sử dụng điện",
+      "hse_types": [
+        {
+          "slug": "Worker_working_in_the_area_where_electric_submersible_pumps_are_operating",
+          "label_en": "Worker working in the area where electric submersible pumps are operating",
+          "label_vn": "Công nhân làm việc trong khu vực bơm chìm dùng điện đang hoạt động"
+        },
+        {
+          "slug": "The_equipment_has_no_or_unclear_specifications_documentation",
+          "label_en": "The equipment has no or unclear specifications documentation",
+          "label_vn": "Thiết bị không có hồ sơ kỹ thuật hoặc các thông số không rõ ràng"
+        },
+        {
+          "slug": "There_is_no_tray_to_prevent_sparks_from_the_cutting_machine",
+          "label_en": "There is no tray to prevent sparks from the cutting machine",
+          "label_vn": "Không có khay hứng phoi, ngăn ngừa tia lửa từ máy cắt"
+        },
+        {
+          "slug": "Using_damaged_hand_made_or_unsafe_machinery_and_equipment",
+          "label_en": "Using damaged, hand-made or unsafe machinery and equipment",
+          "label_vn": "Sử dụng máy móc, thiết bị đã bị hư hỏng, tự chế, không đảm bảo an toàn"
+        },
+        {
+          "slug": "Use_plug_for_2_or_more_wires",
+          "label_en": "Use plug for 2 or more wires",
+          "label_vn": "Sử dụng phích cắm cho 2 hay nhiều dây dẫn điện của các máy móc thiết bị"
+        },
+        {
+          "slug": "Temporary_electrical_panel_has_not_been_checked_approved_for_use",
+          "label_en": "Temporary electrical panel has not been checked & approved for use",
+          "label_vn": "Tủ điện tạm chưa được kiểm tra cho phép sử dụng"
+        },
+        {
+          "slug": "Using_power_without_RCD_ELCB_RCCB_RCBO_or_damaged",
+          "label_en": "Using power without RCD (ELCB/RCCB/RCBO) or damaged",
+          "label_vn": "Sử dụng nguồn điện không qua thiết bị chống dòng rò (RCD)"
+        },
+        {
+          "slug": "Using_unsuitable_size_of_wire_with_capacity_of_CB_or_RCD",
+          "label_en": "Using unsuitable size of wire with capacity of CB or RCD",
+          "label_vn": "Sử dụng dây dẫn không đúng với định mức của CB or RCD"
+        },
+        {
+          "slug": "Outdoor_electrical_panel_are_not_carefully_shielded_risk_of_water_infiltration",
+          "label_en": "Outdoor electrical panel are not carefully shielded, risk of water infiltration",
+          "label_vn": "Tủ điện ngoài trời không được che chắn cẩn thận, có nguy cơ nước xâm nhập"
+        },
+        {
+          "slug": "Electrical_equipment_use_electricity_in_wet_place_near_water",
+          "label_en": "Electrical equipment, use electricity in wet place, near water",
+          "label_vn": "Thiết bị điện, sử dụng điện nơi ẩm ướt, gần nguồn nước"
+        },
+        {
+          "slug": "Electric_wires_are_not_hung_high",
+          "label_en": "Electric wires are not hung high",
+          "label_vn": "Dây điện không được treo cao"
+        },
+        {
+          "slug": "Unsafe_wiring_or_insulation_at_connection_points",
+          "label_en": "Unsafe wiring or insulation at connection points",
+          "label_vn": "Dây điện đấu nối hoặc cách điện vị trí đấu nối không an toàn"
+        },
+        {
+          "slug": "No_periodic_electrical_safety_inspection_general",
+          "label_en": "No periodic electrical safety inspection (general)",
+          "label_vn": "Không thực hiện kiểm tra an toàn điện định kỳ (chung)"
+        },
+        {
+          "slug": "No_warning_signs_handrail_fences_to_separate_with_submersible_pumps",
+          "label_en": "No warning signs, handrail/fences to separate with submersible pumps",
+          "label_vn": "Không có biển cảnh báo, lan can/ hàng rào ngăn cách tiếp xúc bơm chìm"
+        },
+        {
+          "slug": "No_Safety_instructions_for_electrical_equipment",
+          "label_en": "No Safety instructions for electrical equipment",
+          "label_vn": "Không có Hướng dẫn an toàn cho các thiết bị điện"
+        },
+        {
+          "slug": "No_single_line_or_tagname_for_wire",
+          "label_en": "No single-line or tagname for wire",
+          "label_vn": "Không có Sơ đồ nguyên lý tủ điện và đường dây"
+        },
+        {
+          "slug": "Electric_machines_are_not_safe_No_grounding_no_cover_for_cutting_stone_or_no_han",
+          "label_en": "Electric machines are not safe/No grounding, no cover for cutting stone, or no handle",
+          "label_vn": "Máy sử dụng điện không đảm bảo an toàn: không có tiếp địa, không có bao che cho đá cắt, thiếu tay cầm…"
+        },
+        {
+          "slug": "No_electrical_safety_inspection_record_for_machinery_and_equipment",
+          "label_en": "No electrical safety inspection record for machinery and equipment",
+          "label_vn": "Không có phiếu kiểm tra an toàn điện cho máy móc thiết bị"
+        },
+        {
+          "slug": "Electric_machines_without_safety_passed",
+          "label_en": "Electric machines without safety passed",
+          "label_vn": "Máy sử dụng điện không có tem an toàn"
+        },
+        {
+          "slug": "No_RCD_ELCB_RCCB_RCBO_ELR",
+          "label_en": "No RCD (ELCB, RCCB, RCBO) /ELR",
+          "label_vn": "EFR or not good/ Không có RCD (ELCB, RCCB, RCBO) /ELR/ EFR hoặc không hoạt động"
+        },
+        {
+          "slug": "No_warning_signs_for_transfomer_area",
+          "label_en": "No warning signs for transfomer area",
+          "label_vn": "Biển cảnh báo khu vực trạm điệm"
+        },
+        {
+          "slug": "No_signs_for_underground_cable",
+          "label_en": "No signs for underground cable",
+          "label_vn": "Không có biển báo đánh dấu khu vực cáp ngầm"
+        },
+        {
+          "slug": "No_information_of_the_PIC_on_the_electrical_panel",
+          "label_en": "No information of the PIC on the electrical panel",
+          "label_vn": "Không có thông tin người phụ trách trên tủ điện"
+        },
+        {
+          "slug": "No_grounding_connection_or_yes_but_not_good",
+          "label_en": "No grounding connection or yes but not good",
+          "label_vn": "Không có Nối đất/ Nối te hoặc có nhưng không đảm bảo"
+        },
+        {
+          "slug": "MSB_DBs_panel_don_t_have_cover_internal_lock_or_emergency_button",
+          "label_en": "MSB/DBs panel don't have cover, internal lock, or emergency button",
+          "label_vn": "Tủ MSB/DBs không có che chắn, khóa trong, nút emergency"
+        },
+        {
+          "slug": "No_periodic_electrical_cabinet_safety_inspection_form",
+          "label_en": "No periodic electrical cabinet safety inspection form",
+          "label_vn": "Không có phiếu kiểm tra an toàn tủ điện định kỳ"
+        },
+        {
+          "slug": "No_layout_of_temporary_electrical_system",
+          "label_en": "No layout of temporary electrical system",
+          "label_vn": "Không có sơ đồ bố trí hệ thống điện tạm"
+        },
+        {
+          "slug": "Lack_of_guarding_on_moving_parts",
+          "label_en": "Lack of guarding on moving parts:",
+          "label_vn": "Không che chắn bộ phận chuyển động/ truyền động"
+        },
+        {
+          "slug": "Cutting_wheel_installed_incorrectly_broken_unsafe",
+          "label_en": "Cutting wheel installed incorrectly/broken/unsafe",
+          "label_vn": "Đá cắt lắp không đúng/ bị vỡ/ không đảm bảo an toàn"
+        },
+        {
+          "slug": "Do_not_use_single_layer_insulated_wire_must_be_2_layers",
+          "label_en": "Do not use single-layer insulated wire (must be 2 layers)",
+          "label_vn": "Không được sử dụng dây điện 1 lớp vỏ cách điện (phải từ 2 lớp)"
+        },
+        {
+          "slug": "Do_not_arbitrarily_connect_or_install_socket_inside_the_electrical_panel",
+          "label_en": "Do not arbitrarily connect or install socket inside the electrical panel",
+          "label_vn": "Không được tự ý câu nối hay lắp ổ cắm bên trong tủ điện"
+        },
+        {
+          "slug": "Only_charge_batteries_in_controlled_places_with_low_risk_of_fire_explosion",
+          "label_en": "Only charge batteries in controlled places with low risk of fire explosion",
+          "label_vn": "Chỉ sạc pin tại những nơi có thể kiểm soát và ít nguy cơ cháy lan"
+        },
+        {
+          "slug": "Damaged",
+          "label_en": "Damaged",
+          "label_vn": "unsafe electrical wire/ Dây điện bị hư hỏng, không đảm bảo an toàn"
+        },
+        {
+          "slug": "There_is_no_access_to_the_electrical_panel_or_the_access_is_obstructed",
+          "label_en": "There is no access to the electrical panel or the access is obstructed",
+          "label_vn": "Không có lối vào tủ điện hoặc lối vào bị che chắn"
+        },
+        {
+          "slug": "The_CB_and_switches_are_not_securely_installed_loose",
+          "label_en": "The CB and switches are not securely installed (loose)",
+          "label_vn": "CB, công tắc không được lắp đặt chắc chắn (bị lỏng lẽo)"
+        },
+        {
+          "slug": "There_is_no_emergency_stop_button",
+          "label_en": "There is no emergency stop button",
+          "label_vn": "Không có nút dừng khẩn cấp"
+        }
+      ]
+    },
+    {
+      "slug": "Confined_space",
+      "label_en": "Confined space",
+      "label_vn": "Không gian hạn chế",
+      "hse_types": [
+        {
+          "slug": "Unsafe_access_and_exit",
+          "label_en": "Unsafe access and exit",
+          "label_vn": "Lối lên xuống không đảm bảo an toàn"
+        },
+        {
+          "slug": "Lighting_not_good",
+          "label_en": "Lighting not good",
+          "label_vn": "Ánh sáng không đảm bảo"
+        },
+        {
+          "slug": "No_emergency_response_procedures_for_work",
+          "label_en": "No emergency response procedures for work",
+          "label_vn": "Không có phương án cứu hộ cứu nạn"
+        },
+        {
+          "slug": "Breaks_not_maintained_as_regulated_should_be_15_minutes_break_every_hour",
+          "label_en": "Breaks not maintained as regulated (should be 15 minutes break every hour)",
+          "label_vn": "Không nghỉ giải lao theo quy định (nên mỗi 1 tiếng giải lao 15p)"
+        },
+        {
+          "slug": "No_watchman_supervisor",
+          "label_en": "No watchman, supervisor",
+          "label_vn": "Không có người canh chừng, giám sát"
+        },
+        {
+          "slug": "No_warning_and_isolation_of_Confined_spacearea_to_prevent_unauthorized_people_fr",
+          "label_en": "No warning and isolation of Confined spacearea to prevent unauthorized people from entering",
+          "label_vn": "Không cảnh báo và cô lập khu vực KGHC để ngăn ngừa người không được phép đi vào"
+        },
+        {
+          "slug": "No_air_testing_and_periodic_testing_every_30_minutes_Oxygen_from_19_5_to_23_5",
+          "label_en": "No air testing and periodic testing every 30 minutes (Oxygen from 19.5% to 23.5%)",
+          "label_vn": "Không đo kiểm tra không khí và định kỳ mỗi 30p (Oxy từ 19,5% đến 23,5%)"
+        },
+        {
+          "slug": "No_emergency_response_equipment_available_at_the_workplace",
+          "label_en": "No emergency response equipment available at the workplace",
+          "label_vn": "Không có sẵn thiết bị cứu hộ cứu nạn tại nơi làm việc"
+        },
+        {
+          "slug": "No_PTW_JSA",
+          "label_en": "No PTW/JSA",
+          "label_vn": "Không có giấy phép làm việc, JSA"
+        },
+        {
+          "slug": "Ventilation_exhaust_fan_not_good",
+          "label_en": "Ventilation, exhaust fan not good",
+          "label_vn": "Thông gió, quạt hút gió không đảm bảo"
+        },
+        {
+          "slug": "No_entry_and_exit_record_or_not_fully_updated",
+          "label_en": "No entry and exit record or not fully updated",
+          "label_vn": "Không có nhật ký ra vào hoặc không cập nhật đầy đủ"
+        }
+      ]
+    },
+    {
+      "slug": "Construction_equipment_Gondola_Suspended_scaffold_Hoist_Lifting_equipment",
+      "label_en": "Construction equipment (Gondola, Suspended scaffold, Hoist, Lifting equipment…)",
+      "label_vn": "Thiết bị thi công xây dựng (Gondola, Giàn giáo treo, vận thăng, thiết bị nâng…)",
+      "hse_types": [
+        {
+          "slug": "No_watchman_supervisor",
+          "label_en": "No watchman, supervisor",
+          "label_vn": "Không có người cảnh giới, giám sát"
+        },
+        {
+          "slug": "The_support_system_for_pulling_materials_winch_to_lift_materials_and_equipment_i",
+          "label_en": "The support system for pulling materials (winch to lift materials) and equipment is not safe and needs to be reinforced",
+          "label_vn": "Hệ thống giá đỡ để kéo vật tư, thiết bị không đảm bảo an toàn, cần gia cố thêm"
+        },
+        {
+          "slug": "The_motor_and_equipment_used_for_lifting_and_lowering_goods_are_not_safe_or_have",
+          "label_en": "The motor and equipment used for lifting and lowering goods are not safe or have not been checked",
+          "label_vn": "Mô tơ, thiết bị dùng để nâng hạ hàng không đảm bảo an toàn hoặc chưa được kiểm tra"
+        },
+        {
+          "slug": "No_operator_information",
+          "label_en": "No operator information",
+          "label_vn": "Không có thông tin người vận hành"
+        },
+        {
+          "slug": "No_isolation_of_dangerous_area",
+          "label_en": "No isolation of dangerous area",
+          "label_vn": "Không cách ly vùng khu vực nguy hiểm"
+        },
+        {
+          "slug": "Counterweight_load_is_unsafe",
+          "label_en": "Counterweight load is unsafe",
+          "label_vn": "Tải đối trọng không đảm bảo an toàn"
+        },
+        {
+          "slug": "Operator_not_degree_Group_3_safety_card",
+          "label_en": "Operator not degree/Group 3 safety card",
+          "label_vn": "Người vận hành không có chứng chỉ nghề/thẻ an toàn nhóm 3"
+        },
+        {
+          "slug": "No_lifeline_or_safety_lock",
+          "label_en": "No lifeline or safety lock",
+          "label_vn": "Không có dây cứu sinh hoặc khóa an toàn"
+        },
+        {
+          "slug": "No_limit_switch_or_damaged",
+          "label_en": "No limit switch or damaged",
+          "label_vn": "Không có giới hạn hành trình hoặc bị hư hỏng"
+        },
+        {
+          "slug": "No_roof",
+          "label_en": "No roof",
+          "label_vn": "fence for dangerous area/ Không có mái che/ Hàng rào che chắn"
+        },
+        {
+          "slug": "The_cable_is_not_inspected_or_unsafe",
+          "label_en": "The cable is not inspected or unsafe",
+          "label_vn": "Cáp tải không có kiểm định hoặc không đảm bảo an toàn"
+        },
+        {
+          "slug": "No_PTW_JSA",
+          "label_en": "No PTW/JSA",
+          "label_vn": "Không có Giấy phép làm việc, JSA"
+        },
+        {
+          "slug": "CO_CQ_record_inspection_or_maintenance_records_not_maintained",
+          "label_en": "CO/CQ record, inspection, or maintenance records not maintained",
+          "label_vn": "Không có/ thiếu hồ sơ CO/CQ, kiểm định, bảo trì bảo dưỡng, theo dõi định kỳ…"
+        },
+        {
+          "slug": "The_loading_unloading_doors_of_the_hoist_or_the_lifting_area_unsafe_have_risks_o",
+          "label_en": "The loading/unloading doors of the hoist or the lifting area unsafe: have risks of falls and falling objects",
+          "label_vn": "Cửa ra vào lấy hàng của vận thăng hoặc khu vực nâng hạ không đảm bảo an toàn, có nguy cơ té ngã, rơi vật tư..."
+        },
+        {
+          "slug": "Need_to_have_a_separate_lifeline_Lifeline_must_have_a_certification",
+          "label_en": "Need to have a separate lifeline (Lifeline must have a certification)",
+          "label_vn": "Cần phải có dây cứu sinh độc lập (dây cứu sinh phải có kiếm định)"
+        },
+        {
+          "slug": "Placing_a_ladder_a_chair_etc_on_the_equipment_s_working_platform_is_unsafe",
+          "label_en": "Placing a ladder, a chair, etc. on the equipment's working platform is unsafe",
+          "label_vn": "Đặt thang, ghế…lên sàn thao tác của thiết bị không đảm bảo an toàn"
+        },
+        {
+          "slug": "Standing_on_handrails_to_work_or_working_in_position_unsafety",
+          "label_en": "Standing on handrails to work or working in position unsafety",
+          "label_vn": "Đứng lên lan can làm việc hoặc vị trí làm việc không đảm bảo an toàn"
+        }
+      ]
+    },
+    {
+      "slug": "Trucks",
+      "label_en": "Trucks",
+      "label_vn": "Xe tải các loại",
+      "hse_types": [
+        {
+          "slug": "Materials_falling",
+          "label_en": "Materials falling",
+          "label_vn": "Rơi vãi vật tư"
+        },
+        {
+          "slug": "Exceeding_the_speed_limit",
+          "label_en": "Exceeding the speed limit",
+          "label_vn": "Xe tải chạy nhanh, chạy ẩu"
+        },
+        {
+          "slug": "Driver_without_insufficient_PPEs",
+          "label_en": "Driver without/insufficient PPEs",
+          "label_vn": "Tài xế không có/ không đủ PPEs"
+        },
+        {
+          "slug": "Not_following_the_designated_route",
+          "label_en": "Not following the designated route",
+          "label_vn": "Xe tải chạy không đúng đường quy định"
+        },
+        {
+          "slug": "Not_allowed_to_enter_the_site",
+          "label_en": "Not allowed to enter the site",
+          "label_vn": "Xe chưa được phép vào công trường"
+        },
+        {
+          "slug": "Materials_at_risk_of_falling",
+          "label_en": "Materials at risk of falling",
+          "label_vn": "Vật tư có nguy cơ rơi rớt"
+        },
+        {
+          "slug": "No_signalman",
+          "label_en": "No signalman",
+          "label_vn": "Không có nhân viên tín hiệu"
+        },
+        {
+          "slug": "No_safe_passage_for_vehicles",
+          "label_en": "No safe passage for vehicles",
+          "label_vn": "Không có lối di chuyển an toàn cho xe cơ giới"
+        },
+        {
+          "slug": "Vehicles_are_moving_in_violation_of_designated_pathways",
+          "label_en": "Vehicles are moving in violation of designated pathways",
+          "label_vn": "Xe cơ giới di chuyển sai lối đi đã được quy định"
+        }
+      ]
+    },
+    {
+      "slug": "Electric_welding_Gas_welding",
+      "label_en": "Electric welding - Gas welding",
+      "label_vn": "Hàn điện - Hàn hơi",
+      "hse_types": [
+        {
+          "slug": "No_warning_area",
+          "label_en": "No warning area",
+          "label_vn": "Khu vực không được cảnh báo"
+        },
+        {
+          "slug": "Risk_of_fire_due_to_proximity_of_flammable_materials",
+          "label_en": "Risk of fire due to proximity of flammable materials",
+          "label_vn": "Có nguy cơ cháy do gần vật liệu dễ cháy"
+        },
+        {
+          "slug": "No_non_return_valve_Flashback_Arrestor",
+          "label_en": "No non-return valve, Flashback Arrestor",
+          "label_vn": "Không có van 1 chiều, van chống cháy ngược"
+        },
+        {
+          "slug": "No_fire_extinguisher",
+          "label_en": "No fire extinguisher",
+          "label_vn": "Không có bình chữa cháy"
+        },
+        {
+          "slug": "Electric_welder_without_a_certificate_degree",
+          "label_en": "Electric welder without a certificate/degree",
+          "label_vn": "Thợ hàn điện hàn hơi không có bằng cấp, chứng chỉ"
+        },
+        {
+          "slug": "Welding_machine_without_grounding_or_damaged",
+          "label_en": "Welding machine without grounding or damaged",
+          "label_vn": "Máy hàn không có dây tiếp địa hoặc bị hư hỏng"
+        },
+        {
+          "slug": "Welder_without_Group_3_safety_card",
+          "label_en": "Welder without Group 3 safety card",
+          "label_vn": "Thợ hàn không có thẻ AT nhóm 3"
+        },
+        {
+          "slug": "No_tray_for_welding_work",
+          "label_en": "No tray for welding work.",
+          "label_vn": "Không có khay hứng phoi hàn"
+        },
+        {
+          "slug": "Inadequate_PPEs",
+          "label_en": "Inadequate PPEs",
+          "label_vn": "Không đầy đủ PPEs"
+        },
+        {
+          "slug": "Gas_cylinder_compressed_air_not_fixed_on_shelf_trolley",
+          "label_en": "Gas cylinder, compressed air not fixed on shelf/trolley",
+          "label_vn": "Bình gas, khí nén không được cố định trên kệ/ xe đẩy"
+        },
+        {
+          "slug": "Welding_wire_is_damaged",
+          "label_en": "Welding wire is damaged",
+          "label_vn": "unsafe connection/ Dây hàn bị hư hỏng/ đấu nối không đảm bảo an toàn"
+        },
+        {
+          "slug": "Electrode_holder_are_damaged_and_require_replace",
+          "label_en": "Electrode holder are damaged and require replace",
+          "label_vn": "Kìm hàn bị hư hỏng, yêu cầu thay thế"
+        },
+        {
+          "slug": "The_pressure_gauge_is_missing_or_damaged",
+          "label_en": "The pressure gauge is missing or damaged",
+          "label_vn": "Đồng hồ báo áp bị thiếu hoặc hư hỏng"
+        },
+        {
+          "slug": "The_welding_machine_is_placed_in_a_damp_area_which_is_unsafe_need_to_be_placed_a",
+          "label_en": "The welding machine is placed in a damp area, which is unsafe (need to be placed at height)",
+          "label_vn": "Máy hàn để nơi ẩm ướt, không đảm bảo an toàn (Cần phải đặt lên cao)"
+        }
+      ]
+    },
+    {
+      "slug": "Working_at_height",
+      "label_en": "Working at height",
+      "label_vn": "Làm việc trên cao",
+      "hse_types": [
+        {
+          "slug": "No_safety_net_or_damaged_or_unsafe",
+          "label_en": "No safety net or damaged or unsafe.",
+          "label_vn": "Không có lưới an toàn hoặc bị hư hỏng hoặc không đảm bảo an toàn"
+        },
+        {
+          "slug": "No_3_square_safety_net_to_protect_falling_objects",
+          "label_en": "No 3-square safety net to protect falling objects",
+          "label_vn": "Không có lưới 3 vuông che chắn vật rơi vị trí sàn thi công và sàn tháo copha"
+        },
+        {
+          "slug": "Throw_material_equipment",
+          "label_en": "Throw material, equipment",
+          "label_vn": "Quăng ném vật tư, thiết bị"
+        },
+        {
+          "slug": "Wearing_safety_harness_but_no_hooking",
+          "label_en": "Wearing safety harness but no hooking",
+          "label_vn": "Đeo đai an toàn nhưng không móc"
+        },
+        {
+          "slug": "No_safety_handrail",
+          "label_en": "No safety handrail",
+          "label_vn": "Không có lan can an toàn"
+        },
+        {
+          "slug": "Working_without_PTW_or_JSA",
+          "label_en": "Working without PTW or JSA",
+          "label_vn": "Làm việc khi không có giấy phép làm việc, JSA"
+        },
+        {
+          "slug": "Working_below_without_protection",
+          "label_en": "Working below without protection",
+          "label_vn": "Làm việc bên dưới khi không có che chắn"
+        },
+        {
+          "slug": "Too_many_materials_are_stored_at_height_have_a_risk_of_falling",
+          "label_en": "Too many materials are stored at height, have a risk of falling",
+          "label_vn": "Vật tư để trên cao quá nhiều có nguy cơ rơi rớt"
+        },
+        {
+          "slug": "Working_at_heights_without_safety_harness",
+          "label_en": "Working at heights without safety harness",
+          "label_vn": "Làm việc trên cao không đeo đai an toàn"
+        },
+        {
+          "slug": "Not_tied_tightly_no_tool_equipment_bag",
+          "label_en": "Not tied tightly, no tool/equipment bag",
+          "label_vn": "Không cột chặt, không có túi đựng dụng cụ/ thiết bị"
+        },
+        {
+          "slug": "No_lifeline",
+          "label_en": "No lifeline",
+          "label_vn": "Không có dây cứu sinh"
+        },
+        {
+          "slug": "Materials_falling",
+          "label_en": "Materials falling",
+          "label_vn": "Vật tư rơi rớt từ trên cao"
+        },
+        {
+          "slug": "Non_functioning_unsafe_platform",
+          "label_en": "Non-functioning/unsafe platform",
+          "label_vn": "Không có sàn thao tác hoặc có nhưng không đảm bảo an toàn"
+        },
+        {
+          "slug": "No_access_unsafe_access",
+          "label_en": "No access/unsafe access",
+          "label_vn": "Không có lối lên/ lối lên không an toàn"
+        },
+        {
+          "slug": "Materials_left_in_disarray",
+          "label_en": "Materials left in disarray",
+          "label_vn": "Vật tư để lộn xộn"
+        },
+        {
+          "slug": "Excess_equipment_left_on_the_floor_close_to_the_edge",
+          "label_en": "Excess equipment left on the floor, close to the edge",
+          "label_vn": "Thiết bị dư thừa để trên sàn, sát mép biên"
+        },
+        {
+          "slug": "The_purlins_planks_and_trays_are_not_securely_fastened",
+          "label_en": "The purlins, planks, and trays are not securely fastened",
+          "label_vn": "Không neo buộc chắc chắn các thiết bị xà gồ, ván, mâm"
+        },
+        {
+          "slug": "Unsafe_working_position_Risk_of_falling_collision_slipping",
+          "label_en": "Unsafe working position: Risk of falling, collision, slipping…",
+          "label_vn": "Vị trí đứng làm việc không đảm bảo an toàn: Nguy cơ té ngã, va chạm, trơn trượt…"
+        },
+        {
+          "slug": "No_have_warning_below_at_working_at_height_position",
+          "label_en": "No have warning below at working at height position",
+          "label_vn": "Không cảnh báo bên dưới vị trí làm việc trên cao"
+        },
+        {
+          "slug": "Lifeline_damaged_or_unsafe",
+          "label_en": "Lifeline damaged or unsafe",
+          "label_vn": "Dây cứu sinh bị hư hỏng, không đảm bảo an toàn"
+        },
+        {
+          "slug": "Mobile_working_frame_MWF_are_unsafe_such_as_not_having_foot_restraints_falling_r",
+          "label_en": "Mobile working frame (MWF) are unsafe, such as not having foot restraints, falling risk, no lifeline, etc.",
+          "label_vn": "Sàn thao tác di động (MWF) không đảm bảo an toàn như không cài chân, có nguy cơ rơi, không có dây cứu sinh…"
+        },
+        {
+          "slug": "The_lifeline_has_not_been_inspected_or_load_tested",
+          "label_en": "The lifeline has not been inspected or load tested",
+          "label_vn": "Dây cứu sinh chưa được kiểm tra, thử tải"
+        },
+        {
+          "slug": "The_safety_net_has_not_been_inspected_or_load_tested",
+          "label_en": "The safety net has not been inspected or load tested",
+          "label_vn": "Lưới cứu sinh chưa được kiểm tra, thử tải"
+        },
+        {
+          "slug": "Materials_are_risk_of_falling_from_height",
+          "label_en": "Materials are risk of falling from height",
+          "label_vn": "Vật tư có nguy cơ rơi rớt từ trên cao"
+        }
+      ]
+    },
+    {
+      "slug": "Gate_and_safety_walkway",
+      "label_en": "Gate and safety walkway",
+      "label_vn": "Khu vực cổng và lối đi an toàn",
+      "hse_types": [
+        {
+          "slug": "Other_items_not_safe",
+          "label_en": "Other items not safe",
+          "label_vn": "Các mục khác không đảm bảo an toàn"
+        },
+        {
+          "slug": "Entrance_to_site_not_safe",
+          "label_en": "Entrance to site not safe",
+          "label_vn": "Lối vào công trường không đảm bảo an toàn"
+        },
+        {
+          "slug": "Fence_security_gate_damaged_unsafe",
+          "label_en": "Fence/security gate damaged, unsafe",
+          "label_vn": "Hàng rào/cổng bảo vệ bị hư hỏng, không đảm bảo an toàn"
+        },
+        {
+          "slug": "Car_wash_not_cleaned",
+          "label_en": "Car wash not cleaned",
+          "label_vn": "Trạm rửa xe không được dọn vệ sinh"
+        },
+        {
+          "slug": "PPE_for_guests_not_available_inadequate",
+          "label_en": "PPE for guests not available/inadequate",
+          "label_vn": "PPE cho khách không có/ không đầy đủ"
+        },
+        {
+          "slug": "Unsafe_walkway_Materials_falling_from_above_obstructive_objects_risk_of_falling_",
+          "label_en": "Unsafe walkway: Materials falling from above, obstructive objects, risk of falling, no handrail for stair, no warning tapes, etc.",
+          "label_vn": "Lối đi bộ không đảm bảo an toàn: Vật tư rơi từ trên cao, có chướng ngại vật, nguy cơ té ngã, không có lan can cho cầu thang, không căng dây cảnh báo…"
+        },
+        {
+          "slug": "No_safe_walkway_is_provided",
+          "label_en": "No safe walkway is provided",
+          "label_vn": "Không có lối đi bộ an toàn"
+        }
+      ]
+    },
+    {
+      "slug": "Fire_Prevention",
+      "label_en": "Fire Prevention",
+      "label_vn": "Phòng cháy chữa cháy",
+      "hse_types": [
+        {
+          "slug": "No_fire_extinguishers_regulation_instructions_of_fire_and_fighting_etc",
+          "label_en": "No fire extinguishers, regulation & instructions of fire and fighting, etc.",
+          "label_vn": "Không có bình chữa cháy, tiêu lệnh, hướng dẫn…"
+        },
+        {
+          "slug": "No_assembly_point_or_signs_are_blurred_or_damaged",
+          "label_en": "No assembly point or signs are blurred or damaged",
+          "label_vn": "Không có bị trí tập trung hoặc biển báo bị mờ, hư"
+        },
+        {
+          "slug": "Missing_damaged_fire_extinguisher",
+          "label_en": "Missing/damaged fire extinguisher",
+          "label_vn": "Bình chữa cháy thiếu/ hư"
+        },
+        {
+          "slug": "Firefighting_team_lacks_certification",
+          "label_en": "Firefighting team lacks certification",
+          "label_vn": "Đội PCCC bị thiếu chứng nhận PCCC"
+        },
+        {
+          "slug": "No_emergency_exit",
+          "label_en": "No emergency exit",
+          "label_vn": "Không có lối thoát trong trường hợp khẩn cấp"
+        },
+        {
+          "slug": "No_fire_drills_performed_or_inadequate_fire_drills",
+          "label_en": "No fire drills performed or inadequate fire drills",
+          "label_vn": "Không thực hiện diễn tập hoặc diễn tập không đạt yêu cầu"
+        },
+        {
+          "slug": "No_fire_prevention_team_assigned_or_not_up_to_date",
+          "label_en": "No fire prevention team assigned or not up to date",
+          "label_vn": "Không có hoặc không cập nhật đội PCCC"
+        },
+        {
+          "slug": "No_emergency_respond_measures",
+          "label_en": "No emergency respond measures",
+          "label_vn": "Không có biện pháp UPKC"
+        },
+        {
+          "slug": "No_exit_signs",
+          "label_en": "No exit signs",
+          "label_vn": "Không có đèn báo lối thoát hiểm"
+        },
+        {
+          "slug": "There_is_no_access_route_to_the_location_of_firefighting_equipment_Fire_extingui",
+          "label_en": "There is no access route to the location of firefighting equipment: Fire extinguishers, nozzles, fire valves, etc",
+          "label_vn": "Không có lối đi đến vị trí đặt thiết bị chữa cháy: Bình chữa cháy, vòi phun, van chữa cháy…"
+        }
+      ]
+    },
+    {
+      "slug": "Gas_and_chemicals_storage",
+      "label_en": "Gas and chemicals storage",
+      "label_vn": "Hoá chất và khu vực để xăng dầu, hóa chất",
+      "hse_types": [
+        {
+          "slug": "Risk_of_fire_due_to_direct_heat",
+          "label_en": "Risk of fire due to direct heat",
+          "label_vn": "Có nguy cơ cháy do nguồn nhiệt trực tiếp"
+        },
+        {
+          "slug": "Flammable_materials_placed_in_chemical_areas",
+          "label_en": "Flammable materials placed in chemical areas",
+          "label_vn": "Vật liệu dễ cháy ở khu vực hoá chất"
+        },
+        {
+          "slug": "No_emergency_response_procedures_for_chemical_spills",
+          "label_en": "No emergency response procedures for chemical spills",
+          "label_vn": "Không có biện pháp UPKC tràn đổ hoá chất"
+        },
+        {
+          "slug": "Chemicals_stored_out_of_regulation",
+          "label_en": "Chemicals stored out of regulation",
+          "label_vn": "Hoá chất để không đúng quy định"
+        },
+        {
+          "slug": "No_chemical_spill_containment_pit",
+          "label_en": "No chemical spill containment pit",
+          "label_vn": "Không có hố thu hoá chất tràn đổ"
+        },
+        {
+          "slug": "No_MSDS_or_lack_of",
+          "label_en": "No MSDS or lack of",
+          "label_vn": "Không có hoặc thiếu MSDS"
+        },
+        {
+          "slug": "No_list_of_incompatible_chemicals",
+          "label_en": "No list of incompatible chemicals",
+          "label_vn": "Không có danh mục các hóa chất không tương thích"
+        },
+        {
+          "slug": "Spilled_chemicals",
+          "label_en": "Spilled chemicals",
+          "label_vn": "Hoá chất bị tràn đổ"
+        },
+        {
+          "slug": "Not_covered_from_direct_sunlight",
+          "label_en": "Not covered from direct sunlight",
+          "label_vn": "Không được che chắn tránh nắng trực tiếp"
+        },
+        {
+          "slug": "No_spill_trays_edge",
+          "label_en": "No spill trays/edge",
+          "label_vn": "Không có khay/ gờ bao quanh chống tràn đổ"
+        },
+        {
+          "slug": "No_fire_extinguisher",
+          "label_en": "No fire extinguisher",
+          "label_vn": "Không trang bị bình chữa cháy"
+        },
+        {
+          "slug": "Hazardous_chemicals_or_waste_that_are_not_properly_collected_or_treated",
+          "label_en": "Hazardous chemicals or waste that are not properly collected or treated",
+          "label_vn": "Hoá chất hoặc các chất thải nguy hại không được thu gom hoặc xử lý đúng cách"
+        }
+      ]
+    },
+    {
+      "slug": "Scaffolding_and_Platform",
+      "label_en": "Scaffolding and Platform",
+      "label_vn": "Giàn giáo và Sàn thao tác",
+      "hse_types": [
+        {
+          "slug": "I_beam_anchor_cable_not_good",
+          "label_en": "I-beam anchor cable not good",
+          "label_vn": "Không có cáp neo dầm I hoặc không chắc chắn"
+        },
+        {
+          "slug": "Using_scaffolding_that_has_not_been_checked_approved_for_use_or_don_t_have_tag",
+          "label_en": "Using scaffolding that has not been checked & approved for use or don't have tag",
+          "label_vn": "Sử dụng giàn giáo chưa được kiểm tra cho phép sử dụng hoặc không có thẻ cho phép sử dụng"
+        },
+        {
+          "slug": "Standing_on_handrails_to_work_or_working_in_unsafety_position",
+          "label_en": "Standing on handrails to work or working in unsafety position",
+          "label_vn": "Đứng lên lan can làm việc hoặc vị trí làm việc không đảm bảo an toàn"
+        },
+        {
+          "slug": "Standing_is_in_tilt_position",
+          "label_en": "Standing is in tilt position",
+          "label_vn": "Giàn giáo bị nghiêng"
+        },
+        {
+          "slug": "Scaffolding_collapsed",
+          "label_en": "Scaffolding collapsed",
+          "label_vn": "Giàn giáo bị sập đổ"
+        },
+        {
+          "slug": "Not_have_technical_documents",
+          "label_en": "Not have technical documents",
+          "label_vn": "Inspection of part of scaffolding / Không có hồ sơ kỹ thuật/ Kiểm định các chi tiết của giàn giáo"
+        },
+        {
+          "slug": "I_beam_lack_of_bolts_not_tightly_tightened",
+          "label_en": "I-beam lack of bolts /not tightly tightened",
+          "label_vn": "Bulong dầm I thiếu/ siết không chặt"
+        },
+        {
+          "slug": "I_beam_not_according_to_drawing",
+          "label_en": "I-beam not according to drawing",
+          "label_vn": "Dầm I không đúng theo bản vẽ"
+        },
+        {
+          "slug": "Scaffolding_missing_details_cross_clamp_toeboard_or_unsafe",
+          "label_en": "Scaffolding missing details (cross, clamp, toeboard) or unsafe.",
+          "label_vn": "Giàn giáo bị thiếu các chi tiết (chéo, cùm, toeboard…), không đảm bảo an toàn"
+        },
+        {
+          "slug": "Scaffolding_Working_platform_without_handrails_or_unsafe",
+          "label_en": "Scaffolding/Working platform without handrails or unsafe",
+          "label_vn": "Giàn giáo/ Sàn thao tác không có lan can hoặc lan can không đảm bảo an toàn"
+        },
+        {
+          "slug": "Scaffolding_Working_platform_not_checking",
+          "label_en": "Scaffolding/Working platform not checking",
+          "label_vn": "Giàn giáo/ Sàn thao tác chưa được thẩm tra"
+        },
+        {
+          "slug": "Scaffolding_Working_platform_at_risk_of_collapse",
+          "label_en": "Scaffolding/Working platform at risk of collapse",
+          "label_vn": "Giàn giáo/ Sàn thao tác có nguy cơ sập đổ"
+        },
+        {
+          "slug": "Scaffolding_installed_incorrectly_according_to_scaffolding_mockup",
+          "label_en": "Scaffolding installed incorrectly according to scaffolding mockup",
+          "label_vn": "Giàn giáo lắp đặt không đúng với giàn giáo mẫu"
+        },
+        {
+          "slug": "Scaffolder_without_certificate",
+          "label_en": "Scaffolder without certificate",
+          "label_vn": "Thợ lắp giàn giáo không có chứng chỉ lắp đặt"
+        },
+        {
+          "slug": "Scaffolding_wheels_smaller_than_150mm_or_damaged",
+          "label_en": "Scaffolding wheels smaller than 150mm or damaged",
+          "label_vn": "Bánh xe giàn giáo nhỏ hơn 150mm trở lên hoặc bị hư hỏng"
+        },
+        {
+          "slug": "Not_have_QA_QC_certification",
+          "label_en": "Not have QA/QC- certification",
+          "label_vn": "Không có QA/QC- chứng nhận xuất xưởng"
+        },
+        {
+          "slug": "No_safety_net_for_floor_by_floor_minimum_3_floor_1_Safety_net",
+          "label_en": "No safety net for floor by floor (minimum 3 floor/1 Safety net)",
+          "label_vn": "Không có lưới chắn thông tầng (tối thiểu 3 tầng giàn/ 1 hệ lưới chắn)"
+        },
+        {
+          "slug": "Unsafe_Scaffolding_Lack_of_Planks_Crossbars_Supports_Ladders",
+          "label_en": "Unsafe Scaffolding: Lack of Planks/Crossbars/Supports, Ladders...",
+          "label_vn": "Giàn giáo không đảm bảo an toàn: thiếu mâm/ chéo/ cây chống, thang bộ..."
+        },
+        {
+          "slug": "Unsafe_standing_position_weak_ground_no_padding_uneven_surface",
+          "label_en": "Unsafe standing position: weak ground, no padding, uneven surface",
+          "label_vn": "Vị trí đứng của giàn giáo không đảm bảo an toàn: nền đất yếu, không kê lót, mặt bằng không bằng phẳng"
+        },
+        {
+          "slug": "No_have_warning_below_at_working_at_height_position",
+          "label_en": "No have warning below at working at height position",
+          "label_vn": "Không cảnh báo bên dưới vị trí làm việc trên cao"
+        },
+        {
+          "slug": "The_scaffolding_using_to_support_objects_is_not_safe_and_needs_additional_suppor",
+          "label_en": "The scaffolding using to support objects is not safe and needs additional support",
+          "label_vn": "Giàn giáo đang sử dụng để nâng đỡ vật chưa đảm bảo an toàn, cần được chống đỡ thêm"
+        },
+        {
+          "slug": "Components_such_as_cross_braces_supports_clamps_and_handrails_are_not_securely_c",
+          "label_en": "Components such as cross braces, supports, clamps, and handrails...are not securely connected",
+          "label_vn": "Các chi tiết như thành giằng, cây chống, cùm, thanh chắn…không được liên kết chắc chắn."
+        },
+        {
+          "slug": "Scaffolding_systems_are_not_securely_connected_or_adequately_braced",
+          "label_en": "Scaffolding systems are not securely connected or adequately braced",
+          "label_vn": "Các hệ giàn giáo không được liên kết, gia cố chắc chắn"
+        },
+        {
+          "slug": "Scaffolding_used_for_access_going_up_and_down_is_not_covered_with_safety_net_to_",
+          "label_en": "Scaffolding used for access (going up and down) is not covered with safety net to prevent falling objects",
+          "label_vn": "Giàn giáo dùng để làm lối lên xuống không được bao che bằng lưới chống vật rơi"
+        },
+        {
+          "slug": "The_anchoring_reinforcement_positions_of_the_scaffolding_system_are_unsafe",
+          "label_en": "The anchoring/reinforcement positions of the scaffolding system are unsafe",
+          "label_vn": "Vị trí neo/ gia cố cho hệ giàn giáo không đảm bảo an toàn"
+        },
+        {
+          "slug": "Scaffolding_is_not_installed_according_to_the_required_ratio_of_1_4_indoor_or_1_",
+          "label_en": "Scaffolding is not installed according to the required ratio of 1:4 (indoor) or 1:3 (outdoor)",
+          "label_vn": "Giàn giáo không được lắp đúng tỷ lệ 1/4 (trong nhà) hoặc 1/3 (ngoài nhà)"
+        },
+        {
+          "slug": "The_scaffold_supports_are_not_installed_fixed_missing_A_clamps_or_not_properly_f",
+          "label_en": "The scaffold supports are not installed fixed: missing A-clamps or not properly fixed",
+          "label_vn": "Cây chống của giàn giáo không được lắp chắc chắn: Thiếu cùm A hoặc không cố định chắc chắn"
+        }
+      ]
+    },
+    {
+      "slug": "Pressure_equipment",
+      "label_en": "Pressure equipment",
+      "label_vn": "Thiết bị áp lực",
+      "hse_types": [
+        {
+          "slug": "No_fire_extinguisher",
+          "label_en": "No fire extinguisher",
+          "label_vn": "Không có bình chữa cháy"
+        },
+        {
+          "slug": "Missing_inspection_stamp_or_certificates",
+          "label_en": "Missing inspection stamp or certificates",
+          "label_vn": "Không có tem/ thiếu phiếu kiểm định"
+        },
+        {
+          "slug": "Connection_details_goat_neck_tightening_condition_of_gas_pipelines",
+          "label_en": "Connection details (goat neck tightening), condition of gas pipelines",
+          "label_vn": "Chi tiết liên kết (xiết cổ dê,... ), chất lượng đường ống dẫn khí, ga"
+        },
+        {
+          "slug": "No_non_return_valve_or_flashback_arrestor",
+          "label_en": "No non-return valve or flashback arrestor",
+          "label_vn": "Không có van 1 chiều, van chống cháy ngược"
+        },
+        {
+          "slug": "Unsafe_storage",
+          "label_en": "Unsafe storage",
+          "label_vn": "Lưu trữ không đảm bảo an toàn"
+        },
+        {
+          "slug": "No_safety_valve_or_damaged",
+          "label_en": "No safety valve or damaged",
+          "label_vn": "Không có van an toàn hoặc bị hư hỏng"
+        },
+        {
+          "slug": "No_gas_cylinder_cap",
+          "label_en": "No gas cylinder cap",
+          "label_vn": "Không có nắp chụp bình khí nén"
+        },
+        {
+          "slug": "Near_heat_source",
+          "label_en": "Near heat source",
+          "label_vn": "Gần nguồn nhiệt"
+        },
+        {
+          "slug": "Gas_cylinder_compressed_air_not_fixed_on_shelf_trolley",
+          "label_en": "Gas cylinder, compressed air not fixed on shelf/trolley",
+          "label_vn": "Bình gas, khí nén không được cố định trên kệ/ xe đẩy"
+        },
+        {
+          "slug": "Risk_of_collision",
+          "label_en": "Risk of collision",
+          "label_vn": "Có nguy cơ va chạm"
+        },
+        {
+          "slug": "The_pressure_testing_area_has_no_warnings_signal_board_handrails_or_if_there_are",
+          "label_en": "The pressure testing area has no warnings (signal board, handrails...) or if there are, they are not clear.",
+          "label_vn": "Khu vực thử áp lực không có cảnh báo (biển báo, lan can…) hoặc có nhưng không rõ ràng."
+        }
+      ]
+    },
+    {
+      "slug": "Hot_work",
+      "label_en": "Hot work",
+      "label_vn": "Công tác nóng",
+      "hse_types": [
+        {
+          "slug": "Not_grounding_for_welding_machine",
+          "label_en": "Not grounding for welding machine",
+          "label_vn": "Không nối đất vỏ máy hàn"
+        },
+        {
+          "slug": "Work_area_not_checked_1_hour_and_3_hours_after_finishing_work",
+          "label_en": "Work area not checked 1 hour and 3 hours after finishing work",
+          "label_vn": "Không kiểm tra khu vực làm việc sau 1 tiếng và 3 tiếng"
+        },
+        {
+          "slug": "Working_without_PTW_JSA",
+          "label_en": "Working without PTW, JSA",
+          "label_vn": "Làm việc khi chưa có Giấy phép làm việc, JSA"
+        },
+        {
+          "slug": "Not_isolating_the_area_from_other_flammable_explosive_substances",
+          "label_en": "Not isolating the area from other flammable/explosive substances",
+          "label_vn": "Không cách ly khu vực với các chất dễ cháy/ nổ khác"
+        },
+        {
+          "slug": "Fire_extinguishers_and_water_are_missing_or_insufficient",
+          "label_en": "Fire extinguishers and water are missing or insufficient",
+          "label_vn": "Không có hoặc thiếu bình chữa cháy và nước"
+        },
+        {
+          "slug": "Not_prevent_sparks",
+          "label_en": "Not prevent sparks",
+          "label_vn": "Không che chắn tia lửa"
+        },
+        {
+          "slug": "Damaged_welding_tong_ground_clamp_electrical_wire",
+          "label_en": "Damaged welding tong, ground clamp, electrical wire",
+          "label_vn": "Kìm hàn, kẹp mát, dây điện bị hư hỏng"
+        },
+        {
+          "slug": "Prevent_sparks_with_non_fire_resistant_material",
+          "label_en": "Prevent sparks with non-fire resistant material",
+          "label_vn": "Che chắn tia lửa bằng vật liệu không chống cháy"
+        },
+        {
+          "slug": "Lack_of_fire_resistant_tarp_in_designated_areas_where_required",
+          "label_en": "Lack of fire-resistant tarp in designated areas where required",
+          "label_vn": "Không có bạt chống cháy cho khu vực yêu cầu."
+        }
+      ]
+    },
+    {
+      "slug": "Warehouse_Area",
+      "label_en": "Warehouse Area",
+      "label_vn": "Khu vực kho",
+      "hse_types": [
+        {
+          "slug": "Emergency_exit_is_unavailable",
+          "label_en": "Emergency exit is unavailable",
+          "label_vn": "Không có lối thoát trong trường hợp khẩn cấp"
+        },
+        {
+          "slug": "Fuel_and_chemicals_are_not_stored_in_designated_areas",
+          "label_en": "Fuel and chemicals are not stored in designated areas",
+          "label_vn": "Xăng dầu, hoá chất để không đúng nơi quy định"
+        },
+        {
+          "slug": "Not_clean",
+          "label_en": "Not clean",
+          "label_vn": "Không được vệ sinh sạch sẽ"
+        },
+        {
+          "slug": "Fire_extinguishers_are_missing_damaged",
+          "label_en": "Fire extinguishers are missing/damaged",
+          "label_vn": "Bình chữa cháy thiếu/ hư"
+        },
+        {
+          "slug": "Non_compliance_with_5S_standards",
+          "label_en": "Non-compliance with 5S standards",
+          "label_vn": "Không thực hiện 5S"
+        }
+      ]
+    },
+    {
+      "slug": "Formwork",
+      "label_en": "Formwork",
+      "label_vn": "Cốp pha",
+      "hse_types": [
+        {
+          "slug": "Sharp_edges_or_end_of_steel_rebar_are_not_covered_or_protected",
+          "label_en": "Sharp edges or end of steel rebar are not covered or protected",
+          "label_vn": "Các cạnh sắc nhọn hoặc đầu cây cắt không được bao che, bảo vệ"
+        },
+        {
+          "slug": "Work_area_not_isolated_no_warning",
+          "label_en": "Work area not isolated, no warning",
+          "label_vn": "Khu vực làm việc không được cô lập, không có cảnh báo"
+        },
+        {
+          "slug": "No_access_unsafe_access",
+          "label_en": "No access/unsafe access",
+          "label_vn": "Không có lối lên/ lối lên không an toàn"
+        },
+        {
+          "slug": "No_guardrail_handrail_edge_warning",
+          "label_en": "No guardrail, handrail, edge warning",
+          "label_vn": "Không có lan can/ cảnh báo rìa biên"
+        },
+        {
+          "slug": "Materials_at_risk_of_falling",
+          "label_en": "Materials at risk of falling",
+          "label_vn": "Vật tư có nguy cơ rơi rớt"
+        },
+        {
+          "slug": "Not_fixed",
+          "label_en": "Not fixed",
+          "label_vn": "Không được gia cố chắc chắn"
+        },
+        {
+          "slug": "Wearing_safety_harness_but_not_hooking",
+          "label_en": "Wearing safety harness but not hooking",
+          "label_vn": "Đeo đai an toàn nhưng không móc"
+        },
+        {
+          "slug": "Materials_left_in_disarray",
+          "label_en": "Materials left in disarray",
+          "label_vn": "Vật tư để lộn xộn"
+        },
+        {
+          "slug": "Inadequate_PPEs",
+          "label_en": "Inadequate PPEs",
+          "label_vn": "Không đầy đủ PPEs"
+        },
+        {
+          "slug": "No_lifeline",
+          "label_en": "No lifeline",
+          "label_vn": "Không có dây cứu sinh"
+        },
+        {
+          "slug": "Materials_falling_from_height",
+          "label_en": "Materials falling from height",
+          "label_vn": "Vật tư rơi rớt từ trên cao"
+        },
+        {
+          "slug": "Working_at_height_without_safety_harness",
+          "label_en": "Working at height without safety harness",
+          "label_vn": "Làm việc trên cao không đeo đai an toàn"
+        },
+        {
+          "slug": "Throwing_materials_equipment",
+          "label_en": "Throwing materials/equipment",
+          "label_vn": "Quăng ném vật tư, thiết bị"
+        },
+        {
+          "slug": "The_formwork_dismantling_area_is_not_safe_no_cover_warning_no_measures_to_preven",
+          "label_en": "The formwork dismantling area is not safe: no cover, warning, no measures to prevent falling objects…",
+          "label_vn": "Khu vực tháo dỡ coffa không đảm bảo an toàn: không che chắn, cảnh báo, bảo vệ chống rơi..."
+        }
+      ]
+    },
+    {
+      "slug": "Workshop_area",
+      "label_en": "Workshop area",
+      "label_vn": "Khu vực gia công",
+      "hse_types": [
+        {
+          "slug": "No_safety_way",
+          "label_en": "No safety way",
+          "label_vn": "The object on safety way/ Không có/ Cản trở lối di chuyển"
+        },
+        {
+          "slug": "Painting_area_is_not_safe_Not_properly_covered_lack_of_exhaust_fan_etc",
+          "label_en": "Painting area is not safe: Not properly covered, lack of exhaust fan, etc.",
+          "label_vn": "Khu vực sơn không đảm bảo an toàn: Không được che chắn cẩn thận, thiếu quạt hút gió…"
+        },
+        {
+          "slug": "No_tray_for_machine_have_sparks",
+          "label_en": "No tray for machine (have sparks)",
+          "label_vn": "Không có khay hứng phoi"
+        },
+        {
+          "slug": "No",
+          "label_en": "No",
+          "label_vn": "lacking of grounding for machines/ Tiếp địa cho máy móc không có/ không tốt"
+        },
+        {
+          "slug": "No_spark_protection",
+          "label_en": "No spark protection",
+          "label_vn": "Không có che chắn ngăn chặn tia lửa"
+        },
+        {
+          "slug": "Inadequate_PPEs",
+          "label_en": "Inadequate PPEs",
+          "label_vn": "Không đầy đủ PPEs"
+        },
+        {
+          "slug": "No_implement_5S_standards_for_area_or_no_rack_to_store_materials",
+          "label_en": "No implement 5S standards for area or no rack to store materials",
+          "label_vn": "Không thực hiện 5S khu vực hoặc không có kệ để chứa vật tư"
+        }
+      ]
+    },
+    {
+      "slug": "Smoke_Area",
+      "label_en": "Smoke Area",
+      "label_vn": "Khu vực hút thuốc",
+      "hse_types": [
+        {
+          "slug": "No_smoke_regulation_on_site",
+          "label_en": "No smoke regulation on site",
+          "label_vn": "Không có quy định cấm hút thuốc trên công trường"
+        },
+        {
+          "slug": "Not_clean",
+          "label_en": "Not clean",
+          "label_vn": "Không được vệ sinh sạch sẽ"
+        },
+        {
+          "slug": "No_fire_extinguisher",
+          "label_en": "No fire extinguisher",
+          "label_vn": "Không có bình PCCC"
+        },
+        {
+          "slug": "Incorrect_location",
+          "label_en": "Incorrect location",
+          "label_vn": "Đặt không đúng nơi quy định"
+        },
+        {
+          "slug": "Smoking_in_the_wrong_place",
+          "label_en": "Smoking in the wrong place",
+          "label_vn": "Hút thuốc không đúng nơi quy định"
+        }
+      ]
+    },
+    {
+      "slug": "Floor_opening",
+      "label_en": "Floor opening",
+      "label_vn": "Lỗ thông tầng",
+      "hse_types": [
+        {
+          "slug": "No_platform_or_platform_of_elevator_shaft_is_not_good_or_unsafe",
+          "label_en": "No platform or platform of elevator shaft is not good or unsafe",
+          "label_vn": "Không có hoặc sàn thao tác khu vực lõi thang máy/ lỗ thông tầng không đảm bảo an toàn"
+        },
+        {
+          "slug": "No_cover_for_Elevator_door",
+          "label_en": "No cover for Elevator door",
+          "label_vn": "Không che chắn Cửa thang máy"
+        },
+        {
+          "slug": "Openings_not_properly_covered_risk_of_fall_hazard",
+          "label_en": "Openings not properly covered – risk of fall hazard",
+          "label_vn": "Không che đậy hoặc Che đậy các lỗ mở không chắn chắn"
+        },
+        {
+          "slug": "The_floor_opening_is_not_covered_with_a_safety_net_or_platform",
+          "label_en": "The floor opening is not covered with a safety net or platform",
+          "label_vn": "Lỗ thông tầng không được che chắn bằng lưới an toàn hoặc sàn thao tác"
+        }
+      ]
+    },
+    {
+      "slug": "PPEs",
+      "label_en": "PPEs",
+      "label_vn": "Bảo hộ lao động",
+      "hse_types": [
+        {
+          "slug": "No_Safety_helmet_or_no_strap",
+          "label_en": "No Safety helmet or no strap",
+          "label_vn": "Không có Nón bảo hộ hoặc không cài quai"
+        },
+        {
+          "slug": "Using_PPEs_on_malfunction",
+          "label_en": "Using PPEs on malfunction",
+          "label_vn": "Sử dụng PPEs sai chức năng"
+        },
+        {
+          "slug": "Using_damaged",
+          "label_en": "Using damaged",
+          "label_vn": "broken PPEs/ Sử dụng PPEs đã bị hư hỏng"
+        },
+        {
+          "slug": "No_wearing_safety_vest",
+          "label_en": "No wearing safety vest",
+          "label_vn": "Không mặc áo phản quang"
+        },
+        {
+          "slug": "PPEs_are_not_use_as_required",
+          "label_en": "PPEs are not use as required",
+          "label_vn": "Không sử dụng PPEs theo yêu cầu"
+        },
+        {
+          "slug": "No_Apron_for_welding_painting",
+          "label_en": "No Apron for welding, painting",
+          "label_vn": "Không có Tạp dề cho hàn, sơn"
+        },
+        {
+          "slug": "No_Safety_Glasses_full_face",
+          "label_en": "No Safety Glasses (full face)",
+          "label_vn": "Không có Kính an toàn (full face)"
+        },
+        {
+          "slug": "No_Welding_Mask",
+          "label_en": "No Welding Mask",
+          "label_vn": "Không có Mặt nạ hàn"
+        },
+        {
+          "slug": "No_Hearing_Protection",
+          "label_en": "No Hearing Protection",
+          "label_vn": "Không có Bảo vệ thính giác"
+        },
+        {
+          "slug": "No_Welding_Gloves",
+          "label_en": "No Welding Gloves",
+          "label_vn": "Không có Găng tay hàn"
+        },
+        {
+          "slug": "No_Safety_Harness",
+          "label_en": "No Safety Harness",
+          "label_vn": "Không có Dây an toàn toàn thân"
+        },
+        {
+          "slug": "No_Safety_shoes_Boots",
+          "label_en": "No Safety shoes, Boots",
+          "label_vn": "Không có Giày, ủng chống đinh"
+        },
+        {
+          "slug": "Working_with_metal_without_gloves",
+          "label_en": "Working with metal without gloves",
+          "label_vn": "Làm việc với Kim loại không có bao tay"
+        }
+      ]
+    },
+    {
+      "slug": "Mechanical_equipment_for_construction",
+      "label_en": "Mechanical equipment for construction",
+      "label_vn": "Thiết bị cơ giới phục vụ thi công các loại",
+      "hse_types": [
+        {
+          "slug": "No_technical_safety_and_environmental_protection_inspection",
+          "label_en": "No technical safety and environmental protection inspection",
+          "label_vn": "Không có Giấy cn đăng ký đăng kiểm môi trường"
+        },
+        {
+          "slug": "No_history",
+          "label_en": "No history",
+          "label_vn": "Không có Hồ sơ lý lịch"
+        },
+        {
+          "slug": "No_shift_handover_record",
+          "label_en": "No shift handover record",
+          "label_vn": "Không có Sổ giao ca của người vận hành"
+        },
+        {
+          "slug": "No_insurance_certificate",
+          "label_en": "No insurance certificate",
+          "label_vn": "Không có Giấy bảo hiểm xe"
+        },
+        {
+          "slug": "No_declaration_of_equipment_with_occupational_safety_requirements",
+          "label_en": "No declaration of equipment with occupational safety requirements",
+          "label_vn": "Không Khai báo thiết bị có YC NN về ATLĐ"
+        },
+        {
+          "slug": "No_operator_document_or_lacking",
+          "label_en": "No operator document or lacking",
+          "label_vn": "Không có Hồ sơ người vận hành hoặc bị thiếu"
+        },
+        {
+          "slug": "No_technical_inspection",
+          "label_en": "No technical inspection",
+          "label_vn": "Không có biên bản kiểm tra kỹ thuật"
+        },
+        {
+          "slug": "No_inspection_certificate",
+          "label_en": "No inspection certificate",
+          "label_vn": "Không có Phiếu kiểm định"
+        },
+        {
+          "slug": "No_maintenance_record",
+          "label_en": "No maintenance record",
+          "label_vn": "Không có sổ bảo trì bảo dưỡng xe"
+        },
+        {
+          "slug": "No_signalman",
+          "label_en": "No signalman",
+          "label_vn": "Không có nhân viên tín hiệu"
+        },
+        {
+          "slug": "No_watchman",
+          "label_en": "No watchman",
+          "label_vn": "Không có người canh gác"
+        },
+        {
+          "slug": "Unsafe_standing_position_weak_ground_no_padding_uneven_surface",
+          "label_en": "Unsafe standing position: weak ground, no padding, uneven surface",
+          "label_vn": "Vị trí đứng không an toàn: nền đất yếu, không có lớp đệm, bề mặt không bằng phẳng"
+        },
+        {
+          "slug": "No_warning_for_work_area_Barrier_warning_tape_signal_board",
+          "label_en": "No warning for work area (Barrier, warning tape, signal board)",
+          "label_vn": "Không có cảnh báo khu vực làm việc"
+        },
+        {
+          "slug": "Using_Mechanical_equipment_on_malfunction",
+          "label_en": "Using Mechanical equipment on malfunction",
+          "label_vn": "Sử dụng sai chức năng của thiết bị"
+        }
+      ]
+    },
+    {
+      "slug": "Garbage_area_Waste",
+      "label_en": "Garbage area - Waste",
+      "label_vn": "Khu vực nhà rác - Rác thải",
+      "hse_types": [
+        {
+          "slug": "Unsorted",
+          "label_en": "Unsorted",
+          "label_vn": "Rác không được phân loại"
+        },
+        {
+          "slug": "Not_transportation_on_time",
+          "label_en": "Not transportation on time",
+          "label_vn": "Không vận chuyển kịp thời"
+        },
+        {
+          "slug": "Not_stored_neatly",
+          "label_en": "Not stored neatly",
+          "label_vn": "Không lưu trữ gọn gàng"
+        },
+        {
+          "slug": "Hazardous_waste_is_not_placed_in_the_right_place",
+          "label_en": "Hazardous waste is not placed in the right place",
+          "label_vn": "Rác thải nguy hại để không đúng nơi quy định"
+        },
+        {
+          "slug": "Hazardous_waste_is_not_collected_regularly",
+          "label_en": "Hazardous waste is not collected regularly.",
+          "label_vn": "Rác thải nguy hại không được thu gom thường xuyên"
+        }
+      ]
+    },
+    {
+      "slug": "Emergency_case",
+      "label_en": "Emergency case",
+      "label_vn": "Emergency case - Ứng phó tình trạng khẩn cấp",
+      "hse_types": [
+        {
+          "slug": "Not_posted_on_notice_board",
+          "label_en": "Not posted on notice board",
+          "label_vn": "Không dán lên bảng thông tin"
+        },
+        {
+          "slug": "No_not_updated_emergency_number",
+          "label_en": "No/not updated emergency number",
+          "label_vn": "Không có/ không cập nhật sđt khẩn cấp"
+        },
+        {
+          "slug": "Contact_list_is_blurred_missing_information_damaged",
+          "label_en": "Contact list is blurred, missing information, damaged…",
+          "label_vn": "Danh sách liên lạc bị mờ, thiếu thông tin, hư hỏng…"
+        }
+      ]
+    },
+    {
+      "slug": "Temporary_lightning_pole",
+      "label_en": "Temporary lightning pole",
+      "label_vn": "Chống sét tạm",
+      "hse_types": [
+        {
+          "slug": "Unreinforced",
+          "label_en": "Unreinforced",
+          "label_vn": "unsafe lightning pole protection pole/ Cột chống sét không gia cố/ không đảm bảo an toàn"
+        },
+        {
+          "slug": "No_periodic_inspection",
+          "label_en": "No periodic inspection",
+          "label_vn": "Không đo kiểm tra định kỳ"
+        },
+        {
+          "slug": "No_documents_Inspection_drawing_Inspection_QA_QC",
+          "label_en": "No documents: Inspection drawing, Inspection, QA-QC…",
+          "label_vn": "Không có hồ sơ: Bản vẽ thẩm tra, Kiểm định, QA-QC…"
+        }
+      ]
+    },
+    {
+      "slug": "Concrete_work",
+      "label_en": "Concrete work",
+      "label_vn": "Đổ bê tông",
+      "hse_types": [
+        {
+          "slug": "The_concrete_pipeline_is_not_fixed",
+          "label_en": "The concrete pipeline is not fixed",
+          "label_vn": "Đường ống dẫn bê tông không được cố định"
+        },
+        {
+          "slug": "The_concrete_pipeline_is_risk_of_collapsing",
+          "label_en": "The concrete pipeline is risk of collapsing",
+          "label_vn": "Đường ống bê tông có nguy cơ gây sập đổ"
+        },
+        {
+          "slug": "There_is_no_safety_harness_hook_position_from_2m_high",
+          "label_en": "There is no safety harness hook position (from 2m high)",
+          "label_vn": "Không có vị trí móc đai an toàn (trên cao 2m)"
+        },
+        {
+          "slug": "Inadequate_PPEs",
+          "label_en": "Inadequate PPEs",
+          "label_vn": "Không đầy đủ PPEs"
+        },
+        {
+          "slug": "No_working_platform_or_have_but_it_is_not_safe",
+          "label_en": "No working platform or have but it is not safe",
+          "label_vn": "Không có sàn thao tác hoặc có nhưng không đảm bảo an toàn"
+        },
+        {
+          "slug": "The_concrete_pump_truck_legs_are_not_fully_extended_or_aren_t_stable",
+          "label_en": "The concrete pump truck legs are not fully extended or aren't stable",
+          "label_vn": "Các chân của xe bơm bê tông không đưa ra hết hoặc kê lót không chắc chắn"
+        },
+        {
+          "slug": "Unsafe_concrete_pump_position",
+          "label_en": "Unsafe concrete pump position",
+          "label_vn": "Vị trí xe bơm bê tông đứng không an toàn"
+        },
+        {
+          "slug": "The_pump_boom_is_at_risk_of_collision",
+          "label_en": "The pump boom is at risk of collision",
+          "label_vn": "Cần bơm có nguy cơ va chạm"
+        }
+      ]
+    },
+    {
+      "slug": "Material_area",
+      "label_en": "Material area",
+      "label_vn": "Khu tập kết vật tư",
+      "hse_types": [
+        {
+          "slug": "No_safety_way",
+          "label_en": "No safety way",
+          "label_vn": "The object on safety way/ Không có/ Cản trở lối di chuyển"
+        },
+        {
+          "slug": "Materials_are_not_arranged_neatly",
+          "label_en": "Materials are not arranged neatly",
+          "label_vn": "Sắp xếp vật tư không gọn gàng"
+        },
+        {
+          "slug": "No_implement_5S_standards_for_area_or_no_rack_to_store_materials",
+          "label_en": "No implement 5S standards for area or no rack to store materials",
+          "label_vn": "Không thực hiện 5S khu vực hoặc không có kệ để chứa vật tư"
+        },
+        {
+          "slug": "Materials_at_risk_of_collapse_rolling_sliding",
+          "label_en": "Materials at risk of collapse, rolling, sliding…",
+          "label_vn": "Vật tư có nguy cơ sập đổ, lăn, trượt…"
+        },
+        {
+          "slug": "No_signs_to_define_the_material_storage_area_such_as_warning_tape_signal_board",
+          "label_en": "No signs to define the material storage area such as warning tape, signal board",
+          "label_vn": "Không có dấu hiệu nhận biết như cách ly khu vực, biển báo khu vực để vật tư"
+        }
+      ]
+    },
+    {
+      "slug": "Drinking_water_for_worker",
+      "label_en": "Drinking water for worker",
+      "label_vn": "Nguồn nước uống cho công nhân",
+      "hse_types": [
+        {
+          "slug": "Drinking_water_area_not_cleaned",
+          "label_en": "Drinking water area not cleaned",
+          "label_vn": "Khu vực uống nước không được vệ sinh"
+        },
+        {
+          "slug": "Not_inspected_initially_periodically",
+          "label_en": "Not inspected initially, periodically",
+          "label_vn": "Không được kiểm tra lần đầu, định kỳ"
+        }
+      ]
+    },
+    {
+      "slug": "Common_area",
+      "label_en": "Common area",
+      "label_vn": "Khu vực ăn uống - nghỉ ngơi",
+      "hse_types": [
+        {
+          "slug": "Area_with_many_insects",
+          "label_en": "Area with many insects",
+          "label_vn": "Khu vực có nhiều côn trùng"
+        },
+        {
+          "slug": "Not_clean",
+          "label_en": "Not clean",
+          "label_vn": "Không dọn vệ sinh sạch sẽ"
+        },
+        {
+          "slug": "Eating_and_drinking_at_the_wrong_place_do_not_eat_or_drink_on_the_site",
+          "label_en": "Eating and drinking at the wrong place, do not eat or drink on the site",
+          "label_vn": "Ăn, uống sai vị trí quy định, không được ăn uống trên công trường"
+        }
+      ]
+    },
+    {
+      "slug": "Signal_board_warning_tape",
+      "label_en": "Signal board, warning tape",
+      "label_vn": "Biển báo, cảnh báo",
+      "hse_types": [
+        {
+          "slug": "Signal_board_warning_tape_damaged",
+          "label_en": "Signal board, warning tape damaged",
+          "label_vn": "Biển báo bị hư hỏng"
+        },
+        {
+          "slug": "Signal_board_incorrect_with_work",
+          "label_en": "Signal board incorrect with work",
+          "label_vn": "Biển báo không đúng với công việc"
+        },
+        {
+          "slug": "Not_or_lacking_Signal_board_warning_tape",
+          "label_en": "Not or lacking Signal board, warning tape",
+          "label_vn": "Không có/ thiếu cảnh báo khu vực"
+        },
+        {
+          "slug": "Lack_of_hard_handrails_at_edges_deeper_than_1_5_meters_or_or_request",
+          "label_en": "Lack of hard handrails at edges deeper than 1.5 meters or or request",
+          "label_vn": "Không có lan can cứng cho vị trí thấp hơn 1.5m hoặc có yêu cầu"
+        },
+        {
+          "slug": "No_supports_for_hanging_warning_tape_or_not_good",
+          "label_en": "No supports for hanging warning tape or not good",
+          "label_vn": "Không có trụ để treo dây cảnh báo hoặc có nhưng không đảm bảo"
+        }
+      ]
+    },
+    {
+      "slug": "Parking_area",
+      "label_en": "Parking area",
+      "label_vn": "Khu vực để xe",
+      "hse_types": [
+        {
+          "slug": "No_neatly_arranged",
+          "label_en": "No neatly arranged",
+          "label_vn": "Không sắp xếp xe gọn gàng"
+        },
+        {
+          "slug": "No_parking_area_sign_board_including_temporary_parking_areas",
+          "label_en": "No parking area sign board (including temporary parking areas)",
+          "label_vn": "Không có biển báo khu vực để xe (bao gồm khu vực để tạm)"
+        },
+        {
+          "slug": "No_fire_extinguisher",
+          "label_en": "No fire extinguisher",
+          "label_vn": "Không có bình chữa cháy"
+        }
+      ]
+    },
+    {
+      "slug": "Ladder",
+      "label_en": "Ladder",
+      "label_vn": "Thang",
+      "hse_types": [
+        {
+          "slug": "Do_not_using_bamboo_and_wooden_ladder",
+          "label_en": "Do not using bamboo and wooden ladder",
+          "label_vn": "Không được sử dụng thang tre, gỗ tại dự án"
+        },
+        {
+          "slug": "Ladder_have_not_been_checked_and_approved_for_use",
+          "label_en": "Ladder have not been checked and approved for use",
+          "label_vn": "Thang chưa được kiểm tra và cho phép sử dụng"
+        },
+        {
+          "slug": "Ladder_is_damaged_unsafe_such_as_cracked_bent_warped_etc",
+          "label_en": "Ladder is damaged, unsafe, such as cracked, bent, warped, etc.",
+          "label_vn": "Thang đã bị hư hỏng, không đảm bảo an toàn như nứt, cong, vênh,…"
+        },
+        {
+          "slug": "Ladder_is_placed_on_uneven_floors_at_risk_of_falling",
+          "label_en": "Ladder is placed on uneven floors, at risk of falling",
+          "label_vn": "Thang đặt trên nền không bằng phẳng, có nguy cơ ngã đổ"
+        },
+        {
+          "slug": "Ladder_feet_are_not_protected_against_slipping",
+          "label_en": "Ladder feet are not protected against slipping",
+          "label_vn": "Chân thang không được bảo vệ chống trượt"
+        },
+        {
+          "slug": "Ladder_is_placed_against_unstable_unstable_surfaces",
+          "label_en": "Ladder is placed against unstable, unstable surfaces",
+          "label_vn": "Thang đặt tựa vào các bề mặt không chắc chắn, vững chắc"
+        },
+        {
+          "slug": "Use_ladder_on_scaffolding_or_lifting_equipment_to_increase_working_height",
+          "label_en": "Use ladder on scaffolding or lifting equipment to increase working height",
+          "label_vn": "Sử dụng thang trên dàn giáo hay thiết bị nâng để tăng chiều cao làm việc"
+        },
+        {
+          "slug": "Place_ladder_on_crate_cart_table_or_other_unstable_surfaces",
+          "label_en": "Place ladder on crate, cart, table, or other unstable surfaces",
+          "label_vn": "Đặt thang lên trên các thùng, xe đẩy, bàn, hay bề mặt không ổn định khác"
+        },
+        {
+          "slug": "The_top_of_the_ladder_must_not_be_at_least_900mm_above_the_floor",
+          "label_en": "The top of the ladder must not be at least 900mm above the floor",
+          "label_vn": "Đỉnh thang không được nhô lên khỏi mặt sàn ít nhất 900mm"
+        },
+        {
+          "slug": "Ladders_are_placed_too_close_to_power_lines",
+          "label_en": "Ladders are placed too close to power lines",
+          "label_vn": "Thang đặt quá gần đường đây điện"
+        },
+        {
+          "slug": "Ladders_are_not_used_according_to_the_design",
+          "label_en": "Ladders are not used according to the design",
+          "label_vn": "Thang không được sử dụng đúng thiết kế của thang"
+        },
+        {
+          "slug": "Ladder_must_not_be_connected_together_to_make_them_longer",
+          "label_en": "Ladder must not be connected together to make them longer",
+          "label_vn": "Không được nối các thang lại với nhau cho dài hơn"
+        },
+        {
+          "slug": "Only_one_person_is_allowed_to_work_on_the_ladder",
+          "label_en": "Only one person is allowed to work on the ladder",
+          "label_vn": "Chỉ cho phép một người được làm việc trên thang"
+        },
+        {
+          "slug": "No_wear_safety_harness_when_working_on_a_ladder_that_is_2m_high",
+          "label_en": "No wear safety harness when working on a ladder that is 2m high",
+          "label_vn": "Không đeo đai an toàn khi làm thang mà độ cao trên cao từ 2m"
+        },
+        {
+          "slug": "No_people_is_holding_the_foot_of_the_ladder",
+          "label_en": "No people is holding the foot of the ladder",
+          "label_vn": "Không có người giữ chân thang"
+        },
+        {
+          "slug": "Do_not_stand_on_the_top_of_the_ladder_sitting_only",
+          "label_en": "Do not stand on the top of the ladder (sitting only)",
+          "label_vn": "Không được đứng trên đỉnh thang (chỉ cho ngồi)"
+        },
+        {
+          "slug": "Do_not_hang_heavy_objects_on_the_ladder",
+          "label_en": "Do not hang heavy objects on the ladder",
+          "label_vn": "Không được treo vật nặng trên thang"
+        }
+      ]
+    },
+    {
+      "slug": "First_aid_kit",
+      "label_en": "First-aid kit",
+      "label_vn": "Túi y tế/ Khu vực sơ cấp cứu",
+      "hse_types": [
+        {
+          "slug": "First_aid_kit_incorrect",
+          "label_en": "First aid kit incorrect",
+          "label_vn": "insufficient as regulated/ Túi/ tủ đựng dụng cụ sơ cấp cứu không đúng/ không đủ theo quy định"
+        },
+        {
+          "slug": "Improper_storage_of_medicines_in_the_first_aid_cabinet_bag",
+          "label_en": "Improper storage of medicines in the first aid cabinet/bag",
+          "label_vn": "Để thuốc không đúng quy định trong tủ/ túi đựng dụng cụ sơ cấp cứu"
+        },
+        {
+          "slug": "The_first_aid_cabinet_bag_is_not_placed_in_the_correct_location",
+          "label_en": "The first aid cabinet/bag is not placed in the correct location",
+          "label_vn": "Vị trí để tủ/ túi đựng dụng cụ sơ cấp cứu không đúng vị trí"
+        },
+        {
+          "slug": "No_checklist_or_checklist_not_good_for_the_first_aid_cabinet_bag",
+          "label_en": "No checklist or checklist not good for the first aid cabinet/bag",
+          "label_vn": "Không có checklist hoặc checklist không đầy đủ cho tủ/ túi đựng dụng cụ sơ cấp cứu"
+        },
+        {
+          "slug": "First_aid_cabinet_bag_is_not_kept_clean",
+          "label_en": "First aid cabinet/bag is not kept clean",
+          "label_vn": "Túi/ tủ đựng dụng cụ sơ cấp cứu không được vệ sinh sạch sẽ"
+        }
+      ]
+    },
+    {
+      "slug": "Common_working_area",
+      "label_en": "Common working area",
+      "label_vn": "Khu vực làm việc chung",
+      "hse_types": [
+        {
+          "slug": "No_safety_ways_or_unsafe_movement_there_are_obstacles_too_narrow",
+          "label_en": "No safety ways or unsafe movement: there are obstacles, too narrow…",
+          "label_vn": "Không có lối di chuyển hoặc lối di chuyển không đảm bảo an toàn: có vật cản, quá hẹp…"
+        },
+        {
+          "slug": "Urinating_defecating_in_undesigned_place",
+          "label_en": "Urinating, defecating in undesigned place",
+          "label_vn": "Tiểu tiện - Đại tiện không đúng nơi quy định"
+        },
+        {
+          "slug": "Not_using_a_tarp_or_protective_covering_for_the_painting_area",
+          "label_en": "Not using a tarp or protective covering for the painting area",
+          "label_vn": "Không lót bạt hoặc che chắn cho vị trí sơn"
+        },
+        {
+          "slug": "Let_the_paint_gasoline_chemicals_spill_and_fall_into_the_environment",
+          "label_en": "Let the paint, gasoline, chemicals... spill and fall into the environment",
+          "label_vn": "Để sơn, xăng, hoá chất…tràn đổ, rơi vãi ra môi trường"
+        },
+        {
+          "slug": "Lack_or_missing_of_lighting_for_walkway_or_working_areas",
+          "label_en": "Lack or missing of lighting for walkway or working areas",
+          "label_vn": "Không có hoặc thiếu đèn chiếu sáng cho lối đi hoặc khu vực làm việc"
+        },
+        {
+          "slug": "Bringing_or_drinking_alcohol_at_site",
+          "label_en": "Bringing or drinking alcohol at site",
+          "label_vn": "Mang vào hoặc uống rượu bia trong công trường"
+        },
+        {
+          "slug": "Entering_a_prohibited_area",
+          "label_en": "Entering a prohibited area",
+          "label_vn": "Đi vào khu vực cấm"
+        },
+        {
+          "slug": "Using_a_phone_while_walking_phone_use_is_only_allowed_when_standing_still_in_a_s",
+          "label_en": "Using a phone while walking (phone use is only allowed when standing still in a safe place/ Sử dụng điện thoại khi đang di chuyển (chỉ được sử dụng điện thoại khi đứng lại tại nơi đảm bảo an toàn)",
+          "label_vn": ""
+        },
+        {
+          "slug": "Materials_are_messy_not_arranged_properly",
+          "label_en": "Materials are messy, not arranged properly",
+          "label_vn": "Vật tư để lộn xộn, không được sắp xếp hợp lý"
+        },
+        {
+          "slug": "Risk_of_safety_hazards_such_as_sharp_edges_fire_and_explosion_slipping_and_falli",
+          "label_en": "Risk of safety hazards such as sharp edges, fire and explosion, slipping, and falling objects",
+          "label_vn": "Có nguy cơ mất an toàn như các cạnh sắc nhọn, cháy nổ, trơn trượt, vật rơi"
+        },
+        {
+          "slug": "Worker_working_alone_must_be_2_people_or_more",
+          "label_en": "Worker working alone (must be 2 people or more)",
+          "label_vn": "Công nhân làm việc một mình (phải từ 2 người trở lên)"
+        },
+        {
+          "slug": "Worker_eat_and_drink_at_the_workplace_causing_unhygienic_conditions_C_ng_nh_n_n_",
+          "label_en": "Worker eat and drink at the workplace, causing unhygienic conditions /Công nhân ăn uống tại nơi làm việc gây mất vệ sinh",
+          "label_vn": ""
+        },
+        {
+          "slug": "Food_water_bottles_are_not_placed_in_the_right_place",
+          "label_en": "Food, water bottles... are not placed in the right place",
+          "label_vn": "Thực phẩm, chai nước…không để đúng nơi quy định"
+        },
+        {
+          "slug": "Smoking_or_cigarette_butts_at_the_workplace",
+          "label_en": "Smoking or cigarette butts at the workplace",
+          "label_vn": "Hút thuốc hoặc tàn thuốc tại nơi làm việc"
+        },
+        {
+          "slug": "Worker_fighting_at_the_workplace",
+          "label_en": "Worker fighting at the workplace",
+          "label_vn": "Công nhân đánh nhau tại nơi làm việc"
+        },
+        {
+          "slug": "Worker_engaging_in_threatening_or_disruptive_behavior_at_the_workplace",
+          "label_en": "Worker engaging in threatening or disruptive behavior at the workplace",
+          "label_vn": "Công nhân có hành vi doạ nạt, gây rối tại nơi làm việc"
+        },
+        {
+          "slug": "Worker_threatening_or_fighting_supervisors",
+          "label_en": "Worker threatening or fighting supervisors",
+          "label_vn": "Công nhân có hành vi đe doạ hoặc đánh giám sát"
+        },
+        {
+          "slug": "Materials_temporarily_stored_unsafely_obstructing_pathways_or_posing_a_risk_of_c",
+          "label_en": "Materials temporarily stored unsafely: obstructing pathways or posing a risk of collapse",
+          "label_vn": "Vật tư để tạm không đảm bảo an toàn: cản lối đi, nguy cơ sập đổ"
+        },
+        {
+          "slug": "Workers_resting_at_the_workplace_resting_is_only_allowed_in_designated_areas",
+          "label_en": "Workers resting at the workplace (resting is only allowed in designated areas)",
+          "label_vn": "Công nhân nghỉ ngơi tại nơi làm việc (chỉ được nghỉ ngơi tại nơi cho phép)"
+        },
+        {
+          "slug": "The_ends_of_the_iron_rods_are_not_covered",
+          "label_en": "The ends of the iron rods are not covered",
+          "label_vn": "Các đầu cây sắt không được che chắn"
+        },
+        {
+          "slug": "The_material_and_equipment_trans_lifting_area_must_not_be_isolated_without_warni",
+          "label_en": "The material and equipment trans/lifting area must not be isolated, without warning signs or cover falling objects",
+          "label_vn": "Khu vực vận chuyển vật tư thiết bị không được cô lập, cảnh báo, che chắn vật rơi từ phía trên"
+        },
+        {
+          "slug": "Machinery_and_equipment_leaking_oil",
+          "label_en": "Machinery and equipment leaking oil",
+          "label_vn": "Máy móc thiết bị bị rò rỉ dầu nhớt"
+        },
+        {
+          "slug": "No_PTW_or_approval_for_work_in_shafts_pipelines_pressure_testing_X_rays_Confined",
+          "label_en": "No PTW or approval for work in shafts/pipelines/pressure testing/X-rays/Confined spaces",
+          "label_vn": "Không có giấy phép hoặc chưa chấp thuận cho công việc làm việc trong các trục/đường ống/kiểm tra áp suất/chụp tia X/ Không gian hạn chế"
+        },
+        {
+          "slug": "No_warning_isolation_for_work_areas_in_shafts_pipelines_pressure_testing_X_rays_",
+          "label_en": "No warning, isolation for work areas in shafts/pipelines/pressure testing/X-rays/Confined spaces",
+          "label_vn": "Không cảnh báo, cách ly cho khu vực làm việc trong các trục/đường ống/kiểm tra áp suất/chụp tia X/ Không gian hạn chế"
+        },
+        {
+          "slug": "Workers_are_working_overtime_without_any_supervisor_to_oversee_the_work",
+          "label_en": "Workers are working overtime without any supervisor to oversee the work",
+          "label_vn": "Công nhân tăng ca nhưng không có giám sát để giám sát công việc"
+        }
+      ]
+    }
+  ]
+}
