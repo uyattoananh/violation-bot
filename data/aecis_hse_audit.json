@@ -1,0 +1,329 @@
+{
+  "total_entries": 424,
+  "unique_en_labels": 387,
+  "photographability_breakdown": {
+    "admin": 61,
+    "behavioral": 32,
+    "site_condition": 294
+  },
+  "exact_duplicate_count": 25,
+  "near_duplicate_pair_count": 6,
+  "exact_duplicates": [
+    {
+      "label_en": "Inadequate PPEs",
+      "appears_in_locations": [
+        "Mass piling work",
+        "Digging/Deep hole",
+        "Electric welding - Gas welding",
+        "Formwork",
+        "Workshop area",
+        "Concrete work"
+      ]
+    },
+    {
+      "label_en": "No fire extinguisher",
+      "appears_in_locations": [
+        "Electric welding - Gas welding",
+        "Gas and chemicals storage",
+        "Pressure equipment",
+        "Smoke Area",
+        "Parking area"
+      ]
+    },
+    {
+      "label_en": "Materials left in disarray",
+      "appears_in_locations": [
+        "Steel structures, precast concrete installation",
+        "Working at height",
+        "Formwork"
+      ]
+    },
+    {
+      "label_en": "No lifeline",
+      "appears_in_locations": [
+        "Steel structures, precast concrete installation",
+        "Working at height",
+        "Formwork"
+      ]
+    },
+    {
+      "label_en": "No access/unsafe access",
+      "appears_in_locations": [
+        "Steel structures, precast concrete installation",
+        "Working at height",
+        "Formwork"
+      ]
+    },
+    {
+      "label_en": "No signalman",
+      "appears_in_locations": [
+        "Lifting work",
+        "Trucks",
+        "Mechanical equipment for construction"
+      ]
+    },
+    {
+      "label_en": "Not clean",
+      "appears_in_locations": [
+        "Warehouse Area",
+        "Smoke Area",
+        "Common area"
+      ]
+    },
+    {
+      "label_en": "Working at height without safety harness",
+      "appears_in_locations": [
+        "Steel structures, precast concrete installation",
+        "Formwork"
+      ]
+    },
+    {
+      "label_en": "No load test before lifting (should apply 3:3:3)",
+      "appears_in_locations": [
+        "Steel structures, precast concrete installation",
+        "Lifting work"
+      ]
+    },
+    {
+      "label_en": "Materials falling from height",
+      "appears_in_locations": [
+        "Steel structures, precast concrete installation",
+        "Formwork"
+      ]
+    },
+    {
+      "label_en": "No load display or damaged",
+      "appears_in_locations": [
+        "Steel structures, precast concrete installation",
+        "Lifting work"
+      ]
+    },
+    {
+      "label_en": "No PTW, JSA",
+      "appears_in_locations": [
+        "Steel structures, precast concrete installation",
+        "Lifting work"
+      ]
+    },
+    {
+      "label_en": "Throwing materials/equipment",
+      "appears_in_locations": [
+        "Steel structures, precast concrete installation",
+        "Formwork"
+      ]
+    },
+    {
+      "label_en": "Crane not inspected daily",
+      "appears_in_locations": [
+        "Steel structures, precast concrete installation",
+        "Lifting work"
+      ]
+    },
+    {
+      "label_en": "Working without PTW, JSA",
+      "appears_in_locations": [
+        "Digging/Deep hole",
+        "Hot work"
+      ]
+    },
+    {
+      "label_en": "No emergency response procedures for work",
+      "appears_in_locations": [
+        "Digging/Deep hole",
+        "Confined space"
+      ]
+    },
+    {
+      "label_en": "No watchman, supervisor",
+      "appears_in_locations": [
+        "Confined space",
+        "Construction equipment (Gondola, Suspended scaffold, Hoist, Lifting equipment…)"
+      ]
+    },
+    {
+      "label_en": "No PTW/JSA",
+      "appears_in_locations": [
+        "Confined space",
+        "Construction equipment (Gondola, Suspended scaffold, Hoist, Lifting equipment…)"
+      ]
+    },
+    {
+      "label_en": "Materials falling",
+      "appears_in_locations": [
+        "Trucks",
+        "Working at height"
+      ]
+    },
+    {
+      "label_en": "Materials at risk of falling",
+      "appears_in_locations": [
+        "Trucks",
+        "Formwork"
+      ]
+    },
+    {
+      "label_en": "Gas cylinder, compressed air not fixed on shelf/trolley",
+      "appears_in_locations": [
+        "Electric welding - Gas welding",
+        "Pressure equipment"
+      ]
+    },
+    {
+      "label_en": "No have warning below at working at height position",
+      "appears_in_locations": [
+        "Working at height",
+        "Scaffolding and Platform"
+      ]
+    },
+    {
+      "label_en": "Unsafe standing position: weak ground, no padding, uneven surface",
+      "appears_in_locations": [
+        "Scaffolding and Platform",
+        "Mechanical equipment for construction"
+      ]
+    },
+    {
+      "label_en": "No safety way",
+      "appears_in_locations": [
+        "Workshop area",
+        "Material area"
+      ]
+    },
+    {
+      "label_en": "No implement 5S standards for area or no rack to store materials",
+      "appears_in_locations": [
+        "Workshop area",
+        "Material area"
+      ]
+    }
+  ],
+  "near_duplicates": [
+    {
+      "a": "Unsafe crane standing position",
+      "b": "Unsafe position of crane standing",
+      "sim": 1.0
+    },
+    {
+      "a": "Standing on handrails to work or working in position unsafety",
+      "b": "Standing on handrails to work or working in unsafety position",
+      "sim": 1.0
+    },
+    {
+      "a": "No non-return valve, Flashback Arrestor",
+      "b": "No non-return valve or flashback arrestor",
+      "sim": 1.0
+    },
+    {
+      "a": "Wearing safety harness but no hooking",
+      "b": "Wearing safety harness but not hooking",
+      "sim": 1.0
+    },
+    {
+      "a": "Crane operating in rain, Wind greater than level 5",
+      "b": "The crane is operating in the rain, Wind is than level 5",
+      "sim": 0.857
+    },
+    {
+      "a": "Materials falling from height",
+      "b": "Materials are risk of falling from height",
+      "sim": 0.8
+    }
+  ],
+  "filtered_out_admin": [
+    "Contact list is blurred, missing information, damaged…",
+    "Crane driver doesn't have Group 3 safety card or other document",
+    "Crane not inspected daily",
+    "Electric welder without a certificate/degree",
+    "Excavator drivers don't have a Group 3 safety card",
+    "Excavators do not have a checklist",
+    "Firefighting team lacks certification",
+    "MOS not inspected",
+    "MOS when digging deeper than 2m are not inspected",
+    "No MSDS or lack of",
+    "No PTW",
+    "No PTW or approval for work in shafts/pipelines/pressure testing/X-rays/Confined spaces",
+    "No PTW, JSA",
+    "No PTW/JSA",
+    "No Safety instructions for electrical equipment",
+    "No air testing and periodic testing every 30 minutes (Oxygen from 19.5% to 23.5%)",
+    "No checklist or checklist not good for the first aid cabinet/bag",
+    "No declaration of equipment with occupational safety requirements",
+    "No documents: Inspection drawing, Inspection, QA-QC…",
+    "No electrical safety inspection record for machinery and equipment",
+    "No emergency respond measures",
+    "No emergency response equipment available at the workplace",
+    "No emergency response procedures for chemical spills",
+    "No emergency response procedures for work",
+    "No entry and exit record or not fully updated",
+    "No fire drills performed or inadequate fire drills",
+    "No fire prevention team assigned or not up to date",
+    "No history",
+    "No information of the PIC on the electrical panel",
+    "No inspection certificate",
+    "No insurance certificate",
+    "No layout of temporary electrical system",
+    "No list of incompatible chemicals",
+    "No maintenance record",
+    "No operator document or lacking",
+    "No operator information",
+    "No parking area sign board (including temporary parking areas)",
+    "No periodic electrical cabinet safety inspection form",
+    "No periodic electrical safety inspection (general)",
+    "No periodic inspection",
+    "No safety net for floor by floor (minimum 3 floor/1 Safety net)",
+    "No shift handover record",
+    "No single-line or tagname for wire",
+    "No smoke regulation on site",
+    "No technical inspection",
+    "No warning signs for transfomer area",
+    "No watchman, supervisor",
+    "No/not updated emergency number",
+    "Not MOS and Plan",
+    "Not have QA/QC- certification",
+    "Not have technical documents",
+    "Not inspected initially, periodically",
+    "Not posted on notice board",
+    "Operator dit not have certificate",
+    "Operator not degree/Group 3 safety card",
+    "Rigger dit not have certificate",
+    "Scaffolder without certificate",
+    "Welder without Group 3 safety card",
+    "Worker eat and drink at the workplace, causing unhygienic conditions /Công nhân ăn uống tại nơi làm việc gây mất vệ sinh",
+    "Working without PTW or JSA",
+    "Working without PTW, JSA"
+  ],
+  "filtered_out_behavioral": [
+    "Breaks not maintained as regulated (should be 15 minutes break every hour)",
+    "Bringing or drinking alcohol at site",
+    "Do not arbitrarily connect or install socket inside the electrical panel",
+    "Do not hang heavy objects on the ladder",
+    "Do not stand on the top of the ladder (sitting only)",
+    "Do not use single-layer insulated wire (must be 2 layers)",
+    "Do not using bamboo and wooden ladder",
+    "Eating and drinking at the wrong place, do not eat or drink on the site",
+    "Entering a prohibited area",
+    "Ladder must not be connected together to make them longer",
+    "Ladders are not used according to the design",
+    "Ladders are placed too close to power lines",
+    "Let the other holding on vehicles",
+    "No people is holding the foot of the ladder",
+    "No warning area",
+    "No wear safety harness when working on a ladder that is 2m high",
+    "Only charge batteries in controlled places with low risk of fire explosion",
+    "Only one person is allowed to work on the ladder",
+    "Place ladder on crate, cart, table, or other unstable surfaces",
+    "Smoking in the wrong place",
+    "The top of the ladder must not be at least 900mm above the floor",
+    "Throw material, equipment",
+    "Throwing materials/equipment",
+    "Urinating, defecating in undesigned place",
+    "Use ladder on scaffolding or lifting equipment to increase working height",
+    "Using a phone while walking (phone use is only allowed when standing still in a safe place/ Sử dụng điện thoại khi đang di chuyển (chỉ được sử dụng điện thoại khi đứng lại tại nơi đảm bảo an toàn)",
+    "Worker engaging in threatening or disruptive behavior at the workplace",
+    "Worker fighting at the workplace",
+    "Worker threatening or fighting supervisors",
+    "Worker work alone",
+    "Worker working alone (must be 2 people or more)",
+    "Workers resting at the workplace (resting is only allowed in designated areas)"
+  ]
+}
