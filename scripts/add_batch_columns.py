@@ -21,6 +21,14 @@ ALTER TABLE photos ADD COLUMN IF NOT EXISTS batch_label TEXT NULL;
 
 -- Speed up the per-batch queries the webapp does on every poll
 CREATE INDEX IF NOT EXISTS idx_photos_batch ON photos (tenant_id, batch_id);
+
+-- Per-batch review state. Without this, a photo that was confirmed in a
+-- previous batch (e.g. via auto_seed_from_disk) shows up as "already
+-- confirmed" when re-uploaded into a new batch, skipping the user's
+-- inspector review. With it, /api/pending only counts a photo as
+-- reviewed when there's a correction row tagged with the CURRENT batch.
+ALTER TABLE corrections ADD COLUMN IF NOT EXISTS batch_id UUID NULL;
+CREATE INDEX IF NOT EXISTS idx_corrections_batch ON corrections (batch_id);
 """
     print(sql)
     print()

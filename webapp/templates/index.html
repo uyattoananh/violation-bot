@@ -982,6 +982,12 @@ async function uploadFiles(files) {
       updateStats();
       detail.textContent = `${uploadedCount} / ${total}`;
       bar.style.width = `${Math.round((uploadedCount / total) * 100)}%`;
+      // Surface server-side rejections (non-images, 0-byte, truncated)
+      if (Array.isArray(data.rejected) && data.rejected.length) {
+        const names = data.rejected.map(r => r.filename || "(unnamed)").slice(0, 5).join(", ");
+        const more = data.rejected.length > 5 ? ` (+${data.rejected.length - 5} more)` : "";
+        showError(`${data.rejected.length} file(s) skipped — not a supported image: ${names}${more}`);
+      }
       // Show pending placeholders immediately so the user sees something
       (data.uploaded || []).forEach(u => {
         getOrCreateCard({ id: u.id, thumb_url: "", classification: null, reviewed: false });
@@ -1013,7 +1019,18 @@ fileInput.addEventListener("change", (e) => {
   dropzone.classList.remove("drop-active");
 }));
 dropzone.addEventListener("drop", e => {
-  const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith("image/"));
+  // Don't pre-filter by MIME — some browsers report iPhone HEIC as
+  // application/octet-stream, and we want every dropped file to either
+  // upload or get an explicit "skipped" message back from the server.
+  const all = Array.from(e.dataTransfer.files || []);
+  // Still drop folders and pure-non-files (which arrive with name=="" + size==0)
+  // so a stray drop of a desktop selection doesn't 400 the upload endpoint.
+  const files = all.filter(f => f.size > 0 && f.name);
+  if (files.length < all.length) {
+    showToast((all.length - files.length) + " empty / non-file items skipped",
+              { timeoutMs: 3000 });
+  }
+  if (!files.length) return;
   uploadFiles(files);
 });
 
@@ -1049,6 +1066,11 @@ function maybeFireCompletionNotification(currentPending) {
 
 // =================== Confirm / Correct ===================
 async function confirmCard(card, opts = {}) {
+  // Guard against double-clicks / rapid-fire button mashing — without this,
+  // each click fires another POST + another feedback-loop CLIP embed.
+  if (card.dataset.status === "reviewed" || card.dataset.busy === "1") return;
+  card.dataset.busy = "1";
+
   const id = card.dataset.photoId;
   const prevState = captureState(card);
   applyReviewedState(card, "confirm");
@@ -1069,10 +1091,14 @@ async function confirmCard(card, opts = {}) {
   } catch (e) {
     restoreState(card, prevState);
     showError("Confirmation failed: " + e.message);
+  } finally {
+    delete card.dataset.busy;
   }
 }
 
 async function deleteCard(card) {
+  if (card.dataset.busy === "1") return;
+  card.dataset.busy = "1";
   const id = card.dataset.photoId;
   // Optimistic UI: collapse + remove the card immediately.
   // If the server delete fails we re-mount it.
@@ -1098,6 +1124,8 @@ async function deleteCard(card) {
 }
 
 async function correctCard(card, override = null) {
+  if (card.dataset.status === "reviewed" || card.dataset.busy === "1") return;
+  card.dataset.busy = "1";
   const id = card.dataset.photoId;
   const fd = new FormData();
   // Location is no longer in the visible UI; pull from the hidden field
@@ -1132,6 +1160,8 @@ async function correctCard(card, override = null) {
   } catch (e) {
     restoreState(card, prevState);
     showError("Correction failed: " + e.message);
+  } finally {
+    delete card.dataset.busy;
   }
 }
 

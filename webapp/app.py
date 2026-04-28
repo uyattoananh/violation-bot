@@ -218,6 +218,22 @@ def _storage_key(tenant_id: str, project_id: str, sha: str, ext: str) -> str:
 _API_NATIVE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP"}
 
 
+def _looks_like_supported_image(body: bytes) -> bool:
+    """Cheap pre-flight: does this look like a Pillow-decodable image?
+    Used by /api/upload to reject non-images at the boundary so they
+    don't hang in 'Analyzing...' forever after the worker fails to
+    classify them. Only does the cheap header/magic-bytes check —
+    actual decode happens later in _normalize_image."""
+    try:
+        from PIL import Image
+        import io as _io
+        with Image.open(_io.BytesIO(body)) as img:
+            img.verify()
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _normalize_image(body: bytes, original_filename: str | None) -> tuple[bytes, str, str]:
     """Return (bytes, ext, content_type) — converted to JPEG if the input
     isn't already in an API-/browser-friendly format. Falls through with
@@ -252,6 +268,29 @@ def _normalize_image(body: bytes, original_filename: str | None) -> tuple[bytes,
         ct = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
               ".gif": "image/gif", ".webp": "image/webp"}.get(ext, "image/jpeg")
         return body, ext, ct
+
+
+def _safe_corrections_insert(payload: dict) -> None:
+    """Insert into the corrections table, stripping any column that the
+    deployed schema doesn't yet have. Lets the webapp survive the window
+    between code-deploy and SQL-migration without 500ing on every confirm."""
+    db = get_db()
+    p = dict(payload)   # don't mutate caller's dict
+    for _ in range(4):  # at most one retry per optional column
+        try:
+            db.table("corrections").insert(p).execute()
+            return
+        except Exception as e:  # noqa: BLE001
+            msg = str(e)
+            stripped = False
+            for col in ("fine_hse_type_slug", "batch_id"):
+                if col in msg and col in p:
+                    p.pop(col, None)
+                    log.warning("corrections.%s column missing — degraded insert", col)
+                    stripped = True
+                    break
+            if not stripped:
+                raise
 
 
 def _upsert_embedding_for_correction(photo_id: str, hse_slug: str | None,
@@ -382,17 +421,32 @@ async def upload(
     project_id = project_id or DEFAULT_PROJECT_ID
     if not (tenant_id and project_id):
         raise HTTPException(500, "Server has no default tenant/project configured")
-    # Server-side fallback: if the client didn't send a batch id, mint one
-    # so the photos are still grouped under SOMETHING and don't pollute
-    # other users' default views.
-    if not batch_id:
-        batch_id = str(uuid.uuid4())
+    # Server-side fallback: if the client didn't send a batch id, OR sent
+    # something that's not a valid UUID, mint a fresh one. Keeps a malformed
+    # client / stale URL / direct API-poke from blowing up the upload.
+    def _coerce_uuid(s: str | None) -> str:
+        try:
+            return str(uuid.UUID(s)) if s else str(uuid.uuid4())
+        except Exception:  # noqa: BLE001
+            log.warning("upload received non-UUID batch_id=%r — minting new one", s)
+            return str(uuid.uuid4())
+    batch_id = _coerce_uuid(batch_id)
 
     db = get_db()
     r2 = get_r2()
     created = []
+    rejected = []
     for f in files:
         raw = await f.read()
+        # Reject non-image / 0-byte payloads at the upload boundary. If we
+        # accept them, they sit in "Analyzing..." forever because the
+        # classifier can't process them — bad UX.
+        if not raw or len(raw) < 100:   # any real photo > 100 bytes
+            rejected.append({"filename": f.filename, "reason": "empty_or_too_small"})
+            continue
+        if not _looks_like_supported_image(raw):
+            rejected.append({"filename": f.filename, "reason": "not_an_image"})
+            continue
         # Normalize first — convert HEIC/BMP/TIFF/etc → JPEG so the rest of
         # the pipeline (R2 thumbnail in browser + Anthropic API call) doesn't
         # need to care about the source format. sha is hashed on the FINAL
@@ -449,7 +503,12 @@ async def upload(
         db.table("classify_jobs").insert({"photo_id": photo_row["id"]}).execute()
         created.append({"id": photo_row["id"], "dedup": False})
 
-    return {"uploaded": created, "count": len(created), "batch_id": batch_id}
+    return {
+        "uploaded": created,
+        "rejected": rejected,
+        "count": len(created),
+        "batch_id": batch_id,
+    }
 
 
 @app.get("/api/pending")
@@ -491,14 +550,28 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
     # Also fetch the latest correction action per photo so the UI can mark
     # photos as already-reviewed AND show the inspector's final label
     # (which differs from the AI prediction when action='correct').
-    # Use SELECT * so we don't 400 if the fine_hse_type_slug column hasn't
-    # been added to Supabase yet (graceful degradation for pre-migration deploys).
-    corr_rows = (
-        db.table("corrections").select("*")
-        .in_("photo_id", photo_ids)
-        .order("created_at", desc=True)
-        .execute().data or []
-    )
+    # Per-batch review state: only count corrections that belong to the
+    # current batch. Without this filter, a photo whose sha256 matched an
+    # auto-seeded one would inherit the auto-seed's "confirm" correction
+    # and appear as already-reviewed in the user's fresh batch — skipping
+    # the inspector workflow entirely.
+    q = db.table("corrections").select("*").in_("photo_id", photo_ids)
+    if batch_id:
+        q = q.eq("batch_id", batch_id)
+    try:
+        corr_rows = q.order("created_at", desc=True).execute().data or []
+    except Exception as e:  # noqa: BLE001
+        # Pre-migration: fall back to unfiltered (legacy behaviour). After
+        # the SQL is applied this branch never fires.
+        if batch_id and "batch_id" in str(e):
+            corr_rows = (
+                db.table("corrections").select("*")
+                  .in_("photo_id", photo_ids)
+                  .order("created_at", desc=True)
+                  .execute().data or []
+            )
+        else:
+            raise
     latest_correction: dict[str, dict] = {}
     for c in corr_rows:
         latest_correction.setdefault(c["photo_id"], c)
@@ -583,6 +656,16 @@ def confirm(photo_id: str, fine_hse_type_slug: str | None = Form(None)):
     c = cls[0]
     if fine_hse_type_slug == "":
         fine_hse_type_slug = None
+    # Pull the photo's current batch_id so the correction is tied to it.
+    # Stale corrections from previous batches (e.g. auto_seed) won't count
+    # toward "this photo is reviewed in the current batch".
+    batch_id_for_corr = None
+    try:
+        photo_rows = db.table("photos").select("batch_id").eq("id", photo_id).execute().data
+        if photo_rows:
+            batch_id_for_corr = photo_rows[0].get("batch_id")
+    except Exception:  # noqa: BLE001
+        pass
     payload = {
         "photo_id": photo_id,
         "classification_id": c["id"],
@@ -590,18 +673,9 @@ def confirm(photo_id: str, fine_hse_type_slug: str | None = Form(None)):
         "location_slug": c["location_slug"],
         "hse_type_slug": c["hse_type_slug"],
         "fine_hse_type_slug": fine_hse_type_slug,
+        "batch_id": batch_id_for_corr,
     }
-    try:
-        db.table("corrections").insert(payload).execute()
-    except Exception as e:  # noqa: BLE001
-        # Fallback: pre-migration Supabase doesn't have fine_hse_type_slug.
-        # Strip the column and retry so confirms still work during deploy.
-        if "fine_hse_type_slug" in str(e):
-            payload.pop("fine_hse_type_slug", None)
-            db.table("corrections").insert(payload).execute()
-            log.warning("fine_hse_type_slug column missing — degraded confirm path used")
-        else:
-            raise
+    _safe_corrections_insert(payload)
     # Feedback loop: confirmations are high-quality labels — add to retrieval index
     _upsert_embedding_for_correction(photo_id, c["hse_type_slug"], c["location_slug"],
                                      fine_hse_type_slug=fine_hse_type_slug)
@@ -628,6 +702,15 @@ def correct(
     cid = cls[0]["id"] if cls else None
     if fine_hse_type_slug == "":
         fine_hse_type_slug = None
+    # Tie the correction to the photo's current batch (see confirm() above
+    # for why — keeps stale per-photo reviews from leaking across batches).
+    batch_id_for_corr = None
+    try:
+        photo_rows = db.table("photos").select("batch_id").eq("id", photo_id).execute().data
+        if photo_rows:
+            batch_id_for_corr = photo_rows[0].get("batch_id")
+    except Exception:  # noqa: BLE001
+        pass
     payload = {
         "photo_id": photo_id,
         "classification_id": cid,
@@ -635,17 +718,10 @@ def correct(
         "location_slug": location_slug,
         "hse_type_slug": hse_type_slug,
         "fine_hse_type_slug": fine_hse_type_slug,
+        "batch_id": batch_id_for_corr,
         "note": note,
     }
-    try:
-        db.table("corrections").insert(payload).execute()
-    except Exception as e:  # noqa: BLE001
-        if "fine_hse_type_slug" in str(e):
-            payload.pop("fine_hse_type_slug", None)
-            db.table("corrections").insert(payload).execute()
-            log.warning("fine_hse_type_slug column missing — degraded correct path used")
-        else:
-            raise
+    _safe_corrections_insert(payload)
     # Feedback loop: inspector-corrected label is high-quality — add to retrieval index
     _upsert_embedding_for_correction(photo_id, hse_type_slug, location_slug,
                                      fine_hse_type_slug=fine_hse_type_slug)
@@ -759,11 +835,22 @@ def _collect_export_rows(tenant_id: str, limit: int = 5000,
     cls_by_photo = {c["photo_id"]: c for c in cls_rows}
 
     # SELECT * so missing fine_hse_type_slug column doesn't 400 the export.
-    corr_rows = _fetch_chunked(
-        "corrections",
-        "*",
-        lambda q: q.order("created_at", desc=True),
-    )
+    # When filtering by batch, ALSO scope the corrections lookup so a stale
+    # auto-seeded "confirm" doesn't make a fresh-batch upload appear as
+    # already-reviewed. (Same fix as in api_pending.)
+    def _corrections_filter(q):
+        q = q.order("created_at", desc=True)
+        if batch_id:
+            q = q.eq("batch_id", batch_id)
+        return q
+    try:
+        corr_rows = _fetch_chunked("corrections", "*", _corrections_filter)
+    except Exception as e:  # noqa: BLE001
+        if batch_id and "batch_id" in str(e):
+            corr_rows = _fetch_chunked("corrections", "*",
+                                       lambda q: q.order("created_at", desc=True))
+        else:
+            raise
     latest_correction: dict[str, dict] = {}
     for c in corr_rows:
         latest_correction.setdefault(c["photo_id"], c)
