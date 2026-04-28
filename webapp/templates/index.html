@@ -87,6 +87,31 @@
   </div>
 </details>
 
+<!-- Batch indicator (always visible — shows above toolbar so users see which job they're on) -->
+<div id="batch-bar" class="mt-4 flex items-center gap-2 text-sm">
+  <div class="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm">
+    <div class="flex items-center gap-2 px-3 py-2">
+      <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/>
+      </svg>
+      <span class="text-xs text-slate-500 hidden sm:inline" data-i18n="batch_label_prefix">Batch:</span>
+      <input type="text" id="batch-label-input"
+             class="bg-transparent text-sm font-semibold text-slate-900 focus:outline-none focus:bg-slate-50 rounded px-1 py-0 w-40 sm:w-48"
+             placeholder="(unnamed)"
+             autocomplete="off">
+    </div>
+    <button id="batch-new"
+            class="border-l border-slate-200 px-3 py-2 text-xs text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-r-lg flex items-center gap-1 transition-colors"
+            title="Start a new batch (current photos stay on the server, this view becomes empty)">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+      </svg>
+      <span class="hidden sm:inline" data-i18n="batch_new">New batch</span>
+    </button>
+  </div>
+  <div class="hidden sm:flex items-center text-xs text-slate-400 italic" id="batch-count-hint"></div>
+</div>
+
 <!-- Toolbar: filter + sort + export + bulk actions -->
 <div id="toolbar" class="hidden mt-4 flex flex-wrap items-center gap-2 text-sm">
   <div class="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
@@ -336,6 +361,10 @@ const I18N = {
     confirm_toast: "Confirmed — added to training set",
     correct_toast: "Correction saved — added to training set",
     delete_toast: "Photo deleted",
+    batch_label_prefix: "Batch:",
+    batch_new: "New batch",
+    batch_new_toast: "Started a new batch — drop photos to begin",
+    batch_new_confirm: "Start a new batch? Current photos stay on the server but disappear from this view.",
     undo: "Undo",
     undo_local: "Undid your last action — locally only (re-confirm to persist)",
     bulk_confirming: "Confirming high-confidence photos…",
@@ -409,6 +438,10 @@ const I18N = {
     confirm_toast: "Đã xác nhận — thêm vào tập huấn luyện",
     correct_toast: "Đã lưu chỉnh sửa — thêm vào tập huấn luyện",
     delete_toast: "Đã xóa ảnh",
+    batch_label_prefix: "Lô ảnh:",
+    batch_new: "Lô mới",
+    batch_new_toast: "Đã bắt đầu lô ảnh mới — thả ảnh để bắt đầu",
+    batch_new_confirm: "Bắt đầu lô ảnh mới? Ảnh hiện tại vẫn ở trên máy chủ nhưng sẽ không hiển thị ở đây.",
     undo: "Hoàn tác",
     undo_local: "Đã hoàn tác — chỉ ở giao diện (xác nhận lại để lưu)",
     bulk_confirming: "Đang xác nhận hàng loạt ảnh độ tin cậy cao…",
@@ -535,6 +568,45 @@ const SESSION = { uploaded: 0, confirmed: 0, corrected: 0 };
 let activeFilter = localStorage.getItem("violation-ai-filter") || "all";
 let activeSort   = localStorage.getItem("violation-ai-sort") || "newest";
 const photoCache = new Map();
+
+// Batch tracking — every upload session is a "job" so users only see and
+// download photos from the current session. Persisted in localStorage so
+// a tab reload doesn't lose the current batch.
+function _uuid4() {
+  // Tiny RFC4122 v4 generator; crypto.randomUUID() isn't on every browser.
+  if (crypto && crypto.randomUUID) return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+let CURRENT_BATCH_ID    = localStorage.getItem("violation-ai-batch-id") || _uuid4();
+let CURRENT_BATCH_LABEL = localStorage.getItem("violation-ai-batch-label") || "";
+localStorage.setItem("violation-ai-batch-id", CURRENT_BATCH_ID);
+
+function startNewBatch() {
+  // Clear current view, mint a new id, persist, redraw.
+  CURRENT_BATCH_ID = _uuid4();
+  CURRENT_BATCH_LABEL = "";
+  localStorage.setItem("violation-ai-batch-id", CURRENT_BATCH_ID);
+  localStorage.removeItem("violation-ai-batch-label");
+  // Wipe local card cache + DOM
+  photoCache.clear();
+  cardsEl.querySelectorAll(".card").forEach(c => c.remove());
+  el("#empty-state").classList.remove("hidden");
+  toolbar.classList.add("hidden");
+  el("#summary-card").classList.add("hidden");
+  // Reset batch label input + session counters
+  el("#batch-label-input").value = "";
+  SESSION.uploaded = 0;
+  SESSION.confirmed = 0;
+  SESSION.corrected = 0;
+  updateStats();
+  // Re-poll so any in-flight photos that DO match the new batch (shouldn't be
+  // any, but be defensive) show up.
+  poll();
+  showToast(t("batch_new_toast") || "Started a new batch");
+}
 
 // Tab-title bookkeeping
 let tabPendingTotal = 0;
@@ -898,6 +970,8 @@ async function uploadFiles(files) {
     const chunk = files.slice(i, i + UPLOAD_CHUNK_SIZE);
     const fd = new FormData();
     for (const f of chunk) fd.append("files", f);
+    fd.append("batch_id", CURRENT_BATCH_ID);
+    if (CURRENT_BATCH_LABEL) fd.append("batch_label", CURRENT_BATCH_LABEL);
     try {
       const resp = await fetch("/api/upload", { method: "POST", body: fd });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -1183,8 +1257,22 @@ el("#bulk-confirm-high").addEventListener("click", async () => {
 // =================== Export menu ===================
 const exportBtn  = el("#export-btn");
 const exportMenu = el("#export-menu");
+
+// Update each download link's href so it carries the current batch_id.
+// Refreshed every time the menu opens — if the user just clicked
+// "New batch" the next download targets the new batch, not the old one.
+function refreshExportLinks() {
+  exportMenu.querySelectorAll("a[href^='/api/export']").forEach(a => {
+    const u = new URL(a.getAttribute("href"), window.location.origin);
+    // Strip any prior batch_id, then add the current one
+    u.searchParams.set("batch_id", CURRENT_BATCH_ID);
+    a.setAttribute("href", u.pathname + (u.search ? u.search : ""));
+  });
+}
+
 exportBtn.addEventListener("click", e => {
   e.stopPropagation();
+  refreshExportLinks();
   exportMenu.classList.toggle("hidden");
 });
 document.addEventListener("click", e => {
@@ -1199,7 +1287,7 @@ document.addEventListener("click", e => {
 // =================== Summary card ===================
 async function refreshSummary() {
   try {
-    const resp = await fetch("/api/export/summary");
+    const resp = await fetch(`/api/export/summary?batch_id=${encodeURIComponent(CURRENT_BATCH_ID)}`);
     if (!resp.ok) return;
     const s = await resp.json();
     const card = el("#summary-card");
@@ -1298,13 +1386,24 @@ el("#kbd-help").addEventListener("click", e => {
 // =================== Poll ===================
 async function poll() {
   try {
-    const resp = await fetch("/api/pending?limit=40");
+    const resp = await fetch(`/api/pending?limit=40&batch_id=${encodeURIComponent(CURRENT_BATCH_ID)}`);
     if (!resp.ok) return;
     const data = await resp.json();
     renderTrainingSetSize(data.training_set_size);
 
     let pendingNow = 0;
     (data.photos || []).forEach(p => {
+      // Client-side batch filter — drops photos that don't belong to the
+      // current batch. Belt-and-suspenders for the server-side filter
+      // (which is a no-op when the photos.batch_id column hasn't been
+      // migrated yet).
+      if (p.batch_id && p.batch_id !== CURRENT_BATCH_ID) return;
+      // Pre-migration photos have batch_id === null. Treat them as
+      // belonging to no batch — i.e. don't show in any current batch
+      // view. (Once the migration runs and new uploads carry batch_id,
+      // this branch stops being reached for fresh photos.)
+      if (!p.batch_id) return;
+
       const card = getOrCreateCard(p);
       updateCard(card, p);
       if (!p.classification && !p.reviewed) pendingNow++;
@@ -1328,6 +1427,31 @@ async function poll() {
     }
   } catch (e) { /* silent */ }
 }
+
+// =================== Batch indicator wiring ===================
+const batchInput = el("#batch-label-input");
+batchInput.value = CURRENT_BATCH_LABEL;
+batchInput.addEventListener("input", e => {
+  CURRENT_BATCH_LABEL = e.target.value.slice(0, 80);
+  if (CURRENT_BATCH_LABEL) {
+    localStorage.setItem("violation-ai-batch-label", CURRENT_BATCH_LABEL);
+  } else {
+    localStorage.removeItem("violation-ai-batch-label");
+  }
+});
+batchInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    batchInput.blur();
+  }
+});
+el("#batch-new").addEventListener("click", () => {
+  if (cardsEl.querySelectorAll(".card").length > 0) {
+    const ok = window.confirm(t("batch_new_confirm") || "Start a new batch? Current photos stay on the server but disappear from this view. (You can still download their data via the API directly.)");
+    if (!ok) return;
+  }
+  startNewBatch();
+});
 
 // =================== Boot ===================
 applyLang();

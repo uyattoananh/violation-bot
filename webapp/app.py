@@ -371,11 +371,22 @@ async def upload(
     files: list[UploadFile] = File(...),
     tenant_id: str | None = Form(None),
     project_id: str | None = Form(None),
+    batch_id: str | None = Form(None),
+    batch_label: str | None = Form(None),
 ):
+    """Upload one or more photos. The frontend generates a UUID per
+    upload session and passes it as `batch_id`; all photos in the same
+    session share that ID. Downstream queries (pending / export) filter
+    by batch so users only see / download the current job's photos."""
     tenant_id = tenant_id or DEFAULT_TENANT_ID
     project_id = project_id or DEFAULT_PROJECT_ID
     if not (tenant_id and project_id):
         raise HTTPException(500, "Server has no default tenant/project configured")
+    # Server-side fallback: if the client didn't send a batch id, mint one
+    # so the photos are still grouped under SOMETHING and don't pollute
+    # other users' default views.
+    if not batch_id:
+        batch_id = str(uuid.uuid4())
 
     db = get_db()
     r2 = get_r2()
@@ -395,6 +406,17 @@ async def upload(
               .eq("sha256", sha).execute()
         )
         if existing.data:
+            # Dedup hit: re-attach the existing photo to the CURRENT batch
+            # so the user sees it in their working view. Previous batches
+            # lose this photo, which matches the "current job" mental model.
+            try:
+                db.table("photos").update({
+                    "batch_id": batch_id,
+                    "batch_label": batch_label,
+                }).eq("id", existing.data[0]["id"]).execute()
+            except Exception as e:  # noqa: BLE001
+                if "batch_id" not in str(e):
+                    log.warning("dedup batch update failed: %s", e)
             created.append({"id": existing.data[0]["id"], "dedup": True})
             continue
 
@@ -402,7 +424,7 @@ async def upload(
             Bucket=R2_BUCKET, Key=key, Body=body,
             ContentType=content_type,
         )
-        photo_row = db.table("photos").insert({
+        photo_payload = {
             "tenant_id": tenant_id,
             "project_id": project_id,
             "storage_key": key,
@@ -410,26 +432,52 @@ async def upload(
             "sha256": sha,
             "original_filename": f.filename,
             "bytes": len(body),
-        }).execute().data[0]
+            "batch_id": batch_id,
+            "batch_label": batch_label,
+        }
+        try:
+            photo_row = db.table("photos").insert(photo_payload).execute().data[0]
+        except Exception as e:  # noqa: BLE001
+            # Fallback if the batch columns haven't been ALTER-TABLE'd yet.
+            if "batch_id" in str(e) or "batch_label" in str(e):
+                photo_payload.pop("batch_id", None)
+                photo_payload.pop("batch_label", None)
+                photo_row = db.table("photos").insert(photo_payload).execute().data[0]
+                log.warning("photos.batch_id column missing — degraded upload path used")
+            else:
+                raise
         db.table("classify_jobs").insert({"photo_id": photo_row["id"]}).execute()
         created.append({"id": photo_row["id"], "dedup": False})
 
-    return {"uploaded": created, "count": len(created)}
+    return {"uploaded": created, "count": len(created), "batch_id": batch_id}
 
 
 @app.get("/api/pending")
-def api_pending(limit: int = 40):
+def api_pending(limit: int = 40, batch_id: str | None = None):
     """Return the most recent photos + their current classification.
+
+    If `batch_id` is provided, only photos in that batch are returned —
+    this is what the frontend always passes so users see only their
+    current upload session, not the full tenant history.
 
     Poll this from the frontend every few seconds to update cards as the
     worker classifies them.
     """
     db = get_db()
-    photos = (
-        db.table("photos").select("*")
-          .order("uploaded_at", desc=True).limit(limit)
-          .execute().data or []
-    )
+    q = db.table("photos").select("*")
+    if batch_id:
+        q = q.eq("batch_id", batch_id)
+    try:
+        photos = q.order("uploaded_at", desc=True).limit(limit).execute().data or []
+    except Exception as e:  # noqa: BLE001
+        # If the batch_id column isn't migrated yet, retry without the filter.
+        if batch_id and "batch_id" in str(e):
+            log.warning("photos.batch_id column missing — falling back to unfiltered pending")
+            photos = (db.table("photos").select("*")
+                        .order("uploaded_at", desc=True).limit(limit)
+                        .execute().data or [])
+        else:
+            raise
     if not photos:
         return {"photos": [], "training_set_size": _training_set_size()}
 
@@ -476,6 +524,9 @@ def api_pending(limit: int = 40):
             "thumb_url": thumb,
             "original_filename": p.get("original_filename"),
             "uploaded_at": p.get("uploaded_at"),
+            # Include batch_id (may be None on pre-migration photos) so the
+            # frontend can also filter client-side, defense-in-depth.
+            "batch_id": p.get("batch_id"),
             "classification": (
                 {
                     "location_slug": cls["location_slug"],
@@ -665,16 +716,28 @@ def _slug_safe(s: str | None) -> str:
     return "".join(c if c.isalnum() or c in "_-" else "_" for c in s)[:60]
 
 
-def _collect_export_rows(tenant_id: str, limit: int = 5000) -> list[dict]:
-    """Pull every photo for a tenant joined with its current classification,
-    latest correction, and the original filename. Used by all 3 export formats."""
+def _collect_export_rows(tenant_id: str, limit: int = 5000,
+                         batch_id: str | None = None) -> list[dict]:
+    """Pull every photo for a tenant (optionally scoped to one batch)
+    joined with its current classification, latest correction, and the
+    original filename. Used by all 3 export formats. Filtering by
+    batch_id is the default in the UI so users only download the photos
+    in their current upload session, not the full tenant history."""
     db = get_db()
-    photos = (
-        db.table("photos").select("*")
-          .eq("tenant_id", tenant_id)
-          .order("uploaded_at", desc=True).limit(limit)
-          .execute().data or []
-    )
+    q = db.table("photos").select("*").eq("tenant_id", tenant_id)
+    if batch_id:
+        q = q.eq("batch_id", batch_id)
+    try:
+        photos = q.order("uploaded_at", desc=True).limit(limit).execute().data or []
+    except Exception as e:  # noqa: BLE001
+        if batch_id and "batch_id" in str(e):
+            log.warning("photos.batch_id missing — degraded export collected unfiltered")
+            photos = (db.table("photos").select("*")
+                        .eq("tenant_id", tenant_id)
+                        .order("uploaded_at", desc=True).limit(limit)
+                        .execute().data or [])
+        else:
+            raise
     if not photos:
         return []
 
@@ -774,11 +837,13 @@ def _enrich_with_labels(rows: list[dict], tax: dict) -> None:
 
 
 @app.get("/api/export/csv")
-def export_csv(limit: int = 5000):
-    """Stream a CSV of every photo + AI prediction + final label."""
+def export_csv(limit: int = 5000, batch_id: str | None = None):
+    """Stream a CSV of every photo + AI prediction + final label.
+    Filter to one batch via ?batch_id=... — frontend always passes the
+    current batch so users only download photos from this upload session."""
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "tenant not configured")
-    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit)
+    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit, batch_id=batch_id)
     tax = app.state.taxonomy or load_taxonomy()
     _enrich_with_labels(rows, tax)
 
@@ -819,11 +884,11 @@ def export_csv(limit: int = 5000):
 
 
 @app.get("/api/export/json")
-def export_json(limit: int = 5000):
+def export_json(limit: int = 5000, batch_id: str | None = None):
     """JSON dump of every photo + AI prediction + final label."""
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "tenant not configured")
-    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit)
+    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit, batch_id=batch_id)
     tax = app.state.taxonomy or load_taxonomy()
     _enrich_with_labels(rows, tax)
 
@@ -840,13 +905,13 @@ def export_json(limit: int = 5000):
 
 
 @app.get("/api/export/zip")
-def export_zip(limit: int = 5000):
+def export_zip(limit: int = 5000, batch_id: str | None = None):
     """Stream a ZIP with each photo renamed to <hse>__<location>__<seq>.<ext>
     and a manifest.csv listing the mapping. Killer feature for non-technical
     users — drag back into Windows folders organized by violation class."""
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "tenant not configured")
-    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit)
+    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit, batch_id=batch_id)
     if not rows:
         raise HTTPException(404, "no photos to export")
 
@@ -918,11 +983,11 @@ def export_zip(limit: int = 5000):
 
 
 @app.get("/api/export/summary")
-def export_summary():
+def export_summary(batch_id: str | None = None):
     """Per-batch digest used by the UI's summary card. Cheap aggregate query."""
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "tenant not configured")
-    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=5000)
+    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=5000, batch_id=batch_id)
     from collections import Counter
     hse_counts = Counter(r["final_hse_type_slug"] for r in rows if r.get("final_hse_type_slug"))
     loc_counts = Counter(r["final_location_slug"] for r in rows if r.get("final_location_slug"))
