@@ -176,7 +176,7 @@ Decide in this order:
                                                  Pressure_equipment_unsafe / etc.
    - A SITE FEATURE (edge, opening, pit)       → Edge_protection_missing /
                                                  Excavation_unsafe / Floor_opening
-   - A WORK ACTIVITY in progress               → Welding_unsafe / Hot_work_hazard /
+   - A WORK ACTIVITY in progress               → Hot_work_hazard /
      (welding, hot work, concrete pump)         Concrete_work_unsafe
    - GENERAL MESS / DEBRIS                     → Housekeeping_general
    - SOMETHING ELSE that is unsafe but does
@@ -195,8 +195,8 @@ Decide in this order:
      (NOT Scaffolding_unsafe — the worker is the subject)
    - "Damaged scaffold standing alone"     → Scaffolding_unsafe
      (NOT Site_general_unsafe — scaffold is the specific subject)
-   - "Welder welding without sparks contained" → Welding_unsafe
-     (NOT Hot_work_hazard — welding is more specific)
+   - "Welder welding without sparks contained" → Hot_work_hazard
+     (welding is hot work; the spark hazard is the safety concern)
    - "Crane hook with no safety latch"     → Lifting_unsafe
      (the hook is the specific feature)
 

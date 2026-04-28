@@ -888,6 +888,12 @@
         "label_en": "Working below without protection",
         "label_vn": "Làm việc bên dưới khi không có che chắn",
         "primary_work_zone": "Working at height"
+      },
+      {
+        "slug": "Lack_or_missing_of_lighting_for_walkway_or_working_areas",
+        "label_en": "Lack or missing of lighting for walkway or working areas",
+        "label_vn": "Không có hoặc thiếu đèn chiếu sáng cho lối đi hoặc khu vực làm việc",
+        "primary_work_zone": "Common working area"
       }
     ],
     "Edge_protection_missing": [
@@ -1200,56 +1206,6 @@
         "primary_work_zone": "Trucks"
       }
     ],
-    "Welding_unsafe": [
-      {
-        "slug": "Electrode_holder_are_damaged_and_require_replace",
-        "label_en": "Electrode holder are damaged and require replace",
-        "label_vn": "Kìm hàn bị hư hỏng, yêu cầu thay thế",
-        "primary_work_zone": "Electric welding - Gas welding"
-      },
-      {
-        "slug": "Gas_cylinder_compressed_air_not_fixed_on_shelf_trolley",
-        "label_en": "Gas cylinder, compressed air not fixed on shelf/trolley",
-        "label_vn": "Bình gas, khí nén không được cố định trên kệ/ xe đẩy",
-        "primary_work_zone": "Electric welding - Gas welding"
-      },
-      {
-        "slug": "No_fire_extinguisher",
-        "label_en": "No fire extinguisher",
-        "label_vn": "Không có bình chữa cháy",
-        "primary_work_zone": "Electric welding - Gas welding"
-      },
-      {
-        "slug": "No_non_return_valve_Flashback_Arrestor",
-        "label_en": "No non-return valve, Flashback Arrestor",
-        "label_vn": "Không có van 1 chiều, van chống cháy ngược",
-        "primary_work_zone": "Electric welding - Gas welding"
-      },
-      {
-        "slug": "No_tray_for_welding_work",
-        "label_en": "No tray for welding work.",
-        "label_vn": "Không có khay hứng phoi hàn",
-        "primary_work_zone": "Electric welding - Gas welding"
-      },
-      {
-        "slug": "Risk_of_fire_due_to_proximity_of_flammable_materials",
-        "label_en": "Risk of fire due to proximity of flammable materials",
-        "label_vn": "Có nguy cơ cháy do gần vật liệu dễ cháy",
-        "primary_work_zone": "Electric welding - Gas welding"
-      },
-      {
-        "slug": "The_pressure_gauge_is_missing_or_damaged",
-        "label_en": "The pressure gauge is missing or damaged",
-        "label_vn": "Đồng hồ báo áp bị thiếu hoặc hư hỏng",
-        "primary_work_zone": "Electric welding - Gas welding"
-      },
-      {
-        "slug": "The_welding_machine_is_placed_in_a_damp_area_which_is_unsafe_need_to_be_placed_a",
-        "label_en": "The welding machine is placed in a damp area, which is unsafe (need to be placed at height)",
-        "label_vn": "Máy hàn để nơi ẩm ướt, không đảm bảo an toàn (Cần phải đặt lên cao)",
-        "primary_work_zone": "Electric welding - Gas welding"
-      }
-    ],
     "Hot_work_hazard": [
       {
         "slug": "Fire_extinguishers_and_water_are_missing_or_insufficient",
@@ -1298,6 +1254,54 @@
         "label_en": "Work area not checked 1 hour and 3 hours after finishing work",
         "label_vn": "Không kiểm tra khu vực làm việc sau 1 tiếng và 3 tiếng",
         "primary_work_zone": "Hot work"
+      },
+      {
+        "slug": "Electrode_holder_are_damaged_and_require_replace",
+        "label_en": "Electrode holder are damaged and require replace",
+        "label_vn": "Kìm hàn bị hư hỏng, yêu cầu thay thế",
+        "primary_work_zone": "Electric welding - Gas welding"
+      },
+      {
+        "slug": "Gas_cylinder_compressed_air_not_fixed_on_shelf_trolley",
+        "label_en": "Gas cylinder, compressed air not fixed on shelf/trolley",
+        "label_vn": "Bình gas, khí nén không được cố định trên kệ/ xe đẩy",
+        "primary_work_zone": "Electric welding - Gas welding"
+      },
+      {
+        "slug": "No_fire_extinguisher",
+        "label_en": "No fire extinguisher",
+        "label_vn": "Không có bình chữa cháy",
+        "primary_work_zone": "Electric welding - Gas welding"
+      },
+      {
+        "slug": "No_non_return_valve_Flashback_Arrestor",
+        "label_en": "No non-return valve, Flashback Arrestor",
+        "label_vn": "Không có van 1 chiều, van chống cháy ngược",
+        "primary_work_zone": "Electric welding - Gas welding"
+      },
+      {
+        "slug": "No_tray_for_welding_work",
+        "label_en": "No tray for welding work.",
+        "label_vn": "Không có khay hứng phoi hàn",
+        "primary_work_zone": "Electric welding - Gas welding"
+      },
+      {
+        "slug": "Risk_of_fire_due_to_proximity_of_flammable_materials",
+        "label_en": "Risk of fire due to proximity of flammable materials",
+        "label_vn": "Có nguy cơ cháy do gần vật liệu dễ cháy",
+        "primary_work_zone": "Electric welding - Gas welding"
+      },
+      {
+        "slug": "The_pressure_gauge_is_missing_or_damaged",
+        "label_en": "The pressure gauge is missing or damaged",
+        "label_vn": "Đồng hồ báo áp bị thiếu hoặc hư hỏng",
+        "primary_work_zone": "Electric welding - Gas welding"
+      },
+      {
+        "slug": "The_welding_machine_is_placed_in_a_damp_area_which_is_unsafe_need_to_be_placed_a",
+        "label_en": "The welding machine is placed in a damp area, which is unsafe (need to be placed at height)",
+        "label_vn": "Máy hàn để nơi ẩm ướt, không đảm bảo an toàn (Cần phải đặt lên cao)",
+        "primary_work_zone": "Electric welding - Gas welding"
       }
     ],
     "Fire_prevention_unsafe": [
@@ -1397,6 +1401,42 @@
         "slug": "The_ends_of_the_iron_rods_are_not_covered",
         "label_en": "The ends of the iron rods are not covered",
         "label_vn": "Các đầu cây sắt không được che chắn",
+        "primary_work_zone": "Common working area"
+      },
+      {
+        "slug": "Garbage_outside_designated_areas",
+        "label_en": "Garbage outside designated areas",
+        "label_vn": "Rác để không đúng nơi quy định",
+        "primary_work_zone": "Housekeeping"
+      },
+      {
+        "slug": "Not_stored_neatly",
+        "label_en": "Not stored neatly",
+        "label_vn": "Không lưu trữ gọn gàng",
+        "primary_work_zone": "Garbage area - Waste"
+      },
+      {
+        "slug": "Not_transportation_on_time",
+        "label_en": "Not transportation on time",
+        "label_vn": "Không vận chuyển kịp thời",
+        "primary_work_zone": "Garbage area - Waste"
+      },
+      {
+        "slug": "Unsorted",
+        "label_en": "Unsorted",
+        "label_vn": "Rác không được phân loại",
+        "primary_work_zone": "Garbage area - Waste"
+      },
+      {
+        "slug": "Incorrect_location",
+        "label_en": "Incorrect location",
+        "label_vn": "Đặt không đúng nơi quy định",
+        "primary_work_zone": "Smoke Area"
+      },
+      {
+        "slug": "Smoking_or_cigarette_butts_at_the_workplace",
+        "label_en": "Smoking or cigarette butts at the workplace",
+        "label_vn": "Hút thuốc hoặc tàn thuốc tại nơi làm việc",
         "primary_work_zone": "Common working area"
       }
     ],
@@ -1740,32 +1780,6 @@
         "primary_work_zone": "Signal board, warning tape"
       }
     ],
-    "Garbage_waste_unsafe": [
-      {
-        "slug": "Garbage_outside_designated_areas",
-        "label_en": "Garbage outside designated areas",
-        "label_vn": "Rác để không đúng nơi quy định",
-        "primary_work_zone": "Housekeeping"
-      },
-      {
-        "slug": "Not_stored_neatly",
-        "label_en": "Not stored neatly",
-        "label_vn": "Không lưu trữ gọn gàng",
-        "primary_work_zone": "Garbage area - Waste"
-      },
-      {
-        "slug": "Not_transportation_on_time",
-        "label_en": "Not transportation on time",
-        "label_vn": "Không vận chuyển kịp thời",
-        "primary_work_zone": "Garbage area - Waste"
-      },
-      {
-        "slug": "Unsorted",
-        "label_en": "Unsorted",
-        "label_vn": "Rác không được phân loại",
-        "primary_work_zone": "Garbage area - Waste"
-      }
-    ],
     "Warehouse_unsafe": [
       {
         "slug": "Non_compliance_with_5S_standards",
@@ -1778,20 +1792,6 @@
         "label_en": "Not clean",
         "label_vn": "Không được vệ sinh sạch sẽ",
         "primary_work_zone": "Warehouse Area"
-      }
-    ],
-    "Smoking_area_unsafe": [
-      {
-        "slug": "Incorrect_location",
-        "label_en": "Incorrect location",
-        "label_vn": "Đặt không đúng nơi quy định",
-        "primary_work_zone": "Smoke Area"
-      },
-      {
-        "slug": "Smoking_or_cigarette_butts_at_the_workplace",
-        "label_en": "Smoking or cigarette butts at the workplace",
-        "label_vn": "Hút thuốc hoặc tàn thuốc tại nơi làm việc",
-        "primary_work_zone": "Common working area"
       }
     ],
     "Common_area_unsafe": [
@@ -1823,18 +1823,10 @@
         "label_vn": "Khu vực uống nước không được vệ sinh",
         "primary_work_zone": "Drinking water for worker"
       }
-    ],
-    "Site_lighting_unsafe": [
-      {
-        "slug": "Lack_or_missing_of_lighting_for_walkway_or_working_areas",
-        "label_en": "Lack or missing of lighting for walkway or working areas",
-        "label_vn": "Không có hoặc thiếu đèn chiếu sáng cho lối đi hoặc khu vực làm việc",
-        "primary_work_zone": "Common working area"
-      }
     ]
   },
   "stats": {
-    "parent_count": 33,
+    "parent_count": 29,
     "total_fine_types": 294
   }
 }
