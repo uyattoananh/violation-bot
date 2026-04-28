@@ -301,7 +301,7 @@ def _upsert_embedding_for_correction(photo_id: str, hse_slug: str | None,
     # any existing scraped labels, so re-confirming or re-correcting the same
     # photo always updates the index.
     try:
-        db.table("photo_embeddings").upsert({
+        upsert_payload = {
             "sha256": sha,
             "hse_type_slug": hse_slug,
             "location_slug": loc_slug,
@@ -312,7 +312,16 @@ def _upsert_embedding_for_correction(photo_id: str, hse_slug: str | None,
             "source_path": f"inspector_corrected/{photo_id}",
             "embedding": vec.tolist(),
             "tenant_id": p.get("tenant_id"),
-        }, on_conflict="sha256").execute()
+        }
+        try:
+            db.table("photo_embeddings").upsert(upsert_payload, on_conflict="sha256").execute()
+        except Exception as e2:  # noqa: BLE001
+            if "fine_hse_type_slug" in str(e2):
+                upsert_payload.pop("fine_hse_type_slug", None)
+                db.table("photo_embeddings").upsert(upsert_payload, on_conflict="sha256").execute()
+                log.warning("fine_hse_type_slug column missing on photo_embeddings — degraded upsert")
+            else:
+                raise
         log.info("feedback-loop: upserted embedding for photo=%s hse=%s loc=%s fine=%s",
                  photo_id, hse_slug, loc_slug, fine_hse_type_slug)
     except Exception as e:  # noqa: BLE001
@@ -434,10 +443,10 @@ def api_pending(limit: int = 40):
     # Also fetch the latest correction action per photo so the UI can mark
     # photos as already-reviewed AND show the inspector's final label
     # (which differs from the AI prediction when action='correct').
+    # Use SELECT * so we don't 400 if the fine_hse_type_slug column hasn't
+    # been added to Supabase yet (graceful degradation for pre-migration deploys).
     corr_rows = (
-        db.table("corrections").select(
-            "photo_id, action, hse_type_slug, location_slug, fine_hse_type_slug, created_at"
-        )
+        db.table("corrections").select("*")
         .in_("photo_id", photo_ids)
         .order("created_at", desc=True)
         .execute().data or []
@@ -523,14 +532,25 @@ def confirm(photo_id: str, fine_hse_type_slug: str | None = Form(None)):
     c = cls[0]
     if fine_hse_type_slug == "":
         fine_hse_type_slug = None
-    db.table("corrections").insert({
+    payload = {
         "photo_id": photo_id,
         "classification_id": c["id"],
         "action": "confirm",
         "location_slug": c["location_slug"],
         "hse_type_slug": c["hse_type_slug"],
         "fine_hse_type_slug": fine_hse_type_slug,
-    }).execute()
+    }
+    try:
+        db.table("corrections").insert(payload).execute()
+    except Exception as e:  # noqa: BLE001
+        # Fallback: pre-migration Supabase doesn't have fine_hse_type_slug.
+        # Strip the column and retry so confirms still work during deploy.
+        if "fine_hse_type_slug" in str(e):
+            payload.pop("fine_hse_type_slug", None)
+            db.table("corrections").insert(payload).execute()
+            log.warning("fine_hse_type_slug column missing — degraded confirm path used")
+        else:
+            raise
     # Feedback loop: confirmations are high-quality labels — add to retrieval index
     _upsert_embedding_for_correction(photo_id, c["hse_type_slug"], c["location_slug"],
                                      fine_hse_type_slug=fine_hse_type_slug)
@@ -557,7 +577,7 @@ def correct(
     cid = cls[0]["id"] if cls else None
     if fine_hse_type_slug == "":
         fine_hse_type_slug = None
-    db.table("corrections").insert({
+    payload = {
         "photo_id": photo_id,
         "classification_id": cid,
         "action": "correct",
@@ -565,7 +585,16 @@ def correct(
         "hse_type_slug": hse_type_slug,
         "fine_hse_type_slug": fine_hse_type_slug,
         "note": note,
-    }).execute()
+    }
+    try:
+        db.table("corrections").insert(payload).execute()
+    except Exception as e:  # noqa: BLE001
+        if "fine_hse_type_slug" in str(e):
+            payload.pop("fine_hse_type_slug", None)
+            db.table("corrections").insert(payload).execute()
+            log.warning("fine_hse_type_slug column missing — degraded correct path used")
+        else:
+            raise
     # Feedback loop: inspector-corrected label is high-quality — add to retrieval index
     _upsert_embedding_for_correction(photo_id, hse_type_slug, location_slug,
                                      fine_hse_type_slug=fine_hse_type_slug)
@@ -666,9 +695,10 @@ def _collect_export_rows(tenant_id: str, limit: int = 5000) -> list[dict]:
                               lambda q: q.eq("is_current", True))
     cls_by_photo = {c["photo_id"]: c for c in cls_rows}
 
+    # SELECT * so missing fine_hse_type_slug column doesn't 400 the export.
     corr_rows = _fetch_chunked(
         "corrections",
-        "photo_id, action, hse_type_slug, location_slug, fine_hse_type_slug, note, created_at",
+        "*",
         lambda q: q.order("created_at", desc=True),
     )
     latest_correction: dict[str, dict] = {}
