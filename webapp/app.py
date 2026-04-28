@@ -255,11 +255,15 @@ def _normalize_image(body: bytes, original_filename: str | None) -> tuple[bytes,
 
 
 def _upsert_embedding_for_correction(photo_id: str, hse_slug: str | None,
-                                     loc_slug: str | None) -> None:
+                                     loc_slug: str | None,
+                                     fine_hse_type_slug: str | None = None) -> None:
     """Feedback loop: when an inspector confirms or corrects a photo,
     compute its CLIP embedding (if not already in pgvector) and upsert it
     with the inspector-verified labels. This makes future retrievals
     benefit from human-verified ground truth.
+
+    fine_hse_type_slug, if provided, gets stored alongside so the AECIS
+    canonical sub-type is part of the retrieval prior too.
 
     Called best-effort — failure is logged but does not break the user's
     correction flow.
@@ -301,6 +305,7 @@ def _upsert_embedding_for_correction(photo_id: str, hse_slug: str | None,
             "sha256": sha,
             "hse_type_slug": hse_slug,
             "location_slug": loc_slug,
+            "fine_hse_type_slug": fine_hse_type_slug,
             "label_source": "manual",
             "project_code": "INSPECTOR",
             "issue_id": photo_id,
@@ -308,8 +313,8 @@ def _upsert_embedding_for_correction(photo_id: str, hse_slug: str | None,
             "embedding": vec.tolist(),
             "tenant_id": p.get("tenant_id"),
         }, on_conflict="sha256").execute()
-        log.info("feedback-loop: upserted embedding for photo=%s hse=%s loc=%s",
-                 photo_id, hse_slug, loc_slug)
+        log.info("feedback-loop: upserted embedding for photo=%s hse=%s loc=%s fine=%s",
+                 photo_id, hse_slug, loc_slug, fine_hse_type_slug)
     except Exception as e:  # noqa: BLE001
         log.warning("feedback-loop: upsert failed for photo=%s: %s", photo_id, e)
 
@@ -324,9 +329,20 @@ def healthz():
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
     tax = app.state.taxonomy or load_taxonomy()
+    # Load fine-types lookup once and cache on app.state
+    if not hasattr(app.state, "fine_types"):
+        fine_path = REPO_ROOT / "data" / "fine_hse_types_by_parent.json"
+        try:
+            app.state.fine_types = json.loads(fine_path.read_text(encoding="utf-8")).get("parents", {})
+        except Exception:  # noqa: BLE001
+            app.state.fine_types = {}
     return TEMPLATES.TemplateResponse(
         request, "index.html",
-        {"taxonomy": tax, "model": os.environ.get("OPENROUTER_MODEL", "?")},
+        {
+            "taxonomy": tax,
+            "fine_types": app.state.fine_types,
+            "model": os.environ.get("OPENROUTER_MODEL", "?"),
+        },
     )
 
 
@@ -420,7 +436,7 @@ def api_pending(limit: int = 40):
     # (which differs from the AI prediction when action='correct').
     corr_rows = (
         db.table("corrections").select(
-            "photo_id, action, hse_type_slug, location_slug, created_at"
+            "photo_id, action, hse_type_slug, location_slug, fine_hse_type_slug, created_at"
         )
         .in_("photo_id", photo_ids)
         .order("created_at", desc=True)
@@ -470,6 +486,9 @@ def api_pending(limit: int = 40):
             # reviewed cards so the user sees their own choice, not the AI's.
             "final_hse_type_slug": corr.get("hse_type_slug") or (cls.get("hse_type_slug") if cls else None),
             "final_location_slug": corr.get("location_slug") or (cls.get("location_slug") if cls else None),
+            # Fine-grained AECIS sub-type the inspector picked (optional;
+            # null when the inspector skipped the refinement step).
+            "final_fine_hse_type_slug": corr.get("fine_hse_type_slug"),
         })
     return {
         "photos": out,
@@ -490,7 +509,9 @@ def _training_set_size() -> int:
 
 
 @app.post("/api/photos/{photo_id}/confirm")
-def confirm(photo_id: str):
+def confirm(photo_id: str, fine_hse_type_slug: str | None = Form(None)):
+    """Inspector confirms the AI's prediction. Optionally also picks a
+    fine-grained AECIS sub-type to refine within the predicted parent."""
     db = get_db()
     cls = (
         db.table("classifications")
@@ -500,15 +521,19 @@ def confirm(photo_id: str):
     if not cls:
         raise HTTPException(400, "no current classification")
     c = cls[0]
+    if fine_hse_type_slug == "":
+        fine_hse_type_slug = None
     db.table("corrections").insert({
         "photo_id": photo_id,
         "classification_id": c["id"],
         "action": "confirm",
         "location_slug": c["location_slug"],
         "hse_type_slug": c["hse_type_slug"],
+        "fine_hse_type_slug": fine_hse_type_slug,
     }).execute()
     # Feedback loop: confirmations are high-quality labels — add to retrieval index
-    _upsert_embedding_for_correction(photo_id, c["hse_type_slug"], c["location_slug"])
+    _upsert_embedding_for_correction(photo_id, c["hse_type_slug"], c["location_slug"],
+                                     fine_hse_type_slug=fine_hse_type_slug)
     return {"ok": True}
 
 
@@ -517,8 +542,12 @@ def correct(
     photo_id: str,
     location_slug: str = Form(...),
     hse_type_slug: str = Form(...),
+    fine_hse_type_slug: str | None = Form(None),
     note: str | None = Form(None),
 ):
+    """Inspector correction. fine_hse_type_slug is the optional AECIS-canonical
+    sub-type they picked from the dropdown filtered to children of the chosen
+    coarse hse_type_slug. Empty string from the form is normalised to None."""
     db = get_db()
     cls = (
         db.table("classifications")
@@ -526,16 +555,20 @@ def correct(
           .execute().data
     )
     cid = cls[0]["id"] if cls else None
+    if fine_hse_type_slug == "":
+        fine_hse_type_slug = None
     db.table("corrections").insert({
         "photo_id": photo_id,
         "classification_id": cid,
         "action": "correct",
         "location_slug": location_slug,
         "hse_type_slug": hse_type_slug,
+        "fine_hse_type_slug": fine_hse_type_slug,
         "note": note,
     }).execute()
     # Feedback loop: inspector-corrected label is high-quality — add to retrieval index
-    _upsert_embedding_for_correction(photo_id, hse_type_slug, location_slug)
+    _upsert_embedding_for_correction(photo_id, hse_type_slug, location_slug,
+                                     fine_hse_type_slug=fine_hse_type_slug)
     return {"ok": True}
 
 
@@ -635,7 +668,7 @@ def _collect_export_rows(tenant_id: str, limit: int = 5000) -> list[dict]:
 
     corr_rows = _fetch_chunked(
         "corrections",
-        "photo_id, action, hse_type_slug, location_slug, note, created_at",
+        "photo_id, action, hse_type_slug, location_slug, fine_hse_type_slug, note, created_at",
         lambda q: q.order("created_at", desc=True),
     )
     latest_correction: dict[str, dict] = {}
@@ -669,14 +702,33 @@ def _collect_export_rows(tenant_id: str, limit: int = 5000) -> list[dict]:
             "reviewed_at": (corr or {}).get("created_at"),
             "final_hse_type_slug": final_hse,
             "final_location_slug": final_loc,
+            # Fine-grained AECIS-canonical sub-type the inspector picked
+            # (optional). Empty string means "no refinement chosen".
+            "final_fine_hse_type_slug": (corr or {}).get("fine_hse_type_slug") or "",
         })
     return rows
 
 
 def _enrich_with_labels(rows: list[dict], tax: dict) -> None:
-    """Add label_en / label_vn columns from the taxonomy in place."""
+    """Add label_en / label_vn columns from the taxonomy in place.
+    Also resolves the fine_hse_type_slug against data/fine_hse_types_by_parent.json
+    so the export carries human-readable AECIS sub-type names."""
+    import json as _json
     hse_lookup = {h["slug"]: h for h in tax["hse_types"]}
     loc_lookup = {l["slug"]: l for l in tax["locations"]}
+
+    # Build a flat fine-slug lookup once
+    fine_lookup: dict[str, dict] = {}
+    fine_path = REPO_ROOT / "data" / "fine_hse_types_by_parent.json"
+    if fine_path.exists():
+        try:
+            fine_data = _json.loads(fine_path.read_text(encoding="utf-8"))
+            for parent, items in (fine_data.get("parents") or {}).items():
+                for it in items:
+                    fine_lookup[it["slug"]] = it
+        except Exception:  # noqa: BLE001
+            pass
+
     for r in rows:
         for axis, lookup in (("hse_type", hse_lookup), ("location", loc_lookup)):
             for prefix in ("ai_", "final_"):
@@ -684,6 +736,11 @@ def _enrich_with_labels(rows: list[dict], tax: dict) -> None:
                 lbl = lookup.get(slug or "") or {}
                 r[f"{prefix}{axis}_label_en"] = lbl.get("label_en", slug or "")
                 r[f"{prefix}{axis}_label_vn"] = lbl.get("label_vn", "")
+        # Fine-grained AECIS sub-type labels
+        fine_slug = r.get("final_fine_hse_type_slug") or ""
+        fine_lbl = fine_lookup.get(fine_slug) or {}
+        r["final_fine_hse_type_label_en"] = fine_lbl.get("label_en", fine_slug)
+        r["final_fine_hse_type_label_vn"] = fine_lbl.get("label_vn", "")
 
 
 @app.get("/api/export/csv")
@@ -707,6 +764,11 @@ def export_csv(limit: int = 5000):
         "ai_rationale", "ai_model",
         "reviewed", "review_action", "review_note", "reviewed_at",
         "final_hse_type_slug", "final_hse_type_label_en", "final_hse_type_label_vn",
+        # Fine-grained AECIS canonical sub-type, optional. Empty when the
+        # inspector skipped refinement.
+        "final_fine_hse_type_slug",
+        "final_fine_hse_type_label_en",
+        "final_fine_hse_type_label_vn",
         "final_location_slug", "final_location_label_en", "final_location_label_vn",
     ]
     w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")

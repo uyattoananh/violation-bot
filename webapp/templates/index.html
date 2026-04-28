@@ -219,13 +219,8 @@
       <div class="state-predicted hidden">
         <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5" data-i18n="ai_suggests">AI suggests</div>
         <div class="space-y-1">
-          <div class="flex items-baseline gap-2 text-sm">
-            <span class="text-slate-400 text-xs uppercase w-9">hse</span>
+          <div class="text-sm">
             <span class="primary-hse font-semibold text-slate-900 leading-tight"></span>
-          </div>
-          <div class="flex items-baseline gap-2 text-sm">
-            <span class="text-slate-400 text-xs uppercase w-9">loc</span>
-            <span class="primary-loc text-slate-700 leading-tight"></span>
           </div>
         </div>
         <div class="rationale text-[11px] text-slate-500 italic mt-2 line-clamp-2"></div>
@@ -260,8 +255,25 @@
         <form class="edit-form hidden mt-3 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
           <label class="block font-medium mb-0.5 text-slate-700" data-i18n="edit_hse_label">HSE type</label>
           <select name="hse_type_slug" class="hse-select w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white"></select>
-          <label class="block font-medium mb-0.5 text-slate-700" data-i18n="edit_loc_label">Location</label>
-          <select name="location_slug" class="loc-select w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white"></select>
+
+          <!-- Optional AECIS-canonical sub-type, populated from
+               data/fine_hse_types_by_parent.json. The list filters
+               based on the current value of .hse-select. -->
+          <label class="block font-medium mb-0.5 text-slate-700" data-i18n="edit_fine_label">
+            AECIS sub-type <span class="text-slate-400 font-normal">(optional)</span>
+          </label>
+          <select name="fine_hse_type_slug"
+                  class="fine-select w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white">
+            <option value="">— none —</option>
+          </select>
+
+          <!-- Location is determined by the AI internally and stored, but not
+               surfaced in the UI per the AECIS workflow (location is the
+               mobile-app's geographic concern, not user-facing here). The
+               hidden field carries the AI's pick so the corrections row
+               continues to satisfy schema constraints. -->
+          <input type="hidden" name="location_slug" class="loc-select-hidden">
+
           <input type="text" name="note" placeholder="optional note for the audit log"
                  class="edit-note w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white">
           <div class="flex gap-1.5">
@@ -315,6 +327,7 @@ const I18N = {
     alt_label: "One-click runner-up",
     edit_hse_label: "HSE type",
     edit_loc_label: "Location",
+    edit_fine_label: "AECIS sub-type <span class='text-slate-400 font-normal'>(optional)</span>",
     edit_note_ph: "optional note for the audit log",
     edit_save: "Save correction",
     edit_cancel: "Cancel",
@@ -387,6 +400,7 @@ const I18N = {
     alt_label: "Chọn nhanh phương án thay thế",
     edit_hse_label: "Loại vi phạm HSE",
     edit_loc_label: "Vị trí",
+    edit_fine_label: "Phân loại chi tiết AECIS <span class='text-slate-400 font-normal'>(không bắt buộc)</span>",
     edit_note_ph: "ghi chú (không bắt buộc) cho nhật ký kiểm tra",
     edit_save: "Lưu chỉnh sửa",
     edit_cancel: "Hủy",
@@ -495,8 +509,17 @@ document.querySelectorAll(".lang-btn").forEach(b => {
 
 // =================== Constants ===================
 const TAXONOMY = {{ taxonomy | tojson }};
+const FINE_TYPES_BY_PARENT = {{ fine_types | tojson }};
 const LOC_BY_SLUG = Object.fromEntries(TAXONOMY.locations.map(l => [l.slug, l]));
 const HSE_BY_SLUG = Object.fromEntries(TAXONOMY.hse_types.map(h => [h.slug, h]));
+// Flat lookup of fine slug -> entry, used to render labels on reviewed cards
+const FINE_BY_SLUG = (() => {
+  const m = {};
+  for (const parent in FINE_TYPES_BY_PARENT) {
+    for (const f of FINE_TYPES_BY_PARENT[parent]) m[f.slug] = f;
+  }
+  return m;
+})();
 
 const CONF_HIGH = 0.85;
 const CONF_MED  = 0.60;
@@ -630,12 +653,14 @@ function getOrCreateCard(photo) {
     opt.textContent = h.label_en;
     hseSel.appendChild(opt);
   });
-  const locSel = el(".loc-select", card);
-  TAXONOMY.locations.forEach(l => {
-    const opt = document.createElement("option");
-    opt.value = l.slug;
-    opt.textContent = l.label_en;
-    locSel.appendChild(opt);
+  // (Location dropdown removed from UI — see <input class="loc-select-hidden">.
+  //  The AI's predicted location_slug is preserved as a hidden field so
+  //  corrections inserts continue to satisfy schema constraints.)
+
+  // When the parent hse_type changes, refresh the fine sub-type dropdown
+  // to show only children of the new parent.
+  el(".hse-select", card).addEventListener("change", e => {
+    refreshFineSelect(card, e.target.value);
   });
 
   el(".btn-confirm", card).addEventListener("click", () => confirmCard(card));
@@ -741,11 +766,20 @@ function updateCard(card, photo) {
     }
     // Use the final labels (corrections override AI prediction) so a
     // corrected card shows the inspector's choice, not the AI's pick.
+    // Location is omitted from the user-facing detail line per the AECIS
+    // workflow (location lives in the mobile app's map view, not here).
     const cls = photo.classification || {};
     const finalHse = photo.final_hse_type_slug || cls.hse_type_slug;
-    const finalLoc = photo.final_location_slug || cls.location_slug;
-    el(".reviewed-detail", revEl).textContent =
-      `${displayLabel(HSE_BY_SLUG, finalHse)} · ${displayLabel(LOC_BY_SLUG, finalLoc)}`;
+    const finalFine = photo.final_fine_hse_type_slug;
+    let detail = displayLabel(HSE_BY_SLUG, finalHse);
+    if (finalFine) {
+      // Show "Lifting_unsafe — Cable hooks unsafe" so the inspector sees
+      // the refinement they picked.
+      const f = FINE_BY_SLUG[finalFine];
+      const fineLabel = f ? (LANG === "vn" && f.label_vn ? f.label_vn : f.label_en) : finalFine;
+      detail += ` — ${fineLabel}`;
+    }
+    el(".reviewed-detail", revEl).textContent = detail;
     cached.status = "reviewed";
     photoCache.set(photo.id, cached);
     card.dataset.status = "reviewed";
@@ -777,20 +811,23 @@ function updateCard(card, photo) {
 
   setConfidenceRing(card, conf, band);
 
-  el(".primary-loc", card).textContent = displayLabel(LOC_BY_SLUG, cls.location_slug);
   el(".primary-hse", card).textContent = displayLabel(HSE_BY_SLUG, cls.hse_type_slug);
   el(".rationale", card).textContent = cls.rationale || "";
-  el(".loc-select", card).value = cls.location_slug;
+  // Location is no longer displayed but is preserved as a hidden form
+  // field so the corrections insert still has a valid location_slug.
+  const locHidden = el(".loc-select-hidden", card);
+  if (locHidden) locHidden.value = cls.location_slug || "Common_working_area";
   el(".hse-select", card).value = cls.hse_type_slug;
+  // Populate the fine-types dropdown for the AI's predicted parent.
+  refreshFineSelect(card, cls.hse_type_slug);
 
   const altSection = el(".alt-section", card);
   const hseRow = el(".alt-row-hse", card);
   const locRow = el(".alt-row-loc", card);
   hseRow.innerHTML = "";
-  locRow.innerHTML = "";
+  if (locRow) locRow.innerHTML = "";   // keep DOM clean even though we hide it
   const altsHse = cls.hse_type_alternatives || [];
-  const altsLoc = cls.location_alternatives || [];
-  if (altsHse.length || altsLoc.length) {
+  if (altsHse.length) {
     altSection.classList.remove("hidden");
   } else {
     altSection.classList.add("hidden");
@@ -803,17 +840,32 @@ function updateCard(card, photo) {
     b.addEventListener("click", () => correctCard(card, { hse_type_slug: a.slug }));
     hseRow.appendChild(b);
   });
-  altsLoc.forEach(a => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-900 border border-sky-100 rounded-md px-2 py-1 text-[11px] transition-colors";
-    b.innerHTML = `<span class="text-sky-500 mr-1">loc</span>${displayLabel(LOC_BY_SLUG, a.slug)} <span class="text-sky-500 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
-    b.addEventListener("click", () => correctCard(card, { location_slug: a.slug }));
-    locRow.appendChild(b);
-  });
 
   applyFilter();
   updateBulkConfirmButton();
+}
+
+// Repopulate the fine-types dropdown for a given parent hse_type slug.
+// Adds a "— none —" first option so the inspector can leave it blank.
+function refreshFineSelect(card, parentSlug) {
+  const sel = el(".fine-select", card);
+  if (!sel) return;
+  const previous = sel.value;
+  sel.innerHTML = "";
+  const noneOpt = document.createElement("option");
+  noneOpt.value = "";
+  noneOpt.textContent = LANG === "vn" ? "— không chọn —" : "— none —";
+  sel.appendChild(noneOpt);
+  const items = FINE_TYPES_BY_PARENT[parentSlug] || [];
+  for (const it of items) {
+    const opt = document.createElement("option");
+    opt.value = it.slug;
+    const label = LANG === "vn" && it.label_vn ? it.label_vn : it.label_en;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  }
+  // Preserve previous selection if it's still valid under the new parent
+  if ([...sel.options].some(o => o.value === previous)) sel.value = previous;
 }
 
 // =================== Upload (chunked + progress + notifications) ===================
@@ -974,13 +1026,20 @@ async function deleteCard(card) {
 async function correctCard(card, override = null) {
   const id = card.dataset.photoId;
   const fd = new FormData();
+  // Location is no longer in the visible UI; pull from the hidden field
+  // that carries the AI's predicted location_slug forward unchanged.
+  const locValue = el(".loc-select-hidden", card)?.value || "Common_working_area";
   if (override) {
     fd.append("hse_type_slug", override.hse_type_slug || el(".hse-select", card).value);
-    fd.append("location_slug", override.location_slug || el(".loc-select", card).value);
+    fd.append("location_slug", override.location_slug || locValue);
     fd.append("note", "one-click runner-up pick");
+    // Reset fine when the parent class changes via runner-up — the user
+    // can re-pick if they want refinement.
+    fd.append("fine_hse_type_slug", "");
   } else {
     fd.append("hse_type_slug", el(".hse-select", card).value);
-    fd.append("location_slug", el(".loc-select", card).value);
+    fd.append("location_slug", locValue);
+    fd.append("fine_hse_type_slug", el(".fine-select", card)?.value || "");
     const note = el("input[name=note]", card).value;
     if (note) fd.append("note", note);
   }
