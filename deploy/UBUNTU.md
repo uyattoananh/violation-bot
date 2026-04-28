@@ -35,9 +35,11 @@ pip install -r requirements-webapp.txt
 
 ```bash
 cat > ~/violation-bot/.env <<'EOF'
-# OpenRouter (Claude Sonnet)
+# OpenRouter (Gemini 2.5 Flash — chosen via head-to-head eval, see
+# scripts/evaluate_models.py. +12pp accuracy AND 89% cheaper than Sonnet.
+# Set to anthropic/claude-sonnet-4.5 to roll back if needed.)
 OPENROUTER_API_KEY=<sk-or-v1-...>
-OPENROUTER_MODEL=anthropic/claude-sonnet-4.5
+OPENROUTER_MODEL=google/gemini-2.5-flash
 OPENROUTER_TITLE=violation-bot
 OPENROUTER_REFERER=https://violation-bot.app
 

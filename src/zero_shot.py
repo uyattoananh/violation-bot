@@ -63,7 +63,13 @@ log = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TAXONOMY = REPO_ROOT / "taxonomy.json"
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
-DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-4.5"
+# Default model: Gemini 2.5 Flash. Switched from Sonnet 4.5 after a 50-photo
+# head-to-head eval showed Flash with +12pp HSE accuracy AND ~89% lower cost
+# (see scripts/evaluate_models.py and evaluation_models_*.json). Per the
+# decision rule "only switch if BOTH cost goes down AND accuracy goes up,"
+# Flash is the only candidate that won. Set OPENROUTER_MODEL in env to
+# override (e.g. OPENROUTER_MODEL=anthropic/claude-sonnet-4.5 to roll back).
+DEFAULT_OPENROUTER_MODEL = "google/gemini-2.5-flash"
 DEFAULT_PROMPT = REPO_ROOT / "prompts" / "classifier.md"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -436,9 +442,15 @@ def _classify_via_openrouter(
         base_url=OPENROUTER_BASE_URL,
         default_headers=headers or None,
     )
+    # max_tokens=3000 (was 500): Gemini 2.5 Pro and other "thinking"
+    # models burn most of the output budget on internal reasoning before
+    # emitting JSON, so 500 (and even 1500) truncates mid-string. 3000
+    # is enough headroom even for verbose reasoning. Sonnet/Opus typically
+    # use ~150-220 output tokens so the higher cap is free for them — we
+    # only pay for what's actually emitted, not the cap.
     resp = client.chat.completions.create(
         model=model_id,
-        max_tokens=500,
+        max_tokens=3000,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": build_user_message_openai(image_b64, taxonomy_block, media_type)},
@@ -458,7 +470,7 @@ def _classify_via_anthropic(
     c = anthropic.Anthropic()
     resp = c.messages.create(
         model=model_id,
-        max_tokens=500,
+        max_tokens=1500,   # see _classify_via_openrouter for rationale
         system=_system_with_cache(),
         messages=[{"role": "user",
                    "content": build_user_message_anthropic(image_b64, taxonomy_block, media_type)}],
