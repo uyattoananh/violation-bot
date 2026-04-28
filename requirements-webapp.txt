@@ -15,6 +15,9 @@ boto3>=1.34
 
 # Image handling
 Pillow>=10.3
+# HEIC support — needed because iPhones save photos as HEIC by default
+# and Anthropic's API doesn't accept that format
+pillow-heif>=0.18
 
 # Config
 python-dotenv>=1.0

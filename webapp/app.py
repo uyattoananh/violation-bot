@@ -194,6 +194,15 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # ---------- helpers ----------
 
+# Register HEIC opener so iPhone photos load. Optional — falls through if
+# pillow-heif isn't installed (older deployments).
+try:
+    import pillow_heif as _pillow_heif  # noqa: E402
+    _pillow_heif.register_heif_opener()
+except Exception:  # noqa: BLE001
+    pass
+
+
 def _hash_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
@@ -201,6 +210,48 @@ def _hash_bytes(b: bytes) -> str:
 def _storage_key(tenant_id: str, project_id: str, sha: str, ext: str) -> str:
     # partitioned for listing sanity: <tenant>/<project>/<sha[:2]>/<sha>.<ext>
     return f"{tenant_id}/{project_id}/{sha[:2]}/{sha}{ext}"
+
+
+# Formats Anthropic's image content block accepts directly. Anything outside
+# this set (HEIC, BMP, TIFF, AVIF, etc.) we convert to JPEG before storing,
+# so both the API call AND the in-browser thumbnail "just work".
+_API_NATIVE_FORMATS = {"JPEG", "PNG", "GIF", "WEBP"}
+
+
+def _normalize_image(body: bytes, original_filename: str | None) -> tuple[bytes, str, str]:
+    """Return (bytes, ext, content_type) — converted to JPEG if the input
+    isn't already in an API-/browser-friendly format. Falls through with
+    the original bytes if Pillow can't decode it (let the provider 4xx)."""
+    import io as _io
+    from PIL import Image
+
+    try:
+        with Image.open(_io.BytesIO(body)) as img:
+            fmt = (img.format or "").upper()
+            # Already supported — pass through unchanged.
+            if fmt in _API_NATIVE_FORMATS:
+                ext_map = {"JPEG": ".jpg", "PNG": ".png", "GIF": ".gif", "WEBP": ".webp"}
+                ct_map  = {"JPEG": "image/jpeg", "PNG": "image/png", "GIF": "image/gif", "WEBP": "image/webp"}
+                return body, ext_map[fmt], ct_map[fmt]
+
+            # Convert anything else (HEIC, BMP, TIFF, AVIF, ...) to JPEG.
+            # Strip alpha (RGBA → RGB) so JPEG encoder doesn't error.
+            if img.mode in ("RGBA", "LA", "P"):
+                img = img.convert("RGB")
+            elif img.mode != "RGB":
+                img = img.convert("RGB")
+            buf = _io.BytesIO()
+            img.save(buf, format="JPEG", quality=90, optimize=True)
+            log.info("Converted %s → JPEG (%d → %d bytes)",
+                     fmt or "?", len(body), len(buf.getvalue()))
+            return buf.getvalue(), ".jpg", "image/jpeg"
+    except Exception as e:  # noqa: BLE001
+        log.warning("image normalize failed (%s) — passing original through: %s",
+                    original_filename or "?", e)
+        ext = (Path(original_filename or "").suffix.lower() or ".jpg")
+        ct = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+              ".gif": "image/gif", ".webp": "image/webp"}.get(ext, "image/jpeg")
+        return body, ext, ct
 
 
 def _upsert_embedding_for_correction(photo_id: str, hse_slug: str | None,
@@ -305,9 +356,13 @@ async def upload(
     r2 = get_r2()
     created = []
     for f in files:
-        body = await f.read()
+        raw = await f.read()
+        # Normalize first — convert HEIC/BMP/TIFF/etc → JPEG so the rest of
+        # the pipeline (R2 thumbnail in browser + Anthropic API call) doesn't
+        # need to care about the source format. sha is hashed on the FINAL
+        # bytes so dedup matches what's actually stored.
+        body, ext, content_type = _normalize_image(raw, f.filename)
         sha = _hash_bytes(body)
-        ext = Path(f.filename or "").suffix.lower() or ".jpg"
         key = _storage_key(tenant_id, project_id, sha, ext)
 
         existing = (
@@ -320,7 +375,7 @@ async def upload(
 
         r2.put_object(
             Bucket=R2_BUCKET, Key=key, Body=body,
-            ContentType=f.content_type or "image/jpeg",
+            ContentType=content_type,
         )
         photo_row = db.table("photos").insert({
             "tenant_id": tenant_id,
@@ -482,6 +537,61 @@ def correct(
     # Feedback loop: inspector-corrected label is high-quality — add to retrieval index
     _upsert_embedding_for_correction(photo_id, hse_type_slug, location_slug)
     return {"ok": True}
+
+
+@app.delete("/api/photos/{photo_id}")
+def delete_photo(photo_id: str):
+    """Hard-delete a photo plus all its child rows and the R2 object.
+    Allowed in any state — pending classification, predicted, or reviewed.
+
+    Cascade order matters because of FK constraints in some Supabase setups:
+       classify_jobs → corrections → classifications → photo_embeddings
+       → photos → R2 object
+
+    photo_embeddings is keyed on sha256, not photo_id. If a different photo
+    in the same tenant happens to share the sha (literal duplicate bytes),
+    the embedding stays — it's the AI's training signal, still useful.
+    """
+    db = get_db()
+    rows = db.table("photos").select("*").eq("id", photo_id).execute().data or []
+    if not rows:
+        raise HTTPException(404, "photo not found")
+    p = rows[0]
+
+    # Cascade child rows first.
+    for tbl in ("classify_jobs", "corrections", "classifications"):
+        try:
+            db.table(tbl).delete().eq("photo_id", photo_id).execute()
+        except Exception as e:  # noqa: BLE001
+            log.warning("delete from %s failed for photo=%s: %s", tbl, photo_id, e)
+
+    # Drop the embedding only if no other photo refers to this sha.
+    try:
+        sha = p.get("sha256")
+        if sha:
+            others = (
+                db.table("photos").select("id").eq("sha256", sha)
+                  .neq("id", photo_id).limit(1).execute().data or []
+            )
+            if not others:
+                db.table("photo_embeddings").delete().eq("sha256", sha).execute()
+    except Exception as e:  # noqa: BLE001
+        log.warning("photo_embeddings delete failed: %s", e)
+
+    # Drop the photos row.
+    try:
+        db.table("photos").delete().eq("id", photo_id).execute()
+    except Exception as e:  # noqa: BLE001
+        log.error("photos delete failed for %s: %s", photo_id, e)
+        raise HTTPException(500, f"photos row delete failed: {e}")
+
+    # Drop the R2 object (best-effort — photo row is already gone).
+    try:
+        get_r2().delete_object(Bucket=R2_BUCKET, Key=p["storage_key"])
+    except Exception as e:  # noqa: BLE001
+        log.warning("R2 object delete failed for %s: %s", photo_id, e)
+
+    return {"ok": True, "deleted_photo_id": photo_id}
 
 
 # ---------- export ----------

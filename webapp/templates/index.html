@@ -194,6 +194,14 @@
         <span class="conf-text">0%</span>
       </div>
       <span class="status-pill hidden text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"></span>
+      <button type="button" class="btn-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors"
+              aria-label="Delete photo"
+              title="Delete photo">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+        </svg>
+      </button>
     </div>
 
     <button type="button" class="thumb-btn block group bg-slate-100 relative" aria-label="View full image">
@@ -314,6 +322,7 @@ const I18N = {
     reviewed_corrected: "Corrected",
     confirm_toast: "Confirmed — added to training set",
     correct_toast: "Correction saved — added to training set",
+    delete_toast: "Photo deleted",
     undo: "Undo",
     undo_local: "Undid your last action — locally only (re-confirm to persist)",
     bulk_confirming: "Confirming high-confidence photos…",
@@ -385,6 +394,7 @@ const I18N = {
     reviewed_corrected: "Đã chỉnh sửa",
     confirm_toast: "Đã xác nhận — thêm vào tập huấn luyện",
     correct_toast: "Đã lưu chỉnh sửa — thêm vào tập huấn luyện",
+    delete_toast: "Đã xóa ảnh",
     undo: "Hoàn tác",
     undo_local: "Đã hoàn tác — chỉ ở giao diện (xác nhận lại để lưu)",
     bulk_confirming: "Đang xác nhận hàng loạt ảnh độ tin cậy cao…",
@@ -631,6 +641,10 @@ function getOrCreateCard(photo) {
   el(".btn-confirm", card).addEventListener("click", () => confirmCard(card));
   el(".btn-edit",    card).addEventListener("click", () => toggleEdit(card));
   el(".btn-edit-cancel", card).addEventListener("click", () => toggleEdit(card));
+  el(".btn-delete",  card).addEventListener("click", (e) => {
+    e.stopPropagation();
+    deleteCard(card);
+  });
   el(".edit-form",   card).addEventListener("submit", (e) => { e.preventDefault(); correctCard(card); });
   el(".thumb-btn",   card).addEventListener("click", (e) => {
     e.preventDefault();
@@ -929,6 +943,31 @@ async function confirmCard(card, opts = {}) {
   } catch (e) {
     restoreState(card, prevState);
     showError("Confirmation failed: " + e.message);
+  }
+}
+
+async function deleteCard(card) {
+  const id = card.dataset.photoId;
+  // Optimistic UI: collapse + remove the card immediately.
+  // If the server delete fails we re-mount it.
+  const placeholderHTML = card.outerHTML;
+  card.style.transition = "opacity 200ms, transform 200ms";
+  card.style.opacity = "0";
+  card.style.transform = "scale(0.95)";
+  setTimeout(() => card.remove(), 200);
+  photoCache.delete(id);
+  applyFilter();
+  refreshSummary();
+
+  try {
+    const resp = await fetch(`/api/photos/${id}`, { method: "DELETE" });
+    if (!resp.ok) throw new Error("server returned " + resp.status);
+    showToast(t("delete_toast"), { timeoutMs: 3000 });
+  } catch (e) {
+    showError("Delete failed: " + e.message);
+    // Re-mount the card from the saved HTML so the user can retry.
+    cardsEl.insertAdjacentHTML("afterbegin", placeholderHTML);
+    poll();
   }
 }
 
