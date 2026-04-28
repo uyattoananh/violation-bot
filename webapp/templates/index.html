@@ -2,6 +2,52 @@
 {% block title %}Violation AI · upload{% endblock %}
 {% block body %}
 
+<!-- =================== BATCHES LIST VIEW =================== -->
+<!-- Shown when no current batch is open. Lists every batch in this tenant
+     so the user can pick one to review, or start a new one. -->
+<section id="view-list" class="hidden">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-semibold text-slate-900" data-i18n="list_title">Your batches</h1>
+    <button id="btn-new-batch-from-list"
+            class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white
+                   text-sm font-medium rounded-lg px-4 py-2 shadow-sm
+                   flex items-center gap-1.5 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+      </svg>
+      <span data-i18n="batch_new_full">Start new batch</span>
+    </button>
+  </div>
+
+  <div id="batches-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <!-- batch cards inserted by JS -->
+  </div>
+
+  <div id="batches-empty" class="hidden bg-white border border-slate-200 rounded-2xl py-14 px-6 text-center">
+    <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 grid place-items-center">
+      <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/>
+      </svg>
+    </div>
+    <div class="font-medium text-slate-700" data-i18n="list_empty_title">No batches yet.</div>
+    <div class="text-xs text-slate-500 mt-1" data-i18n="list_empty_sub">Start a new batch to upload and label your first set of photos.</div>
+  </div>
+</section>
+
+<!-- =================== BATCH DETAIL VIEW =================== -->
+<!-- The original main UI. Shown when a current batch is active. -->
+<section id="view-detail" class="hidden">
+
+<!-- Back to list -->
+<button id="btn-back-to-list"
+        class="mb-3 text-sm text-slate-500 hover:text-slate-900 flex items-center gap-1 transition-colors">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
+  </svg>
+  <span data-i18n="back_to_list">All batches</span>
+</button>
+
 <!-- Hero / Dropzone -->
 <section id="dropzone"
          class="relative rounded-2xl border-2 border-dashed border-slate-300 bg-white
@@ -100,6 +146,14 @@
              placeholder="(unnamed)"
              autocomplete="off">
     </div>
+    <button id="batch-reset-reviews"
+            class="border-l border-slate-200 px-3 py-2 text-xs text-slate-500 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-1 transition-colors"
+            title="Wipe all confirmations / corrections you made in this batch (keeps photos and AI predictions)">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.355m-2.5 9.32A8.25 8.25 0 015.25 12.045a8.25 8.25 0 0115.272-4.32m0 0V4.355"/>
+      </svg>
+      <span class="hidden sm:inline" data-i18n="batch_reset">Reset reviews</span>
+    </button>
     <button id="batch-new"
             class="border-l border-slate-200 px-3 py-2 text-xs text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-r-lg flex items-center gap-1 transition-colors"
             title="Start a new batch (current photos stay on the server, this view becomes empty)">
@@ -178,15 +232,6 @@
     </div>
   </div>
 
-  <button id="bulk-confirm-high"
-          class="hidden bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white
-                 text-sm font-medium rounded-lg px-4 py-2 shadow-sm flex items-center gap-2 transition-colors">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-    </svg>
-    <span data-i18n="bulk_confirm_high">Confirm all high-confidence</span>
-    (<span id="bulk-confirm-count">0</span>)
-  </button>
 </div>
 
 <!-- Cards grid -->
@@ -239,6 +284,24 @@
       <div class="state-pending text-sm text-slate-500 flex items-center gap-2">
         <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot"></span>
         <span data-i18n="state_analyzing">Analyzing photo…</span>
+      </div>
+
+      <!-- Classify-failure state. Shown when the worker hit an error
+           (provider 4xx, network blip, image rejected). User can retry. -->
+      <div class="state-error hidden">
+        <div class="text-sm text-rose-700 font-medium flex items-start gap-2">
+          <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+          </svg>
+          <span data-i18n="state_failed">Classification failed</span>
+        </div>
+        <div class="error-detail text-[11px] text-slate-500 mt-1 line-clamp-3 italic"></div>
+        <button type="button" class="btn-retry mt-2 bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 active:bg-rose-100 text-xs font-medium rounded-md px-3 py-1.5 flex items-center gap-1 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.355m-2.5 9.32A8.25 8.25 0 015.25 12.045a8.25 8.25 0 0115.272-4.32m0 0V4.355"/>
+          </svg>
+          <span data-i18n="state_retry">Retry classification</span>
+        </button>
       </div>
 
       <div class="state-predicted hidden">
@@ -328,6 +391,41 @@
   </article>
 </template>
 
+</section>  <!-- end #view-detail -->
+
+<!-- Batch summary card template (cloned for each batch in list view) -->
+<template id="batch-card-template">
+  <button class="batch-card text-left bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-emerald-300 active:bg-emerald-50/30 transition-all p-4 flex flex-col gap-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          data-batch-id="">
+    <div class="flex items-start justify-between gap-2">
+      <div class="font-semibold text-slate-900 batch-card-label flex-1 truncate"></div>
+      <div class="text-[10px] uppercase tracking-wider text-slate-400 batch-card-when whitespace-nowrap"></div>
+    </div>
+    <div class="text-xs text-slate-500 flex items-center gap-3">
+      <span class="flex items-center gap-1">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
+        </svg>
+        <span class="batch-card-photos tabular-nums"></span>
+      </span>
+      <span class="flex items-center gap-1">
+        <svg class="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+        <span class="batch-card-reviewed tabular-nums"></span>
+      </span>
+    </div>
+    <!-- Progress bar -->
+    <div class="h-1 rounded-full bg-slate-200 overflow-hidden">
+      <div class="batch-card-progress h-full bg-emerald-500 transition-all"></div>
+    </div>
+    <div class="text-[10px] text-slate-400 flex items-center justify-between">
+      <span class="batch-card-id font-mono"></span>
+      <span class="batch-card-pct tabular-nums"></span>
+    </div>
+  </button>
+</template>
+
 <script>
 // Wrap the whole script in DOMContentLoaded so that elements defined in
 // _base.html AFTER this body block (#lightbox, #toast, #kbd-help) are
@@ -363,8 +461,20 @@ const I18N = {
     delete_toast: "Photo deleted",
     batch_label_prefix: "Batch:",
     batch_new: "New batch",
+    batch_new_full: "Start new batch",
     batch_new_toast: "Started a new batch — drop photos to begin",
     batch_new_confirm: "Start a new batch? Current photos stay on the server but disappear from this view.",
+    batch_reset: "Reset reviews",
+    reset_nothing: "Nothing to reset — no reviews in this batch",
+    reset_confirm: "Wipe all your confirmations and corrections in this batch? Photos + AI predictions stay; only your reviews are removed.",
+    reset_done: "Reviews cleared",
+    list_title: "Your batches",
+    list_empty_title: "No batches yet.",
+    list_empty_sub: "Start a new batch to upload and label your first set of photos.",
+    back_to_list: "All batches",
+    state_failed: "Classification failed",
+    state_retry: "Retry classification",
+    retry_toast: "Re-queued for classification",
     undo: "Undo",
     undo_local: "Undid your last action — locally only (re-confirm to persist)",
     bulk_confirming: "Confirming high-confidence photos…",
@@ -440,8 +550,20 @@ const I18N = {
     delete_toast: "Đã xóa ảnh",
     batch_label_prefix: "Lô ảnh:",
     batch_new: "Lô mới",
+    batch_new_full: "Bắt đầu lô mới",
     batch_new_toast: "Đã bắt đầu lô ảnh mới — thả ảnh để bắt đầu",
     batch_new_confirm: "Bắt đầu lô ảnh mới? Ảnh hiện tại vẫn ở trên máy chủ nhưng sẽ không hiển thị ở đây.",
+    batch_reset: "Xóa các xét duyệt",
+    reset_nothing: "Không có gì để xóa — chưa có xét duyệt trong lô này",
+    reset_confirm: "Xóa tất cả xác nhận và chỉnh sửa của bạn trong lô này? Ảnh và dự đoán AI vẫn còn; chỉ các xét duyệt của bạn bị xóa.",
+    reset_done: "Đã xóa các xét duyệt",
+    list_title: "Các lô ảnh của bạn",
+    list_empty_title: "Chưa có lô nào.",
+    list_empty_sub: "Bắt đầu lô mới để tải lên và gán nhãn các ảnh đầu tiên.",
+    back_to_list: "Tất cả các lô",
+    state_failed: "Phân loại thất bại",
+    state_retry: "Thử phân loại lại",
+    retry_toast: "Đã đưa vào hàng đợi phân loại lại",
     undo: "Hoàn tác",
     undo_local: "Đã hoàn tác — chỉ ở giao diện (xác nhận lại để lưu)",
     bulk_confirming: "Đang xác nhận hàng loạt ảnh độ tin cậy cao…",
@@ -526,10 +648,13 @@ function applyLang() {
     const cached = photoCache.get(c.dataset.photoId);
     if (cached && cached.photo) updateCard(c, cached.photo);
   });
-  // Refresh status pills, etc.
-  updateBulkConfirmButton();
   // Refresh summary copy if visible
   refreshSummary();
+  // Refresh batches list if visible (per-card labels embed LANG via JS, not via data-i18n)
+  if (typeof refreshBatchesList === "function" &&
+      !document.getElementById("view-list")?.classList.contains("hidden")) {
+    refreshBatchesList();
+  }
 }
 
 document.querySelectorAll(".lang-btn").forEach(b => {
@@ -742,6 +867,10 @@ function getOrCreateCard(photo) {
     e.stopPropagation();
     deleteCard(card);
   });
+  el(".btn-retry",   card).addEventListener("click", (e) => {
+    e.stopPropagation();
+    retryClassify(card);
+  });
   el(".edit-form",   card).addEventListener("submit", (e) => { e.preventDefault(); correctCard(card); });
   el(".thumb-btn",   card).addEventListener("click", (e) => {
     e.preventDefault();
@@ -794,6 +923,7 @@ function updateCard(card, photo) {
   const predEl = el(".state-predicted", card);
   const pendEl = el(".state-pending", card);
   const revEl  = el(".state-reviewed", card);
+  const errEl  = el(".state-error", card);
   const thumb  = el(".thumb", card);
   const skel   = el(".thumb-skeleton", card);
 
@@ -860,14 +990,31 @@ function updateCard(card, photo) {
   }
 
   if (!photo.classification) {
-    pendEl.classList.remove("hidden");
-    predEl.classList.add("hidden");
-    revEl.classList.add("hidden");
-    card.dataset.status = "pending";
-    cached.status = "pending";
+    // No classification yet. Either the worker hasn't gotten to it
+    // (status='pending'/'in_progress') or the worker tried and failed
+    // (status='error'). Surface the error so the card doesn't sit in
+    // 'Analyzing...' forever.
+    if (photo.classify_status === "error") {
+      pendEl.classList.add("hidden");
+      predEl.classList.add("hidden");
+      revEl.classList.add("hidden");
+      errEl.classList.remove("hidden");
+      el(".error-detail", errEl).textContent = photo.classify_error || "(no detail)";
+      card.dataset.status = "error";
+      cached.status = "error";
+    } else {
+      pendEl.classList.remove("hidden");
+      predEl.classList.add("hidden");
+      revEl.classList.add("hidden");
+      errEl.classList.add("hidden");
+      card.dataset.status = "pending";
+      cached.status = "pending";
+    }
     photoCache.set(photo.id, cached);
     return;
   }
+  // Have classification — hide the error state if it was previously shown
+  errEl.classList.add("hidden");
 
   pendEl.classList.add("hidden");
   predEl.classList.remove("hidden");
@@ -914,7 +1061,6 @@ function updateCard(card, photo) {
   });
 
   applyFilter();
-  updateBulkConfirmButton();
 }
 
 // Repopulate the fine-types dropdown for a given parent hse_type slug.
@@ -1096,6 +1242,25 @@ async function confirmCard(card, opts = {}) {
   }
 }
 
+async function retryClassify(card) {
+  if (card.dataset.busy === "1") return;
+  card.dataset.busy = "1";
+  const id = card.dataset.photoId;
+  // Optimistic UI: flip card to pending while worker re-tries
+  el(".state-error", card).classList.add("hidden");
+  el(".state-pending", card).classList.remove("hidden");
+  card.dataset.status = "pending";
+  try {
+    const r = await fetch(`/api/photos/${id}/retry`, { method: "POST" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    showToast(t("retry_toast") || "Re-queued for classification", { timeoutMs: 3000 });
+  } catch (e) {
+    showError("Retry failed: " + e.message);
+  } finally {
+    delete card.dataset.busy;
+  }
+}
+
 async function deleteCard(card) {
   if (card.dataset.busy === "1") return;
   card.dataset.busy = "1";
@@ -1257,31 +1422,6 @@ el("#sort-select").addEventListener("change", e => {
   activeSort = e.target.value;
   localStorage.setItem("violation-ai-sort", activeSort);
   applySort();
-});
-
-function updateBulkConfirmButton() {
-  const high = els(".card", cardsEl).filter(c =>
-    c.dataset.status === "predicted" && parseFloat(c.dataset.confidence) >= CONF_HIGH
-  );
-  const btn = el("#bulk-confirm-high");
-  if (high.length >= 3) {
-    el("#bulk-confirm-count").textContent = high.length;
-    btn.classList.remove("hidden");
-  } else {
-    btn.classList.add("hidden");
-  }
-}
-el("#bulk-confirm-high").addEventListener("click", async () => {
-  const high = els(".card", cardsEl).filter(c =>
-    c.dataset.status === "predicted" && parseFloat(c.dataset.confidence) >= CONF_HIGH
-  );
-  el("#bulk-confirm-high").classList.add("hidden");
-  showToast(t("bulk_confirming"), { timeoutMs: 0 });
-  for (const c of high) {
-    await confirmCard(c, { silent: true });
-  }
-  hideToast();
-  showToast(`${high.length} ${t("bulk_done")}`, { timeoutMs: 3000 });
 });
 
 // =================== Export menu ===================
@@ -1482,12 +1622,131 @@ el("#batch-new").addEventListener("click", () => {
   }
   startNewBatch();
 });
+el("#batch-reset-reviews").addEventListener("click", async () => {
+  const reviewedCount = document.querySelectorAll(".card[data-status='reviewed']").length;
+  if (reviewedCount === 0) {
+    showToast(t("reset_nothing") || "Nothing to reset — no reviews in this batch", { timeoutMs: 3000 });
+    return;
+  }
+  const ok = window.confirm(
+    (t("reset_confirm") || "Wipe all your confirmations and corrections in this batch? Photos + AI predictions stay; only your reviews are removed.") +
+    `\n\n(${reviewedCount} review${reviewedCount === 1 ? "" : "s"} will be removed)`);
+  if (!ok) return;
+  try {
+    const r = await fetch(`/api/batches/${CURRENT_BATCH_ID}/clear-reviews`, { method: "POST" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    showToast(t("reset_done") || `${reviewedCount} review${reviewedCount === 1 ? "" : "s"} cleared`, { timeoutMs: 3500 });
+    photoCache.clear();
+    cardsEl.querySelectorAll(".card").forEach(c => c.remove());
+    poll();
+  } catch (e) {
+    showError("Reset failed: " + e.message);
+  }
+});
+
+// =================== View routing (list / detail) ===================
+const VIEW_LIST = "list";
+const VIEW_DETAIL = "detail";
+let currentView = localStorage.getItem("violation-ai-view") || VIEW_LIST;
+const viewListEl   = el("#view-list");
+const viewDetailEl = el("#view-detail");
+
+function switchView(v) {
+  currentView = v;
+  localStorage.setItem("violation-ai-view", v);
+  viewListEl.classList.toggle("hidden", v !== VIEW_LIST);
+  viewDetailEl.classList.toggle("hidden", v !== VIEW_DETAIL);
+  document.title = v === VIEW_LIST ? "Violation AI · batches" : "Violation AI · upload";
+  if (v === VIEW_LIST) {
+    refreshBatchesList();
+  } else {
+    poll();   // pull current batch's photos
+  }
+}
+
+async function refreshBatchesList() {
+  const grid = el("#batches-grid");
+  const empty = el("#batches-empty");
+  try {
+    const r = await fetch("/api/batches?limit=100");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+    grid.innerHTML = "";
+    const batches = data.batches || [];
+    if (!batches.length) {
+      empty.classList.remove("hidden");
+      grid.classList.add("hidden");
+      return;
+    }
+    empty.classList.add("hidden");
+    grid.classList.remove("hidden");
+    const tmpl = el("#batch-card-template");
+    batches.forEach(b => {
+      const node = tmpl.content.firstElementChild.cloneNode(true);
+      node.dataset.batchId = b.batch_id;
+      el(".batch-card-label", node).textContent = b.label || (LANG === "vn" ? "(không tên)" : "(unnamed)");
+      el(".batch-card-photos", node).textContent = b.photo_count + (LANG === "vn" ? " ảnh" : (b.photo_count === 1 ? " photo" : " photos"));
+      el(".batch-card-reviewed", node).textContent = `${b.reviewed_count}/${b.photo_count}`;
+      const pct = b.photo_count ? Math.round(b.reviewed_count / b.photo_count * 100) : 0;
+      el(".batch-card-progress", node).style.width = pct + "%";
+      el(".batch-card-pct", node).textContent = pct + "%";
+      el(".batch-card-id", node).textContent = b.batch_id.slice(0, 8);
+      // Friendlier date
+      try {
+        const d = new Date(b.latest_uploaded_at);
+        const today = new Date();
+        const diffDays = Math.floor((today - d) / 86400000);
+        let when;
+        if (diffDays === 0) when = LANG === "vn" ? "hôm nay" : "today";
+        else if (diffDays === 1) when = LANG === "vn" ? "hôm qua" : "yesterday";
+        else if (diffDays < 7) when = `${diffDays} ${LANG === "vn" ? "ngày trước" : "days ago"}`;
+        else when = d.toLocaleDateString();
+        el(".batch-card-when", node).textContent = when;
+      } catch (e) { /* ignore */ }
+      node.addEventListener("click", () => openBatch(b.batch_id, b.label));
+      node.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openBatch(b.batch_id, b.label);
+        }
+      });
+      node.tabIndex = 0;
+      grid.appendChild(node);
+    });
+  } catch (e) { /* silent */ }
+}
+
+function openBatch(batchId, label) {
+  CURRENT_BATCH_ID = batchId;
+  CURRENT_BATCH_LABEL = label || "";
+  localStorage.setItem("violation-ai-batch-id", batchId);
+  if (label) localStorage.setItem("violation-ai-batch-label", label);
+  else localStorage.removeItem("violation-ai-batch-label");
+  // Wipe local cards so the fresh poll() starts clean
+  photoCache.clear();
+  cardsEl.querySelectorAll(".card").forEach(c => c.remove());
+  el("#empty-state").classList.remove("hidden");
+  el("#summary-card").classList.add("hidden");
+  toolbar.classList.add("hidden");
+  // Sync batch label input
+  el("#batch-label-input").value = label || "";
+  switchView(VIEW_DETAIL);
+}
+
+el("#btn-back-to-list").addEventListener("click", () => switchView(VIEW_LIST));
+el("#btn-new-batch-from-list").addEventListener("click", () => {
+  startNewBatch();
+  switchView(VIEW_DETAIL);
+});
 
 // =================== Boot ===================
 applyLang();
 applyFilter();
 updateStats();
-poll();
+// First-visit decision: if there's no current batch in localStorage, default
+// to list view. Otherwise honour the persisted view.
+if (!localStorage.getItem("violation-ai-batch-id")) currentView = VIEW_LIST;
+switchView(currentView);
 setInterval(poll, 4000);
 
 });  // end DOMContentLoaded

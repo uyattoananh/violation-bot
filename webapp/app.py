@@ -511,6 +511,114 @@ async def upload(
     }
 
 
+@app.get("/api/batches")
+def api_batches(limit: int = 100):
+    """List the batches in the default tenant, with stats per batch.
+    Used by the landing-page batches list. NULL-batch photos (e.g. legacy
+    auto-seeded data) are excluded — they aren't user-created batches.
+
+    Returns batches sorted newest-first by latest_uploaded_at.
+    """
+    if not DEFAULT_TENANT_ID:
+        return {"batches": []}
+    db = get_db()
+    # Pull every photo's batch_id + uploaded_at; aggregate in Python (Supabase's
+    # PostgREST doesn't expose GROUP BY directly without RPCs).
+    try:
+        rows = (
+            db.table("photos")
+              .select("id, batch_id, batch_label, uploaded_at")
+              .eq("tenant_id", DEFAULT_TENANT_ID)
+              .not_.is_("batch_id", "null")
+              .order("uploaded_at", desc=True)
+              .limit(5000)
+              .execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        if "batch_id" in str(e):
+            log.warning("photos.batch_id missing — /api/batches returns empty")
+            return {"batches": []}
+        raise
+    if not rows:
+        return {"batches": []}
+
+    # Group by batch_id, capturing label (latest non-empty wins) + photo count + first/latest uploaded_at
+    by_batch: dict[str, dict] = {}
+    photo_ids_by_batch: dict[str, list[str]] = {}
+    for r in rows:
+        bid = r["batch_id"]
+        if bid not in by_batch:
+            by_batch[bid] = {
+                "batch_id": bid,
+                "label": r.get("batch_label") or "",
+                "photo_count": 0,
+                "latest_uploaded_at": r["uploaded_at"],
+                "earliest_uploaded_at": r["uploaded_at"],
+            }
+            photo_ids_by_batch[bid] = []
+        b = by_batch[bid]
+        b["photo_count"] += 1
+        if r.get("batch_label"):
+            b["label"] = r["batch_label"]
+        if r["uploaded_at"] > b["latest_uploaded_at"]:
+            b["latest_uploaded_at"] = r["uploaded_at"]
+        if r["uploaded_at"] < b["earliest_uploaded_at"]:
+            b["earliest_uploaded_at"] = r["uploaded_at"]
+        photo_ids_by_batch[bid].append(r["id"])
+
+    # Count reviewed photos per batch — corrections scoped to that batch_id
+    for bid, photo_ids in photo_ids_by_batch.items():
+        reviewed_count = 0
+        for i in range(0, len(photo_ids), 100):
+            chunk = photo_ids[i:i + 100]
+            try:
+                cs = (
+                    db.table("corrections").select("photo_id", count="exact")
+                      .in_("photo_id", chunk).eq("batch_id", bid)
+                      .limit(1).execute()
+                )
+                reviewed_count += cs.count or 0
+            except Exception:  # noqa: BLE001
+                pass
+        by_batch[bid]["reviewed_count"] = reviewed_count
+
+    batches = sorted(by_batch.values(), key=lambda b: b["latest_uploaded_at"], reverse=True)
+    return {"batches": batches[:limit]}
+
+
+@app.post("/api/batches/{batch_id}/clear-reviews")
+def clear_batch_reviews(batch_id: str):
+    """Delete every correction (confirm + correct) the user made in this
+    batch, so they can re-review from scratch. Photos remain, AI predictions
+    remain, only the inspector's choices are wiped — for the current batch
+    only."""
+    db = get_db()
+    try:
+        db.table("corrections").delete().eq("batch_id", batch_id).execute()
+    except Exception as e:  # noqa: BLE001
+        if "batch_id" in str(e):
+            raise HTTPException(500, "batch_id column not yet migrated")
+        raise
+    return {"ok": True, "batch_id": batch_id}
+
+
+@app.post("/api/photos/{photo_id}/retry")
+def retry_classify(photo_id: str):
+    """Reset a failed (or stuck) classify_jobs row back to 'pending' so the
+    worker picks it up again. Surfaced from the UI when an /api/pending
+    response shows classify_status='error'."""
+    db = get_db()
+    try:
+        db.table("classify_jobs").update({
+            "status": "pending",
+            "error": None,
+        }).eq("photo_id", photo_id).execute()
+    except Exception as e:  # noqa: BLE001
+        log.warning("retry_classify: %s", e)
+        raise HTTPException(500, str(e))
+    return {"ok": True}
+
+
 @app.get("/api/pending")
 def api_pending(limit: int = 40, batch_id: str | None = None):
     """Return the most recent photos + their current classification.
@@ -547,6 +655,23 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
           .execute().data or []
     )
     cls_by_photo = {c["photo_id"]: c for c in cls_rows}
+
+    # Pull classify_jobs status per photo so the UI can show 'failed — retry'
+    # when the worker hit an error (otherwise the card sits in 'Analyzing...'
+    # forever with no feedback).
+    job_status_by_photo: dict[str, dict] = {}
+    try:
+        for i in range(0, len(photo_ids), 100):
+            chunk = photo_ids[i:i + 100]
+            jobs = (
+                db.table("classify_jobs").select("photo_id, status, error, attempt")
+                  .in_("photo_id", chunk).execute().data or []
+            )
+            for j in jobs:
+                # Latest job per photo (only one should exist normally)
+                job_status_by_photo[j["photo_id"]] = j
+    except Exception as e:  # noqa: BLE001
+        log.warning("classify_jobs lookup failed: %s", e)
     # Also fetch the latest correction action per photo so the UI can mark
     # photos as already-reviewed AND show the inspector's final label
     # (which differs from the AI prediction when action='correct').
@@ -592,6 +717,7 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
             alts_hse = raw.get("hse_type_alternatives") or []
             alts_loc = raw.get("location_alternatives") or []
         corr = latest_correction.get(p["id"]) or {}
+        job = job_status_by_photo.get(p["id"]) or {}
         out.append({
             "id": p["id"],
             "thumb_url": thumb,
@@ -600,6 +726,10 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
             # Include batch_id (may be None on pre-migration photos) so the
             # frontend can also filter client-side, defense-in-depth.
             "batch_id": p.get("batch_id"),
+            # Classify-job state: 'pending' / 'in_progress' / 'done' / 'error'.
+            # UI surfaces 'error' as a retry-able card.
+            "classify_status": job.get("status"),
+            "classify_error": (job.get("error") or "")[:500],
             "classification": (
                 {
                     "location_slug": cls["location_slug"],
