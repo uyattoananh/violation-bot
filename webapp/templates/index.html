@@ -263,6 +263,10 @@
       <div class="conf-ring hidden bg-white shadow-sm" style="--pct: 0; --color: rgb(16 185 129)">
         <span class="conf-text">0%</span>
       </div>
+      <!-- Quality flag: photo was uploaded but pre-flight check found it
+           blurry / dark / tiny. Surfaced so the user knows the AI may
+           struggle and to verify the prediction more carefully. -->
+      <span class="quality-pill hidden text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300" title=""></span>
       <span class="status-pill hidden text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"></span>
       <button type="button" class="btn-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors"
               aria-label="Delete photo"
@@ -475,6 +479,12 @@ const I18N = {
     state_failed: "Classification failed",
     state_retry: "Retry classification",
     retry_toast: "Re-queued for classification",
+    quality_warn_one: (reason) => `1 photo flagged as ${reason} — AI may struggle`,
+    quality_warn_many: (n, reason) => `${n} photos flagged (${reason}) — AI may struggle`,
+    quality_blurry: "blurry",
+    quality_dark: "too dark",
+    quality_tiny: "too small",
+    quality_low_conf: "Low confidence — please verify",
     undo: "Undo",
     undo_local: "Undid your last action — locally only (re-confirm to persist)",
     bulk_confirming: "Confirming high-confidence photos…",
@@ -564,6 +574,12 @@ const I18N = {
     state_failed: "Phân loại thất bại",
     state_retry: "Thử phân loại lại",
     retry_toast: "Đã đưa vào hàng đợi phân loại lại",
+    quality_warn_one: (reason) => `1 ảnh có vấn đề chất lượng (${reason}) — AI có thể khó nhận diện`,
+    quality_warn_many: (n, reason) => `${n} ảnh có vấn đề chất lượng (${reason}) — AI có thể khó nhận diện`,
+    quality_blurry: "mờ",
+    quality_dark: "quá tối",
+    quality_tiny: "quá nhỏ",
+    quality_low_conf: "Độ tin cậy thấp — vui lòng kiểm tra",
     undo: "Hoàn tác",
     undo_local: "Đã hoàn tác — chỉ ở giao diện (xác nhận lại để lưu)",
     bulk_confirming: "Đang xác nhận hàng loạt ảnh độ tin cậy cao…",
@@ -693,6 +709,11 @@ const SESSION = { uploaded: 0, confirmed: 0, corrected: 0 };
 let activeFilter = localStorage.getItem("violation-ai-filter") || "all";
 let activeSort   = localStorage.getItem("violation-ai-sort") || "newest";
 const photoCache = new Map();
+// Quality flags from /api/upload — photo_id -> reason ("blurry"/"dark"/"tiny").
+// Surfaced as a yellow chip on the card so the user knows the AI prediction
+// might be unreliable on this photo. Cleared on hard reload (intentional —
+// the warning only matters during the current review session).
+const QUALITY_FLAGS = new Map();
 
 // Batch tracking — every upload session is a "job" so users only see and
 // download photos from the current session. Persisted in localStorage so
@@ -917,6 +938,41 @@ function setConfidenceRing(card, conf, band) {
   card.classList.remove("band-high", "band-medium", "band-low");
   card.classList.add(`band-${band}`);
   card.dataset.confidence = conf;
+
+  // Low-confidence visual de-emphasis: dashed ring + "please verify"
+  // hint to nudge inspector attention. Already covered by band-low CSS
+  // hooks but we add an explicit aria-hint and a subtle title prompt so
+  // keyboard / screen-reader users get the same nudge.
+  if (band === "low") {
+    card.setAttribute("aria-description", t("quality_low_conf"));
+    card.title = t("quality_low_conf");
+  } else {
+    card.removeAttribute("aria-description");
+    card.title = "";
+  }
+}
+
+// Apply / clear the yellow quality chip based on QUALITY_FLAGS state.
+// Idempotent — safe to call on every updateCard tick.
+function applyQualityFlag(card, photoId) {
+  const pill = el(".quality-pill", card);
+  if (!pill) return;
+  const reason = QUALITY_FLAGS.get(photoId);
+  if (!reason) {
+    pill.classList.add("hidden");
+    pill.textContent = "";
+    pill.title = "";
+    card.classList.remove("has-quality-warn");
+    return;
+  }
+  const labelKey = reason === "blurry" ? "quality_blurry"
+                 : reason === "dark"   ? "quality_dark"
+                 : reason === "tiny"   ? "quality_tiny"
+                 : null;
+  pill.textContent = labelKey ? t(labelKey) : reason;
+  pill.title = t("quality_low_conf");
+  pill.classList.remove("hidden");
+  card.classList.add("has-quality-warn");
 }
 
 function updateCard(card, photo) {
@@ -926,6 +982,10 @@ function updateCard(card, photo) {
   const errEl  = el(".state-error", card);
   const thumb  = el(".thumb", card);
   const skel   = el(".thumb-skeleton", card);
+
+  // Show quality chip independently of card state — a blurry photo is
+  // blurry whether it's pending, classified, or already reviewed.
+  applyQualityFlag(card, photo.id);
 
   if (photo.thumb_url && thumb.src !== photo.thumb_url) {
     // Attach onload BEFORE setting src so that an instantly-cached image
@@ -1133,6 +1193,30 @@ async function uploadFiles(files) {
         const names = data.rejected.map(r => r.filename || "(unnamed)").slice(0, 5).join(", ");
         const more = data.rejected.length > 5 ? ` (+${data.rejected.length - 5} more)` : "";
         showError(`${data.rejected.length} file(s) skipped — not a supported image: ${names}${more}`);
+      }
+      // Quality warnings: photo uploaded but AI may struggle (blurry/dark/tiny).
+      // Tag the cards via QUALITY_FLAGS so they render with a yellow quality pill.
+      if (Array.isArray(data.warnings) && data.warnings.length) {
+        const reasonLabel = (r) => {
+          if (r === "blurry") return t("quality_blurry");
+          if (r === "dark")   return t("quality_dark");
+          if (r === "tiny")   return t("quality_tiny");
+          return r;
+        };
+        for (const w of data.warnings) {
+          if (w.id && w.reason) QUALITY_FLAGS.set(w.id, w.reason);
+        }
+        // Group by reason for the toast
+        const byReason = {};
+        data.warnings.forEach(w => {
+          const k = w.reason || "?";
+          byReason[k] = (byReason[k] || 0) + 1;
+        });
+        const parts = Object.entries(byReason).map(([r, n]) =>
+          n === 1 ? t("quality_warn_one")(reasonLabel(r))
+                  : t("quality_warn_many")(n, reasonLabel(r))
+        );
+        showToast(parts.join(" · "));
       }
       // Show pending placeholders immediately so the user sees something
       (data.uploaded || []).forEach(u => {

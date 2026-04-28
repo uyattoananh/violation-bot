@@ -234,6 +234,49 @@ def _looks_like_supported_image(body: bytes) -> bool:
         return False
 
 
+# Quality thresholds tuned for site photos. Lower = more permissive.
+# Photos that don't pass are uploaded anyway but flagged with a quality
+# warning so the user knows the AI may struggle.
+_QUALITY_BLUR_THRESHOLD = 30.0      # variance-of-laplacian
+_QUALITY_DARK_THRESHOLD = 30.0      # mean luminance 0..255 (very dark = hard to see)
+_QUALITY_SMALL_PIXELS = 200 * 200   # photos smaller than this can't show detail
+
+
+def _image_quality_check(body: bytes) -> dict | None:
+    """Return a dict with quality issues, or None if the photo passes.
+    Issue keys: blur (low variance-of-laplacian), dark (low mean luminance),
+    tiny (image too small to show detail). Cheap to compute on a downscaled
+    grayscale copy; runs in <50ms typical."""
+    try:
+        from PIL import Image
+        import io as _io
+        import numpy as np
+
+        with Image.open(_io.BytesIO(body)) as img:
+            w, h = img.size
+            if w * h < _QUALITY_SMALL_PIXELS:
+                return {"reason": "tiny", "width": w, "height": h}
+            # Downscale to 256-wide grayscale for fast quality stats
+            ratio = 256 / max(1, w)
+            small = img.convert("L").resize((256, max(1, int(h * ratio))))
+        arr = np.asarray(small, dtype=np.float32)
+        mean_lum = float(arr.mean())
+        if mean_lum < _QUALITY_DARK_THRESHOLD:
+            return {"reason": "dark", "mean_luminance": round(mean_lum, 1)}
+        # Variance of Laplacian as blur proxy: higher = sharper
+        # 3x3 Laplacian kernel via numpy diff (cheap, no scipy/cv2)
+        gy = np.diff(arr, axis=0, prepend=arr[:1])
+        gx = np.diff(arr, axis=1, prepend=arr[:, :1])
+        lap = gx[:-1, :-1] + gy[:-1, :-1] - 2 * arr[:-1, :-1]
+        var_lap = float(lap.var())
+        if var_lap < _QUALITY_BLUR_THRESHOLD:
+            return {"reason": "blurry", "variance_of_laplacian": round(var_lap, 1)}
+    except Exception as e:  # noqa: BLE001
+        log.debug("image quality check failed: %s", e)
+        return None
+    return None
+
+
 def _normalize_image(body: bytes, original_filename: str | None) -> tuple[bytes, str, str]:
     """Return (bytes, ext, content_type) — converted to JPEG if the input
     isn't already in an API-/browser-friendly format. Falls through with
@@ -436,6 +479,7 @@ async def upload(
     r2 = get_r2()
     created = []
     rejected = []
+    warnings: list[dict] = []  # per-photo quality flags (uploaded but suspect)
     for f in files:
         raw = await f.read()
         # Reject non-image / 0-byte payloads at the upload boundary. If we
@@ -455,6 +499,12 @@ async def upload(
         sha = _hash_bytes(body)
         key = _storage_key(tenant_id, project_id, sha, ext)
 
+        # Cheap quality pre-flight on the normalized bytes. We DO NOT reject
+        # here — a blurry / dark / tiny photo can still be a real violation
+        # and the AI sometimes nails it. We just surface a warning so the
+        # user knows the result might be unreliable.
+        quality = _image_quality_check(body)
+
         existing = (
             db.table("photos").select("id").eq("tenant_id", tenant_id)
               .eq("sha256", sha).execute()
@@ -472,6 +522,8 @@ async def upload(
                 if "batch_id" not in str(e):
                     log.warning("dedup batch update failed: %s", e)
             created.append({"id": existing.data[0]["id"], "dedup": True})
+            if quality:
+                warnings.append({"filename": f.filename, "id": existing.data[0]["id"], **quality})
             continue
 
         r2.put_object(
@@ -502,10 +554,13 @@ async def upload(
                 raise
         db.table("classify_jobs").insert({"photo_id": photo_row["id"]}).execute()
         created.append({"id": photo_row["id"], "dedup": False})
+        if quality:
+            warnings.append({"filename": f.filename, "id": photo_row["id"], **quality})
 
     return {
         "uploaded": created,
         "rejected": rejected,
+        "warnings": warnings,
         "count": len(created),
         "batch_id": batch_id,
     }

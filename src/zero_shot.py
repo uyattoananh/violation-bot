@@ -157,44 +157,82 @@ show any violation, pick the most plausible location and the `hse_type` whose
 `label_en` best matches what you see (do not refuse).
 
 ==== HOW TO PICK AN HSE_TYPE ====
-The HSE_TYPES vocabulary below contains 33 categories aligned with the
-AECIS canonical safety taxonomy. Each category has an EN/VN label.
-
-Decide in this order:
+33 categories aligned with the AECIS canonical safety taxonomy. The
+HSE_TYPES list below has every slug + EN/VN label. Decide in this order:
 
 1. WHAT IS THE SUBJECT of the photo?
-   - A specific worker visibly at risk        → Fall_protection_personal /
+   - SPECIFIC WORKER visibly at risk          → Fall_protection_personal /
                                                  PPE_missing / Ladder_unsafe
-   - A specific PIECE OF EQUIPMENT             → Scaffolding_unsafe /
-     (scaffold, ladder, crane, panel, etc.)     Lifting_unsafe / Electrical_unsafe /
-                                                 Pressure_equipment_unsafe / etc.
-   - A SITE FEATURE (edge, opening, pit)       → Edge_protection_missing /
-                                                 Excavation_unsafe / Floor_opening
-   - A WORK ACTIVITY in progress               → Welding_unsafe / Hot_work_hazard /
-     (welding, hot work, concrete pump)         Concrete_work_unsafe
-   - GENERAL MESS / DEBRIS                     → Housekeeping_general
-   - SOMETHING ELSE that is unsafe but does
-     not fit any specific category             → Site_general_unsafe (catch-all)
+   - SPECIFIC EQUIPMENT in foreground          → Scaffolding_unsafe /
+     (scaffold, ladder, crane, panel,           Lifting_unsafe / Electrical_unsafe /
+     gas cylinder, welding rig, pump…)          Pressure_equipment_unsafe /
+                                                 Equipment_machinery_unsafe
+   - SITE FEATURE (edge, opening, pit)         → Edge_protection_missing /
+                                                 Excavation_unsafe
+   - WORK ACTIVITY visibly in progress         → Welding_unsafe / Hot_work_hazard /
+     (welding, hot work, concrete pour)         Concrete_work_unsafe / Mass_piling_unsafe
+   - SITE-AREA designation (warehouse,         → Workshop_area_unsafe / Warehouse_unsafe /
+     workshop, parking, smoking, kitchen)       Smoking_area_unsafe / Common_area_unsafe /
+                                                 Parking_area_unsafe / Drinking_water_unsafe
+   - WALKWAY / ACCESS PATH AS SUBJECT          → Site_access_unsafe
+     (blocked corridor, missing stair-rail,
+     gap in walkway, unsafe ramp)
+   - WASTE / GARBAGE pile NOT in a bin         → Garbage_waste_unsafe
+   - General MESS / debris on floor            → Housekeeping_general
+   - Materials stacked unsafely / falling risk → Materials_storage_unsafe
+   - SIGNAGE / barricade missing or damaged    → Warning_signs_missing
+   - SITE FIRE PREVENTION deficiency           → Fire_prevention_unsafe
+     (missing extinguisher, no exit signs)
+   - Anything else genuinely unsafe but
+     doesn't match the above                   → Site_general_unsafe (catch-all)
 
 2. ESCAPE-FROM-CATCH-ALL THRESHOLD
    Housekeeping_general and Site_general_unsafe are the residual catch-alls.
-   To pick anything else, you must be able to point at a SPECIFIC visible
-   feature (a wire, a scaffold, a hook, a worker without a harness, a
-   chemical drum, a pile head). If the photo is just messy without a
-   specific hazard, pick Housekeeping_general.
+   To pick anything else, you must point at a SPECIFIC visible feature (a
+   wire, a scaffold, a hook, a worker without a harness, a chemical drum,
+   a pile head, a path obstructed enough to force a detour). If the photo
+   is just dirty/disorganized without a specific identifiable hazard,
+   Housekeeping_general is correct — don't manufacture a class.
 
 3. SPECIFICITY TIE-BREAK
-   When two classes both apply, pick the MORE SPECIFIC one. Examples:
-   - "Worker without harness on scaffold" → Fall_protection_personal
-     (NOT Scaffolding_unsafe — the worker is the subject)
-   - "Damaged scaffold standing alone"     → Scaffolding_unsafe
-     (NOT Site_general_unsafe — scaffold is the specific subject)
-   - "Welder welding without sparks contained" → Welding_unsafe
-     (NOT Hot_work_hazard — welding is more specific)
-   - "Crane hook with no safety latch"     → Lifting_unsafe
-     (the hook is the specific feature)
+   When two classes both apply, pick the MORE SPECIFIC one:
+   - "Worker without harness on scaffold"      → Fall_protection_personal
+   - "Damaged scaffold, no worker visible"     → Scaffolding_unsafe
+   - "Welder welding, sparks not contained"    → Welding_unsafe (NOT Hot_work_hazard)
+   - "Crane hook with no safety latch"         → Lifting_unsafe
+   - "Edge of slab with no railing AND debris" → Edge_protection_missing
+                                                 (the missing railing is the violation,
+                                                  not the debris)
+   - "Workers eating in work area"             → Common_area_unsafe (designated
+                                                 eating-area issue beats Housekeeping)
 
-4. RAG NEIGHBOURS as prior
+4. KNOWN CONFUSIONS — read these specifically
+   These three pairs trip the model up most. Be deliberate:
+
+   a) Garbage_waste_unsafe vs Housekeeping_general
+      - PILES of waste / debris OUTSIDE designated bins → Garbage_waste_unsafe
+      - General mess / disorganization, even if waste is present → Housekeeping_general
+      - Trash bag next to a bin = Housekeeping. Pile of bags in the middle of
+        the work area = Garbage_waste.
+
+   b) Site_access_unsafe vs Housekeeping_general / Edge_protection_missing
+      - Site_access_unsafe is when the PATH ITSELF is the violation: blocked
+        corridor that forces a detour, missing handrail on stairs, gap or
+        broken plank in a walkway, unsafe ramp.
+      - If the path is walkable and the surrounding area is just dirty →
+        Housekeeping_general.
+      - If the path's edge has no railing and there's a fall risk → that's
+        Edge_protection_missing, not Access.
+
+   c) Edge_protection_missing vs Fall_protection_personal
+      - Fall_protection_personal requires a SPECIFIC WORKER visibly at risk
+        (no harness, no anchor, near a drop).
+      - Edge_protection_missing is when the EDGE / OPENING is unguarded
+        regardless of whether a worker is present.
+      - "Empty unguarded slab edge" → Edge_protection_missing.
+      - "Worker on a slab edge without a harness" → Fall_protection_personal.
+
+5. RAG NEIGHBOURS as prior
    If RETRIEVED REFERENCE PHOTOS appear below, treat the dominant label
    among them as a strong prior. Override only when the photo shows a
    specific hazard the neighbours don't reflect.
