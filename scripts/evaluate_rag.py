@@ -414,12 +414,21 @@ def evaluate(sample: list[dict[str, Any]], use_rag: bool) -> dict[str, Any]:
         sum(r["hse_conf"] for r in ok if not r["hse_match"]) / max(n_ok - hse_correct, 1)
     )
 
-    # Estimated cost (Haiku or Sonnet — rough; OpenRouter invoices are authoritative)
+    # Estimated cost — public OpenRouter list rates ($/M tokens). The
+    # OpenRouter invoice is always authoritative; this is just a sanity-
+    # check number printed in the summary so we don't have to look it up
+    # every time. Add models here as they get tested.
     model_id = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-sonnet-4.5")
-    if "haiku" in model_id:
-        in_rate, out_rate = 1.0, 5.0   # $/M tokens
-    else:
-        in_rate, out_rate = 3.0, 15.0
+    PRICING = {
+        "anthropic/claude-sonnet-4.5": (3.0, 15.0),
+        "anthropic/claude-opus-4.5":   (15.0, 75.0),
+        "anthropic/claude-haiku-4.5":  (1.0, 5.0),
+        "google/gemini-2.5-flash":     (0.30, 2.50),
+        "google/gemini-2.5-pro":       (1.25, 5.0),
+        "openai/gpt-4o":               (2.5, 10.0),
+        "openai/gpt-4o-mini":          (0.15, 0.60),
+    }
+    in_rate, out_rate = PRICING.get(model_id, (3.0, 15.0))   # default = sonnet
     est_cost_usd = (total_in_tok / 1e6) * in_rate + (total_out_tok / 1e6) * out_rate
 
     summary = {
