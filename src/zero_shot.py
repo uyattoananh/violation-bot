@@ -350,16 +350,35 @@ build_user_message = build_user_message_anthropic
 # ---------- io ----------
 
 def _encode_image(path: Path) -> tuple[str, str]:
-    """Return (base64_data, media_type). Auto-detects from suffix."""
-    suffix = path.suffix.lower().lstrip(".")
-    media_type = {
-        "jpg": "image/jpeg",
-        "jpeg": "image/jpeg",
-        "png": "image/png",
-        "webp": "image/webp",
-        "gif": "image/gif",
-    }.get(suffix, "image/jpeg")
+    """Return (base64_data, media_type). Detects real format from file bytes
+    via Pillow so misnamed files (a PNG saved as foo.jpg, or a temp file with
+    no extension) still get the correct Content-Type header. Anthropic strictly
+    rejects mismatched headers with HTTP 400 "image was specified using
+    image/jpeg media type but the image appears to be image/png".
+    """
     data = path.read_bytes()
+    media_type = "image/jpeg"  # safe default if everything below fails
+    try:
+        from PIL import Image
+        import io as _io
+        with Image.open(_io.BytesIO(data)) as img:
+            fmt = (img.format or "").upper()
+        media_type = {
+            "JPEG": "image/jpeg",
+            "PNG":  "image/png",
+            "WEBP": "image/webp",
+            "GIF":  "image/gif",
+        }.get(fmt, "image/jpeg")
+    except Exception:
+        # Pillow couldn't open it; fall back to extension-based guess.
+        suffix = path.suffix.lower().lstrip(".")
+        media_type = {
+            "jpg":  "image/jpeg",
+            "jpeg": "image/jpeg",
+            "png":  "image/png",
+            "webp": "image/webp",
+            "gif":  "image/gif",
+        }.get(suffix, "image/jpeg")
     return base64.standard_b64encode(data).decode("ascii"), media_type
 
 
