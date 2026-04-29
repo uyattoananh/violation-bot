@@ -389,8 +389,22 @@ def _attach_session_cookie(response, token: str) -> None:
 
 
 def _clear_session_cookie(response) -> None:
-    """Logout: explicitly clear (max_age=0) so the browser drops it."""
-    response.delete_cookie(_SESSION_COOKIE_NAME)
+    """Logout: clear the cookie by setting an empty value with max_age=0
+    AND the same Secure/HttpOnly/SameSite/Path attributes used when it
+    was issued. Some browsers (Chrome, Safari) treat a Secure cookie and
+    a non-Secure clearing header as different cookies and refuse to
+    delete the original — Starlette's response.delete_cookie() omits
+    those flags. Always re-set them explicitly here.
+    """
+    response.set_cookie(
+        _SESSION_COOKIE_NAME,
+        value="",
+        max_age=0,
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=os.environ.get("COOKIE_SECURE", "1") not in ("0", "false", "no"),
+    )
 
 
 def _get_session_user(request: Request) -> dict | None:
