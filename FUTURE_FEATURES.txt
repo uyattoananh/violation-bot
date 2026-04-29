@@ -421,28 +421,46 @@ EFFORT
 
 
 =============================================================
-RECOMMENDED IMPLEMENTATION ORDER
+IMPLEMENTATION ORDER (updated 2026-04-29)
 =============================================================
 
-The features depend on each other. Sequence:
+Auth is heavy and blocks the inspector-facing items. Reordering so
+the user-facing improvements ship first; auth lands last as the
+gating step that activates the per-user features that have been
+built underneath cookie/session attribution in the meantime.
 
-  1. Auth (#2)            BLOCKS: every other item
-  2. Quota (#3)           depends on #1
-  3. Stats (#4)           depends on #1
-  4. PWA (#1)             independent of auth, but better UX with auth
-  5. Email export (#5)    depends on #1
-  6. User-submitted classes (#6)  depends on #1
-  7. 14-day verification (#7)     depends on #1, #4
+  1. PWA (#1)             FIRST — independent of auth, lifts mobile
+                          UX immediately
+  2. Quota (#3)           cookie-based for now, retro-fits to user_id
+                          when auth ships
+  3. Stats (#4)           anonymous + per-cookie / per-IP for now;
+                          retro-fits when auth ships
+  4. Email export (#5)    user enters destination email manually
+                          (no profile lookup) until auth ships
+  5. User-submitted classes (#6)  attributed to "anonymous" inspector
+                          until auth ships; admin reviews regardless
+  6. 14-day verification (#7)     skip until auth lands (no user
+                          identity to verify)
+  7. Auth (#2)            LAST — converts cookie/session attribution
+                          to real user identity, unlocks #6, retroactively
+                          attributes all the existing #2-5 data
 
 Realistic phasing:
 
-  PHASE 1 (~2 weeks):  auth + quota + basic stats
-  PHASE 2 (~1 week):   PWA + email export
-  PHASE 3 (~1 week):   user-submitted classes
-  PHASE 4 (~3 days):   14-day verification
+  PHASE 1 (~3 days):   PWA — manifest, service worker, install flow,
+                       offline app shell, optionally background sync
+  PHASE 2 (~3 days):   Quota + stats (cookie-keyed)
+  PHASE 3 (~3 days):   Email export
+  PHASE 4 (~5 days):   User-submitted classes
+  PHASE 5 (~3 days):   Auth — Azure AD OAuth + retro-attribution
+                       migration of pre-auth rows
+  PHASE 6 (~2 days):   14-day verification (lights up after auth)
 
-Total: ~5 weeks of focused work, assuming no major scope creep on
-auth (which is by far the most error-prone of the seven).
+Total: ~3 weeks of focused work.
+
+Trade-off vs auth-first: more rework when auth lands (every per-user
+feature needs a quick adapter from cookie-id -> user_id). But ships
+visible value much sooner.
 
 
 =============================================================

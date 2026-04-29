@@ -1,0 +1,42 @@
+{
+  "name": "Violation AI — AECIS HSE",
+  "short_name": "Violation AI",
+  "description": "AI-assisted construction safety violation classifier for AECIS HSE inspectors. Drop site photos, get AECIS-canonical violation labels, hand to safety officers.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8fafc",
+  "theme_color": "#10b981",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["productivity", "business", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Start a new batch",
+      "short_name": "New batch",
+      "description": "Begin uploading photos for a fresh inspection",
+      "url": "/?action=new-batch",
+      "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192"}]
+    }
+  ]
+}

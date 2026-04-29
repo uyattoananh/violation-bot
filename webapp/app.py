@@ -53,7 +53,7 @@ from fastapi import (
 )
 from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse,
-    StreamingResponse, PlainTextResponse, Response,
+    StreamingResponse, PlainTextResponse, Response, FileResponse,
 )
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -492,6 +492,31 @@ def _upsert_embedding_for_correction(photo_id: str, hse_slug: str | None,
 @app.get("/healthz")
 def healthz():
     return {"ok": True}
+
+
+@app.get("/service-worker.js", include_in_schema=False)
+def service_worker_js():
+    """Serve the PWA service worker from the ROOT path with the
+    Service-Worker-Allowed header set to '/'. Required so the SW
+    registered with scope '/' can intercept the whole app even though
+    its source file lives in /static/. Without this, browsers reject
+    the registration with a "scope outside script's path" error.
+
+    Cache-Control: no-cache so users always get the latest SW after
+    a deploy (the SW itself is what manages other caches; if it
+    cached itself, deploying a new version would be a chicken-egg).
+    """
+    p = STATIC_DIR / "service-worker.js"
+    if not p.exists():
+        raise HTTPException(404, "service worker not built")
+    return FileResponse(
+        p,
+        media_type="application/javascript",
+        headers={
+            "Service-Worker-Allowed": "/",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
