@@ -265,6 +265,15 @@ _SESSION_MAX_AGE_SECONDS = int(os.environ.get("SESSION_MAX_AGE_DAYS", "30")) * 8
 # must work pre-auth (the sign-in flow itself, static assets, the SW).
 _AUTH_REQUIRED = os.environ.get("AUTH_REQUIRED", "1") not in ("0", "false", "no")
 
+# Module-level cache of optional photos columns we've discovered to be
+# missing in the current Supabase schema. Populated by the
+# _insert_with_fallback helper inside /api/upload. Lets a 25-photo
+# batch upload pay the strip cost ONCE instead of per-photo, dropping
+# round-trips from 75 to 25 when both exif columns are missing.
+# Cleared on process restart (which is fine — re-discovers in 2-3
+# extra inserts after deploy, then steady state).
+_PHOTOS_DEAD_COLS: set[str] = set()
+
 # Upload guard rails — defend against accidental + malicious DoS:
 #   - per-file size cap (a phone photo is typically 2–6 MB; anything
 #     above 25 MB is either a screenshot of a 4K video or an attack)
@@ -1902,15 +1911,24 @@ async def upload(
             optional columns and retry. Lets the webapp keep working in
             the window between code-deploy and SQL-migration.
 
-            Important: PostgREST reports missing columns ONE AT A TIME.
-            If `exif_lat` and `exif_lon` are both missing, the first
-            error mentions only one; the retry then 500s on the second.
-            So we loop — on each error, strip every optional column
-            mentioned in THAT error, retry, until we either succeed or
-            run out of optional columns to strip.
+            PostgREST reports missing columns ONE AT A TIME. If both
+            `exif_lat` and `exif_lon` are missing, the first error
+            mentions only one; the retry hits the second. So we loop:
+            on each error, strip every optional column mentioned in
+            THAT error and retry.
+
+            For batch uploads, each photo would otherwise pay the same
+            3-attempt tax for the same dead columns, blowing up Supabase
+            round-trip count. We cache the known-missing columns at
+            MODULE level (_PHOTOS_DEAD_COLS) so subsequent photos in the
+            same batch — and same process lifetime — pre-strip those
+            columns and succeed in one round trip.
             """
             optional_cols = ["batch_id", "batch_label", "exif_lat",
                              "exif_lon", "user_key", "user_id"]
+            # Pre-strip any column we already learned is missing.
+            for col in _PHOTOS_DEAD_COLS:
+                payload.pop(col, None)
             for _ in range(len(optional_cols) + 1):
                 try:
                     return db.table("photos").insert(payload).execute().data[0]
@@ -1921,15 +1939,15 @@ async def upload(
                         if col in msg and col in payload:
                             payload.pop(col, None)
                             optional_cols.remove(col)
+                            _PHOTOS_DEAD_COLS.add(col)
                             removed_any = True
                     if not removed_any:
                         # Error wasn't about an optional column — real bug.
                         raise
                     log.warning(
-                        "photos schema column missing — stripped + retrying: %s",
+                        "photos schema column missing — stripped + cached: %s",
                         msg.split('\n', 1)[0][:160],
                     )
-            # Should be unreachable but guard anyway.
             raise RuntimeError("photos insert failed after stripping all optional cols")
 
         photo_row = _insert_with_fallback(photo_payload)
