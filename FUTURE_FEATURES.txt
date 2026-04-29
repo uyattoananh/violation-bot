@@ -81,12 +81,17 @@ WHY
   - Tenant separation moves from "manual env var" to "claim from
     JWT" — multi-customer use unlocks.
 
-REDIRECT URI — UPDATE BEFORE IMPLEMENTING
-  The Google client's "Authorized redirect URIs" currently points at
-  the bare origin (https://hse.aecis.ca). Change to:
-    https://hse.aecis.ca/auth/callback
-  in Google Cloud Console → APIs & Services → Credentials before
-  implementing the route. JS origins can stay as the bare origin.
+REDIRECT URI
+  Already configured: https://hse.aecis.ca/auth/callback (Google
+  Cloud Console → APIs & Services → Credentials → "violation-bot").
+  JS origin remains https://hse.aecis.ca.
+
+AZURE AD (FUTURE, NOT NOW)
+  Will be added as a SECOND provider once Google OAuth is shipped
+  and stable. Same FastAPI plumbing — different authlib provider
+  config, different client secret. The users table schema below
+  already accommodates multiple providers via (provider,
+  provider_user_id) UNIQUE.
 
 IMPLEMENTATION SKETCH
   1. Read client_id + client_secret from .env (loaded at boot from
