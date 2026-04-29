@@ -2968,7 +2968,20 @@ dropzone.addEventListener("click", (e) => {
   // closest() walks the ancestors so SVG-inside-button clicks are also
   // caught — naive `tagName === "BUTTON"` misses those.
   if (e.target.closest && e.target.closest("button")) return;
-  fileInput.click();
+  // On mobile (where the dedicated camera button is visible), tapping
+  // the big drop area should ALSO route to the camera-burst input.
+  // Otherwise inspectors who tap the obvious "drop photos here" target
+  // get the OS file chooser, pick Camera from it, and end up bypassing
+  // the burst tray — every shot uploads immediately, defeating the
+  // whole "take many before submitting" feature. On desktop the
+  // camera button is hidden via sm:hidden so we fall through to the
+  // standard file picker (drag-drop / multi-select gallery).
+  const cameraVisible = btnCamera && btnCamera.offsetParent !== null;
+  if (cameraVisible && cameraInput) {
+    cameraInput.click();
+  } else {
+    fileInput.click();
+  }
 });
 fileInput.addEventListener("change", (e) => {
   uploadFiles(Array.from(e.target.files || []));
