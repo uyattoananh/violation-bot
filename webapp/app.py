@@ -1899,22 +1899,38 @@ async def upload(
 
         def _insert_with_fallback(payload):
             """Try the full payload; on schema-error, strip the missing
-            optional columns and retry once. Lets the webapp keep working
-            in the window between code-deploy and SQL-migration."""
-            try:
-                return db.table("photos").insert(payload).execute().data[0]
-            except Exception as exc:  # noqa: BLE001
-                msg = str(exc)
-                stripped = False
-                for col in ("batch_id", "batch_label", "exif_lat", "exif_lon", "user_key"):
-                    if col in msg and col in payload:
-                        payload.pop(col, None)
-                        stripped = True
-                if stripped:
-                    log.warning("photos schema column missing — degraded insert: %s",
-                                msg.split('\n', 1)[0][:120])
+            optional columns and retry. Lets the webapp keep working in
+            the window between code-deploy and SQL-migration.
+
+            Important: PostgREST reports missing columns ONE AT A TIME.
+            If `exif_lat` and `exif_lon` are both missing, the first
+            error mentions only one; the retry then 500s on the second.
+            So we loop — on each error, strip every optional column
+            mentioned in THAT error, retry, until we either succeed or
+            run out of optional columns to strip.
+            """
+            optional_cols = ["batch_id", "batch_label", "exif_lat",
+                             "exif_lon", "user_key", "user_id"]
+            for _ in range(len(optional_cols) + 1):
+                try:
                     return db.table("photos").insert(payload).execute().data[0]
-                raise
+                except Exception as exc:  # noqa: BLE001
+                    msg = str(exc)
+                    removed_any = False
+                    for col in optional_cols[:]:
+                        if col in msg and col in payload:
+                            payload.pop(col, None)
+                            optional_cols.remove(col)
+                            removed_any = True
+                    if not removed_any:
+                        # Error wasn't about an optional column — real bug.
+                        raise
+                    log.warning(
+                        "photos schema column missing — stripped + retrying: %s",
+                        msg.split('\n', 1)[0][:160],
+                    )
+            # Should be unreachable but guard anyway.
+            raise RuntimeError("photos insert failed after stripping all optional cols")
 
         photo_row = _insert_with_fallback(photo_payload)
         db.table("classify_jobs").insert({"photo_id": photo_row["id"]}).execute()
