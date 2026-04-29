@@ -51,15 +51,15 @@
 <!-- Hero / Dropzone -->
 <section id="dropzone"
          class="relative rounded-2xl border-2 border-dashed border-slate-300 bg-white
-                px-6 py-10 sm:py-14 text-center cursor-pointer transition-all
-                hover:border-emerald-500 hover:bg-emerald-50/40">
+                px-6 py-10 sm:py-14 text-center transition-all
+                sm:cursor-pointer sm:hover:border-emerald-500 sm:hover:bg-emerald-50/40">
   <input id="file-input" type="file" multiple accept="image/*" class="hidden">
   <!-- Dedicated camera input. capture="environment" forces the rear
-       camera on Android/iOS (which is what an HSE inspector wants),
-       bypassing the OS file chooser that often hides the camera entry
-       behind 2-3 taps — especially when running as an installed PWA.
-       Kept separate from #file-input so desktop drag-drop and gallery
-       select keep working unchanged. -->
+       camera on Android/iOS, so the dedicated Take-photo button
+       opens the camera directly without going through the OS file
+       chooser. Kept separate from #file-input so the explicit
+       "Choose photos" button can route through fileInput's chooser
+       (where the inspector picks already-taken photos). -->
   <input id="camera-input" type="file" accept="image/*" capture="environment" class="hidden">
   <div class="flex flex-col items-center gap-3 pointer-events-none select-none">
     <div class="w-14 h-14 rounded-2xl bg-emerald-50 grid place-items-center">
@@ -68,29 +68,40 @@
               d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
       </svg>
     </div>
-    <div class="font-semibold text-slate-800 text-base sm:text-lg" data-i18n="drop_main">
+    <!-- Hint text. Desktop sees "Drop photos here, or click to select"
+         (the dropzone IS a click target there). Mobile sees a different
+         line because the area itself is non-tappable on mobile — the
+         two explicit buttons below carry the action. -->
+    <div class="hidden sm:block font-semibold text-slate-800 text-base sm:text-lg" data-i18n="drop_main">
       Drop site photos here, or <span class="text-emerald-600 underline">click to select</span>
+    </div>
+    <div class="sm:hidden font-semibold text-slate-800 text-base" data-i18n="drop_main_mobile">
+      Add site photos
     </div>
     <div class="text-xs text-slate-500 max-w-md" data-i18n="drop_sub">
       JPG · PNG · HEIC · drop hundreds at once. Each confirmation grows the AI's reference library.
     </div>
-    <!-- Mobile-only Take Photo button. We deliberately do NOT show a
-         "Gallery" button here: the OS file picker on iOS and on Android
-         pre-13 / Chrome <105 cannot be made gallery-only — it always
-         offers a Camera tile, which traps inspectors who tap Gallery
-         expecting to pick existing photos. The camera-burst flow
-         covers in-the-field capture (the primary workflow); backfill
-         from an existing photo library happens on desktop drag-drop.
-         The dropzone tap on mobile also triggers camera burst, so the
-         entire mobile dropzone is one large "take photo" target. -->
-    <div class="sm:hidden flex items-center justify-center mt-2 pointer-events-auto">
+    <!-- Mobile-only: TWO explicit buttons. No "click anywhere on the
+         dropzone" target on mobile so users always pick a clear path.
+           - Take photo  -> camera direct (capture="environment"),
+                            stages in burst tray for batch capture.
+           - Choose photos -> OS file chooser (Photos / Files / Camera).
+                            Direct upload on selection. -->
+    <div class="sm:hidden flex flex-col items-stretch gap-2 mt-3 w-full max-w-xs mx-auto pointer-events-auto">
       <button id="btn-camera" type="button"
-              class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-semibold rounded-full px-6 py-2.5 shadow-sm transition-colors">
+              class="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-semibold rounded-full px-5 py-2.5 shadow-sm transition-colors">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
           <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/>
         </svg>
         <span data-i18n="cam_take">Take photo</span>
+      </button>
+      <button id="btn-choose" type="button"
+              class="inline-flex items-center justify-center gap-2 text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 text-sm font-semibold rounded-full px-5 py-2.5 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+        </svg>
+        <span data-i18n="cam_choose">Choose photos</span>
       </button>
     </div>
   </div>
@@ -690,8 +701,10 @@ const I18N = {
     notice_ack: "I understand",
     pwa_install: "Install app",
     cam_take: "Take photo",
+    cam_choose: "Choose photos",
     cam_gallery: "Gallery",
     cam_or: "or",
+    drop_main_mobile: "Add site photos",
     cam_burst_staged_label: "Photos ready to upload",
     cam_burst_clear: "Clear all",
     cam_burst_add: "Take another",
@@ -875,8 +888,10 @@ const I18N = {
     notice_ack: "Tôi đã hiểu",
     pwa_install: "Cài ứng dụng",
     cam_take: "Chụp ảnh",
+    cam_choose: "Chọn ảnh",
     cam_gallery: "Thư viện",
     cam_or: "hoặc",
+    drop_main_mobile: "Thêm ảnh hiện trường",
     cam_burst_staged_label: "Ảnh sẵn sàng tải lên",
     cam_burst_clear: "Xóa tất cả",
     cam_burst_add: "Chụp thêm",
@@ -1060,8 +1075,10 @@ const I18N = {
     notice_ack: "Entendido",
     pwa_install: "Instalar app",
     cam_take: "Tomar foto",
+    cam_choose: "Elegir fotos",
     cam_gallery: "Galería",
     cam_or: "o",
+    drop_main_mobile: "Añadir fotos del sitio",
     cam_burst_staged_label: "Fotos listas para subir",
     cam_burst_clear: "Borrar todas",
     cam_burst_add: "Tomar otra",
@@ -1245,8 +1262,10 @@ const I18N = {
     notice_ack: "我了解",
     pwa_install: "安装应用",
     cam_take: "拍照",
+    cam_choose: "选择照片",
     cam_gallery: "相册",
     cam_or: "或",
+    drop_main_mobile: "添加现场照片",
     cam_burst_staged_label: "待上传的照片",
     cam_burst_clear: "全部清除",
     cam_burst_add: "再拍一张",
@@ -2961,17 +2980,17 @@ async function uploadFiles(files) {
 }
 
 dropzone.addEventListener("click", (e) => {
-  // Bail if the click came from inside a button (the dedicated
-  // "Take photo" path is the burst route; we don't want a button
-  // click to also fire fileInput).
+  // Bail if the click came from inside a button.
   if (e.target.closest && e.target.closest("button")) return;
-  // Tap on the bare drop area opens the OS file chooser. On mobile
-  // that chooser includes Camera as one option (which we can't
-  // suppress) — and that's the right behaviour here: inspectors who
-  // already took photos with the native camera need a way to pick
-  // them, and the chooser is how the OS exposes the gallery. If they
-  // want a multi-shot CAMERA capture instead, they use the explicit
-  // "Take photo" button which routes through cameraInput -> burst.
+  // Mobile no longer treats the bare dropzone as a tap target — the
+  // two explicit buttons (Take photo / Choose photos) carry the
+  // action, so the dropzone area is purely a visual hint and a
+  // drag-drop target. Detected via matchMedia rather than UA so it
+  // tracks the same sm: breakpoint Tailwind uses for the buttons.
+  if (window.matchMedia && window.matchMedia("(max-width: 639.98px)").matches) {
+    return;
+  }
+  // Desktop: tap the drop area to open the file picker.
   fileInput.click();
 });
 fileInput.addEventListener("change", (e) => {
@@ -3106,11 +3125,19 @@ if (camBurstClrBtn) {
     _clearCamBurst();
   });
 }
-// (No Gallery button on mobile — the OS file chooser surfaces Camera
-// even with no `multiple` / no `capture` on iOS and pre-13 Android,
-// which traps users. Camera burst covers in-the-field capture; gallery
-// backfill happens on desktop where drag-drop and the file dialog
-// behave predictably.)
+// "Choose photos" button on mobile — explicit path that opens the
+// OS file chooser via fileInput. The chooser may surface Camera as
+// one option among Photos / Files (we can't suppress it on iOS or
+// pre-13 Android), and that's fine: inspectors who want multi-shot
+// burst capture have the dedicated Take Photo button. Picking from
+// the chooser uploads directly through fileInput.change.
+const btnChoose = document.getElementById("btn-choose");
+if (btnChoose) {
+  btnChoose.addEventListener("click", (e) => {
+    e.stopPropagation();
+    fileInput.click();
+  });
+}
 ["dragenter", "dragover"].forEach(ev => dropzone.addEventListener(ev, e => {
   e.preventDefault();
   dropzone.classList.add("drop-active");
