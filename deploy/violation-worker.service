@@ -1,0 +1,16 @@
+[Unit]
+Description=Violation AI - background classify worker
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/violation-bot
+ExecStart=/root/violation-bot/.venv-webapp/bin/python -m webapp.worker
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/violation-worker.log
+StandardError=append:/var/log/violation-worker.log
+
+[Install]
+WantedBy=multi-user.target

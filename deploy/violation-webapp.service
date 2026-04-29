@@ -1,0 +1,19 @@
+[Unit]
+Description=Violation AI - webapp (uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/violation-bot
+# python-dotenv inside webapp.app reads .env from WorkingDirectory at startup,
+# so we don't need EnvironmentFile= here. Keep it that way — EnvironmentFile
+# can't handle quoted multi-line values that some entries may use.
+ExecStart=/root/violation-bot/.venv-webapp/bin/python -m uvicorn webapp.app:app --host 0.0.0.0 --port 8765
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/violation-webapp.log
+StandardError=append:/var/log/violation-webapp.log
+
+[Install]
+WantedBy=multi-user.target
