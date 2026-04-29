@@ -1438,219 +1438,177 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
     apply(saved);
   }})();
 
-  // ============= Wave canvas =============
-  // Vanilla canvas reconstruction of the 21st.dev xubohuah/wave-background
-  // component. Vertical lines + sub-points form a flexible mesh; per-frame
-  // distortion via inline 2D simplex noise; cursor proximity adds local
-  // velocity that decays via spring damping. No external deps.
+  // ============= Mesh-gradient shader =============
+  // Vanilla WebGL port of the 21st.dev reuno-ui/background-paper-shaders
+  // component, which uses @paper-design/shaders-react's <MeshGradient>
+  // with grayscale colors ["#000000", "#1a1a1a", "#333333", "#ffffff"].
+  // We don't have React or the npm package available; this fragment
+  // shader produces the same visual effect — animated grayscale forms
+  // smoothly interpolated between four drifting control points using
+  // inverse-distance-squared (Shepard) weighting.
   (function () {{
     const canvas = document.getElementById("waves");
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    // ---- 2D Simplex noise (Stefan Gustavson algorithm, hand-rolled) ----
-    const simplex2 = (() => {{
-      const F2 = 0.5 * (Math.sqrt(3) - 1);
-      const G2 = (3 - Math.sqrt(3)) / 6;
-      const grad3 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
-      const p = new Uint8Array(256);
-      for (let i = 0; i < 256; i++) p[i] = i;
-      // Shuffle deterministically per page-load — random visual variety,
-      // reproducible within a session.
-      for (let i = 255; i > 0; i--) {{
-        const j = Math.floor(Math.random() * (i + 1));
-        const tmp = p[i]; p[i] = p[j]; p[j] = tmp;
+    const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    if (!gl) {{
+      // No WebGL — fall back to a solid black canvas. Hairlines + text
+      // still render correctly above it.
+      const ctx2d = canvas.getContext("2d");
+      function paint() {{
+        const r = canvas.getBoundingClientRect();
+        canvas.width = r.width; canvas.height = r.height;
+        ctx2d.fillStyle = "#000"; ctx2d.fillRect(0, 0, r.width, r.height);
       }}
-      const perm = new Uint8Array(512);
-      for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
-      return function (xin, yin) {{
-        const s = (xin + yin) * F2;
-        const i = Math.floor(xin + s);
-        const j = Math.floor(yin + s);
-        const t = (i + j) * G2;
-        const X0 = i - t, Y0 = j - t;
-        const x0 = xin - X0, y0 = yin - Y0;
-        let i1, j1;
-        if (x0 > y0) {{ i1 = 1; j1 = 0; }} else {{ i1 = 0; j1 = 1; }}
-        const x1 = x0 - i1 + G2, y1 = y0 - j1 + G2;
-        const x2 = x0 - 1 + 2 * G2, y2 = y0 - 1 + 2 * G2;
-        const ii = i & 255, jj = j & 255;
-        const gi0 = perm[ii + perm[jj]] & 7;
-        const gi1 = perm[ii + i1 + perm[jj + j1]] & 7;
-        const gi2 = perm[ii + 1 + perm[jj + 1]] & 7;
-        let n0 = 0, n1 = 0, n2 = 0;
-        let t0 = 0.5 - x0 * x0 - y0 * y0;
-        if (t0 >= 0) {{ t0 *= t0; n0 = t0 * t0 * (grad3[gi0][0] * x0 + grad3[gi0][1] * y0); }}
-        let t1 = 0.5 - x1 * x1 - y1 * y1;
-        if (t1 >= 0) {{ t1 *= t1; n1 = t1 * t1 * (grad3[gi1][0] * x1 + grad3[gi1][1] * y1); }}
-        let t2 = 0.5 - x2 * x2 - y2 * y2;
-        if (t2 >= 0) {{ t2 *= t2; n2 = t2 * t2 * (grad3[gi2][0] * x2 + grad3[gi2][1] * y2); }}
-        return 70 * (n0 + n1 + n2);
-      }};
-    }})();
+      paint();
+      window.addEventListener("resize", paint);
+      return;
+    }}
 
-    // ---- Mesh state ----
-    // Tuned 2026-04-29 #3: match the reference screenshot.
-    // Denser bright mesh; cursor influence is now PROXIMITY-only
-    // (radial push) with a smooth lerp toward target — NO velocity
-    // transfer, so flinging the mouse doesn't fling the lines.
-    const LINE_GAP = 18;     // px between vertical lines
-    const POINT_GAP = 16;    // px between sub-points along a line
-    const POINTER_RADIUS = 150;   // px — influence reach
-    const POINTER_PUSH = 32;      // px — max radial displacement at cursor
-    const POINTER_DOT_R = 5;      // px — visible cursor indicator
-    const LERP = 0.12;            // smoothing factor for cursor follow
-    const REST_LERP = 0.92;       // pull-back to rest when out of range
+    // ---- Shaders ----
+    // Vertex shader: trivial fullscreen quad.
+    const VS = `attribute vec2 a_pos;
+void main() {{
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}}`;
 
-    let width = 0, height = 0, dpr = 1;
-    let cols = 0, rows = 0;
-    let points = [];
+    // Fragment shader: Shepard interpolation across four moving
+    // control points in grayscale (#000, #1a1a1a, #333, #fff). The
+    // power on the inverse-distance weight controls how soft the
+    // transitions are; 2.0 gives a smooth, paper-shader-like feel.
+    const FS = `precision highp float;
+uniform vec2  u_res;
+uniform float u_time;
+
+// 4 grayscale control colors, matching the reuno-ui demo.
+const vec3 c0 = vec3(0.0);                  // #000000
+const vec3 c1 = vec3(0.10196);              // #1a1a1a
+const vec3 c2 = vec3(0.20);                 // #333333
+const vec3 c3 = vec3(1.0);                  // #ffffff
+
+// Smooth wrap of a position around the unit square so control
+// points orbit gently rather than colliding with the edges.
+vec2 driftAt(float t, float a, float b, float c, float d) {{
+  return vec2(0.5 + 0.42 * sin(t * a + c),
+              0.5 + 0.42 * cos(t * b + d));
+}}
+
+void main() {{
+  // Aspect-correct UV so distance metric isn't squashed by viewport.
+  vec2 uv = gl_FragCoord.xy / u_res.xy;
+  float aspect = u_res.x / max(u_res.y, 1.0);
+  vec2 p = vec2(uv.x * aspect, uv.y);
+
+  float t = u_time * 0.18;
+
+  // Four drifting attractors, each with its own phase + speed so
+  // they never line up periodically.
+  vec2 q0 = driftAt(t, 0.31, 0.27, 0.0, 0.0);
+  vec2 q1 = driftAt(t, 0.23, 0.41, 1.7, 2.3);
+  vec2 q2 = driftAt(t, 0.37, 0.19, 3.2, 4.1);
+  vec2 q3 = driftAt(t, 0.17, 0.29, 5.0, 1.1);
+
+  // Aspect-correct attractor positions.
+  q0.x *= aspect; q1.x *= aspect; q2.x *= aspect; q3.x *= aspect;
+
+  // Higher-power inverse distance so the nearest attractor strongly
+  // dominates — equal-power Shepard always pulls toward the average,
+  // which would blunt contrast and leave distant pixels stuck at a
+  // boring mid-gray. Power 6 gives the dramatic dark/bright contrast
+  // of the reuno-ui reference.
+  float d0 = distance(p, q0);
+  float d1 = distance(p, q1);
+  float d2 = distance(p, q2);
+  float d3 = distance(p, q3);
+  float w0 = 1.0 / (pow(d0, 6.0) + 1e-4);
+  float w1 = 1.0 / (pow(d1, 6.0) + 1e-4);
+  float w2 = 1.0 / (pow(d2, 6.0) + 1e-4);
+  float w3 = 1.0 / (pow(d3, 6.0) + 1e-4);
+  float total = w0 + w1 + w2 + w3;
+
+  vec3 col = (c0 * w0 + c1 * w1 + c2 * w2 + c3 * w3) / total;
+
+  // Push the result a touch darker overall so the bright attractor
+  // reads as a moving highlight rather than ambient lift. Black layout
+  // around the hero strip stays clean.
+  col = mix(vec3(0.0), col, 0.92);
+
+  gl_FragColor = vec4(col, 1.0);
+}}`;
+
+    function compile(type, src) {{
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {{
+        console.warn("[shader]", gl.getShaderInfoLog(sh));
+        gl.deleteShader(sh);
+        return null;
+      }}
+      return sh;
+    }}
+
+    const vs = compile(gl.VERTEX_SHADER, VS);
+    const fs = compile(gl.FRAGMENT_SHADER, FS);
+    if (!vs || !fs) return;
+
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs); gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {{
+      console.warn("[shader] link failed:", gl.getProgramInfoLog(prog));
+      return;
+    }}
+    gl.useProgram(prog);
+
+    // Fullscreen quad — two triangles spanning [-1, 1].
+    const quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER,
+      new Float32Array([-1, -1,  1, -1,  -1,  1,
+                        -1,  1,  1, -1,   1,  1]),
+      gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(prog, "a_pos");
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    const uRes = gl.getUniformLocation(prog, "u_res");
+    const uTime = gl.getUniformLocation(prog, "u_time");
 
     function resize() {{
       const rect = canvas.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.scale(dpr, dpr);
-
-      cols = Math.ceil(width / LINE_GAP) + 2;
-      rows = Math.ceil(height / POINT_GAP) + 2;
-      points = [];
-      for (let c = 0; c < cols; c++) {{
-        const col = [];
-        for (let r = 0; r < rows; r++) {{
-          col.push({{
-            x: (c - 1) * LINE_GAP, y: (r - 1) * POINT_GAP,
-            wx: 0, wy: 0,        // wave displacement
-            cx: 0, cy: 0,        // cursor displacement
-            vx: 0, vy: 0,        // cursor velocity
-          }});
-        }}
-        points.push(col);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = Math.max(1, Math.round(rect.width * dpr));
+      const h = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) {{
+        canvas.width = w;
+        canvas.height = h;
       }}
+      gl.viewport(0, 0, w, h);
+      gl.uniform2f(uRes, w, h);
     }}
 
-    // ---- Pointer ----
-    // Proximity-only: we only need the current cursor position (no
-    // velocity tracking). The "active" flag lets us hide the dot when
-    // the cursor isn't over the canvas.
-    const mouse = {{ x: -9999, y: -9999, active: false }};
-
-    function setPointer(clientX, clientY) {{
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = clientX - rect.left;
-      mouse.y = clientY - rect.top;
-      mouse.active = true;
-    }}
-    canvas.addEventListener("pointermove", (e) => setPointer(e.clientX, e.clientY));
-    canvas.addEventListener("pointerleave", () => {{ mouse.active = false; }});
-    canvas.addEventListener("touchmove", (e) => {{
-      if (e.touches.length) setPointer(e.touches[0].clientX, e.touches[0].clientY);
-    }}, {{ passive: true }});
-    canvas.addEventListener("touchend", () => {{ mouse.active = false; }});
-
-    // ---- Render loop ----
-    let t = 0;
-    let lastTime = performance.now();
+    let t0 = performance.now();
+    let raf = 0;
     function frame(now) {{
-      // Time scaling — slow drift so the wave feels meditative.
-      const dt = Math.min((now - lastTime) / 1000, 0.05);
-      lastTime = now;
-      t += dt * 0.4;
-
-      const radiusSq = POINTER_RADIUS * POINTER_RADIUS;
-      const cursorOn = mouse.active;
-
-      // Update each point.
-      for (let c = 0; c < cols; c++) {{
-        for (let r = 0; r < rows; r++) {{
-          const p = points[c][r];
-          // Noise-driven base wave. Pronounced X amplitude so the
-          // lines curve substantially rather than reading as straight.
-          // Lower noise frequency = longer flowing waves; high amp +
-          // low freq is the look in the reference screenshot.
-          p.wx = simplex2(p.x * 0.0035, p.y * 0.002 + t * 0.5) * 38;
-          p.wy = simplex2(p.x * 0.002 + t * 0.4, p.y * 0.0035) * 18;
-
-          // PROXIMITY-only cursor displacement. Compute target offset
-          // (radial push away from cursor with quadratic falloff),
-          // then lerp the current displacement toward it. Because
-          // there's no velocity term, the cursor doesn't transfer
-          // momentum — flinging the mouse doesn't fling the mesh.
-          let tx = 0, ty = 0;
-          if (cursorOn) {{
-            const dx = (p.x + p.wx) - mouse.x;
-            const dy = (p.y + p.wy) - mouse.y;
-            const distSq = dx * dx + dy * dy;
-            if (distSq < radiusSq && distSq > 0.01) {{
-              const dist = Math.sqrt(distSq);
-              const f = 1 - dist / POINTER_RADIUS;
-              const push = f * f * POINTER_PUSH;   // quadratic falloff
-              tx = (dx / dist) * push;
-              ty = (dy / dist) * push;
-            }}
-          }}
-
-          // Smooth follow: out-of-range points relax to 0; in-range
-          // points lerp toward the radial push target.
-          if (tx === 0 && ty === 0) {{
-            p.cx *= REST_LERP;
-            p.cy *= REST_LERP;
-          }} else {{
-            p.cx += (tx - p.cx) * LERP;
-            p.cy += (ty - p.cy) * LERP;
-          }}
-        }}
-      }}
-
-      // ---- Draw ----
-      ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = "#000000";
-      ctx.fillRect(0, 0, width, height);
-
-      ctx.strokeStyle = "rgba(255,255,255,0.65)";
-      ctx.lineWidth = 1;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-
-      // Draw each vertical line. With dense sub-points (16px), straight
-      // lineTo segments are visually indistinguishable from curves but
-      // ~2x cheaper than quadraticCurveTo per render.
-      for (let c = 0; c < cols; c++) {{
-        ctx.beginPath();
-        for (let r = 0; r < rows; r++) {{
-          const p = points[c][r];
-          const x = p.x + p.wx + p.cx;
-          const y = p.y + p.wy + p.cy;
-          if (r === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }}
-        ctx.stroke();
-      }}
-
-      // Cursor indicator dot — matches the original component's
-      // pointerSize prop. Drawn last so it sits above the mesh.
-      if (cursorOn) {{
-        ctx.fillStyle = "rgba(255,255,255,0.95)";
-        ctx.beginPath();
-        ctx.arc(mouse.x, mouse.y, POINTER_DOT_R, 0, Math.PI * 2);
-        ctx.fill();
-      }}
-
-      requestAnimationFrame(frame);
+      gl.uniform1f(uTime, (now - t0) / 1000);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      raf = requestAnimationFrame(frame);
     }}
 
-    // Pause when tab is hidden — saves battery on mobile.
     document.addEventListener("visibilitychange", () => {{
-      if (!document.hidden) lastTime = performance.now();
+      if (document.hidden) {{
+        cancelAnimationFrame(raf);
+      }} else {{
+        // Reset the time origin so the shader doesn't lurch forward.
+        t0 = performance.now() - (now => now)(0);
+        t0 = performance.now();
+        raf = requestAnimationFrame(frame);
+      }}
     }});
 
     window.addEventListener("resize", resize);
     resize();
-    requestAnimationFrame(frame);
+    raf = requestAnimationFrame(frame);
   }})();
 </script>
 </body></html>"""
