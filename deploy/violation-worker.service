@@ -9,8 +9,8 @@ WorkingDirectory=/root/violation-bot
 ExecStart=/root/violation-bot/.venv-webapp/bin/python -m webapp.worker
 Restart=always
 RestartSec=5
-StandardOutput=append:/var/log/violation-worker.log
-StandardError=append:/var/log/violation-worker.log
+# Default StandardOutput=journal — visible via `journalctl -u violation-worker -f`
+# and rotated automatically. See companion unit for context.
 
 [Install]
 WantedBy=multi-user.target

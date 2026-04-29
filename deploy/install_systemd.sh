@@ -37,12 +37,6 @@ echo "==> Installing units from ${UNITS_DIR} to ${SYSTEMD_DIR}"
 cp "${UNITS_DIR}/violation-webapp.service" "${SYSTEMD_DIR}/"
 cp "${UNITS_DIR}/violation-worker.service" "${SYSTEMD_DIR}/"
 
-# Make sure the log files exist with the right ownership before systemd
-# tries to append. Otherwise StandardOutput=append:/var/log/* fails on
-# first start with "permission denied."
-touch /var/log/violation-webapp.log /var/log/violation-worker.log
-chown root:root /var/log/violation-webapp.log /var/log/violation-worker.log
-
 echo "==> Reloading systemd daemon"
 systemctl daemon-reload
 
@@ -74,9 +68,6 @@ echo
 systemctl --no-pager status violation-worker.service | head -8 || true
 
 echo
-echo "Done. Logs:"
+echo "Done. Tail logs with:"
 echo "  sudo journalctl -u violation-webapp -f"
 echo "  sudo journalctl -u violation-worker -f"
-echo "Or tail the file logs:"
-echo "  sudo tail -f /var/log/violation-webapp.log"
-echo "  sudo tail -f /var/log/violation-worker.log"

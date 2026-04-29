@@ -12,8 +12,9 @@ WorkingDirectory=/root/violation-bot
 ExecStart=/root/violation-bot/.venv-webapp/bin/python -m uvicorn webapp.app:app --host 0.0.0.0 --port 8765
 Restart=always
 RestartSec=5
-StandardOutput=append:/var/log/violation-webapp.log
-StandardError=append:/var/log/violation-webapp.log
+# Default StandardOutput=journal — visible via `journalctl -u violation-webapp -f`
+# and rotated automatically. Avoids file permission stumbles and keeps both
+# webapp + worker logs queryable via the same systemd-native interface.
 
 [Install]
 WantedBy=multi-user.target
