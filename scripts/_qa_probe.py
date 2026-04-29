@@ -136,24 +136,27 @@ section("3. /admin/* with malformed inputs")
 auth = {"Cookie": "vai_admin=test-admin-password"}
 
 # Approve / reject / duplicate with various invalid IDs
+# After the UUID-validator fix:
+#   non-UUID -> 400 (clean)
+#   valid UUID but not in DB -> 404
+#   path-traversal IDs -> 404 (FastAPI router rejects)
 for action in ("approve", "reject", "duplicate"):
     bad_ids = [
-        "abc",
-        "../../etc",
-        "<script>alert(1)</script>",
-        "00000000-0000-0000-0000-000000000000",
-        "z" * 100,
-        " ",
-        "javascript:alert(1)",
+        ("abc", 400),                         # not a uuid
+        ("../../etc", 404),                   # sliced into wrong route
+        ("<script>alert(1)</script>", 404),   # router rejects bracket chars in path
+        ("00000000-0000-0000-0000-000000000000", 503),  # valid UUID, stub-DB unreachable -> 503
+        ("z" * 100, 400),                     # too long, fails uuid check
+        (" ", 400),                           # whitespace
+        ("javascript:alert(1)", 400),         # not a uuid
     ]
-    for bad in bad_ids:
-        # duplicate requires a `note` form field
+    for bad, expected in bad_ids:
         data = {"note": "test"} if action == "duplicate" else {}
         r = client.post(f"/admin/proposals/{bad}/{action}", data=data, headers=auth)
-        # Expect: 400, 404, or 422 — anything but 200/500/redirect-success
-        ok = r.status_code in (400, 404, 422, 303, 500)
+        ok = r.status_code == expected
         ok_safe = "alert(1)" not in r.text
-        expect(f"{action:<10} bad-id={bad[:30]:<30} -> {r.status_code}", ok and ok_safe)
+        expect(f"{action:<10} bad-id={bad[:30]:<30} -> {r.status_code} (expected {expected})",
+               ok and ok_safe)
 
 # Duplicate with empty note (REQUIRED form field)
 r = client.post("/admin/proposals/abc/duplicate", data={"note": ""}, headers=auth)
@@ -164,26 +167,31 @@ expect(f"duplicate empty note -> {r.status_code}",
 # -----------------------------------------------------------------
 section("4. /api/photos/{id}/* with malformed photo IDs")
 
+# After UUID-validator fix:
+#   non-UUID -> 400 (cleanly rejected before any DB call)
+#   valid UUID -> hits DB; with stub Supabase that fails -> 500 (history) / clean fallback
+#   path-traversal IDs -> 404 from the router itself
 bad_photo_ids = [
-    "abc",
-    "00000000-0000-0000-0000-000000000000",
-    "../../etc",
-    "<script>",
-    "%2e%2e%2f%2e%2e%2fpasswd",
-    "z" * 100,
+    # valid UUID -> history degrades gracefully to {history:[],error:...}
+    # at 200 (existing try/except), retry surfaces the DB failure as 500.
+    ("abc",      400, 400),
+    ("00000000-0000-0000-0000-000000000000", 200, 500),
+    ("../../etc",  404, 404),
+    ("<script>",   400, 400),
+    ("%2e%2e%2f%2e%2e%2fpasswd", 404, 404),
+    ("z" * 100,    400, 400),
 ]
-for bad in bad_photo_ids:
-    for endpoint in ("retry", "history"):
+for bad, hist_expected, retry_expected in bad_photo_ids:
+    for endpoint, expected in (("retry", retry_expected), ("history", hist_expected)):
         path = f"/api/photos/{bad}/{endpoint}"
-        method_post = endpoint == "retry"
-        if method_post:
+        if endpoint == "retry":
             r = client.post(path, headers={"Cookie": "vai_uid=qa_test_photos"})
         else:
             r = client.get(path, headers={"Cookie": "vai_uid=qa_test_photos"})
-        # Should be 4xx or 5xx (DB lookup fails) — never 200 with leaked data
-        ok = r.status_code != 200
+        ok = r.status_code == expected
         leak = bad in r.text and "<" in bad  # XSS leak check
-        expect(f"{endpoint:<10} bad-id={bad[:30]:<30} -> {r.status_code}", ok and not leak)
+        expect(f"{endpoint:<10} bad-id={bad[:30]:<30} -> {r.status_code} (expected {expected})",
+               ok and not leak)
 
 
 # -----------------------------------------------------------------
@@ -231,10 +239,18 @@ section("7. Locale toggle + JS injection in HTML rendering")
 # /auth/signin embeds the next param. Verify it's URL-encoded.
 r = client.get("/auth/signin?next=/foo<script>alert(1)</script>")
 ok = "<script>alert(1)" not in r.text  # raw script tag should not appear
-ok2 = "%3Cscript%3E" in r.text or "/foo%3C" in r.text  # URL-encoded form
 expect(f"chooser next param XSS-safe", ok)
-expect(f"chooser next param URL-encoded", ok2,
-       "(if signin links don't contain URL-encoded next, it's missing the safety check)")
+# URL-encoding only verifiable when OAuth env is set (otherwise no
+# provider buttons render = no `next=` links to inspect). Skip in
+# stub env.
+# Look for an actual <a class="provider-btn"> rather than the CSS rule
+# (the CSS class .provider-btn is in the stylesheet regardless).
+if 'class="provider-btn google"' in r.text or 'class="provider-btn microsoft"' in r.text:
+    ok2 = "%3Cscript%3E" in r.text or "/foo%3C" in r.text
+    expect(f"chooser next param URL-encoded", ok2,
+           "(signin links should contain URL-encoded next)")
+else:
+    print(f"{INFO} chooser next= URL-encoding (skipped — no OAuth env in test)")
 
 # Same for landing — the landing's CTA goes to /auth/signin without
 # carrying next, so should be fine. Verify no JS injection vector.

@@ -848,6 +848,22 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
+# ---------- shared input validators ----------
+
+def _is_uuid(s: str | None) -> bool:
+    """Cheap canary for UUID-shaped strings. Used by handlers that
+    take a UUID as a path param (proposal ids, photo ids) so bad
+    inputs return a clean 400 instead of bubbling up the Postgres
+    'invalid input syntax for type uuid' error as a 500."""
+    if not s or len(s) > 64:
+        return False
+    try:
+        uuid.UUID(s)
+        return True
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+
 # ---------- phase 4: hse-class proposal helpers ----------
 
 _SLUG_NON_ALNUM = re.compile(r"[^a-zA-Z0-9]+")
@@ -2111,6 +2127,8 @@ def photo_history(photo_id: str):
     (resolved against the current taxonomy), the inspector note, the
     timestamp, and the batch_id (so reviewers can navigate back to the
     batch context the correction was made in)."""
+    if not _is_uuid(photo_id):
+        raise HTTPException(400, "invalid photo id")
     db = get_db()
     try:
         rows = (
@@ -2168,6 +2186,8 @@ async def reclassify_region(request: Request, photo_id: str,
     inspector's pixel-level annotation is ephemeral; what persists is
     the AI's better answer plus rationale.
     """
+    if not _is_uuid(photo_id):
+        raise HTTPException(400, "invalid photo id")
     db = get_db()
     photo_rows = db.table("photos").select("*").eq("id", photo_id).execute().data or []
     if not photo_rows:
@@ -2265,6 +2285,8 @@ def retry_classify(request: Request, photo_id: str):
     """Reset a failed (or stuck) classify_jobs row back to 'pending' so the
     worker picks it up again. Surfaced from the UI when an /api/pending
     response shows classify_status='error'."""
+    if not _is_uuid(photo_id):
+        raise HTTPException(400, "invalid photo id")
     db = get_db()
     try:
         db.table("classify_jobs").update({
@@ -2448,6 +2470,8 @@ def _training_set_size() -> int:
 def confirm(request: Request, photo_id: str, fine_hse_type_slug: str | None = Form(None)):
     """Inspector confirms the AI's prediction. Optionally also picks a
     fine-grained AECIS sub-type to refine within the predicted parent."""
+    if not _is_uuid(photo_id):
+        raise HTTPException(400, "invalid photo id")
     db = get_db()
     cls = (
         db.table("classifications")
@@ -2498,6 +2522,8 @@ def correct(
     """Inspector correction. fine_hse_type_slug is the optional AECIS-canonical
     sub-type they picked from the dropdown filtered to children of the chosen
     coarse hse_type_slug. Empty string from the form is normalised to None."""
+    if not _is_uuid(photo_id):
+        raise HTTPException(400, "invalid photo id")
     db = get_db()
     cls = (
         db.table("classifications")
@@ -3442,13 +3468,25 @@ async def api_proposals_create(
     proposed_slug = f"pending:{_unique_proposed_slug(base)}"
 
     # Tolerate example_photo_id being a non-UUID (e.g. blank or a UI
-    # sentinel) — store NULL rather than failing the insert.
+    # sentinel) — store NULL rather than failing the insert. Also
+    # drop UUIDs that don't actually point at an existing photo: the
+    # photos.id FK on this column would otherwise reject the insert
+    # with a confusing 503, when the real problem is "stale photo id".
+    # Silent NULL is the least-confusing outcome — the proposal still
+    # goes through, just without an evidence thumbnail in the admin
+    # queue.
     photo_id_clean: str | None = None
-    if example_photo_id:
+    if example_photo_id and _is_uuid(example_photo_id):
         try:
-            uuid.UUID(example_photo_id)
-            photo_id_clean = example_photo_id
-        except (ValueError, TypeError):
+            check_db = get_db()
+            check_rows = (
+                check_db.table("photos").select("id")
+                        .eq("id", example_photo_id).limit(1).execute().data or []
+            )
+            photo_id_clean = example_photo_id if check_rows else None
+        except Exception:  # noqa: BLE001
+            # Best-effort. Any DB hiccup -> drop the photo ref so the
+            # proposal isn't blocked by an unrelated lookup error.
             photo_id_clean = None
 
     db = get_db()
@@ -4631,12 +4669,18 @@ def admin_proposal_approve(proposal_id: str, request: Request):
     invalidate the in-memory taxonomy cache, and mark the row decided."""
     if not _admin_authed(request):
         return RedirectResponse("/admin/login", status_code=303)
+    if not _is_uuid(proposal_id):
+        raise HTTPException(400, "invalid proposal id")
 
     db = get_db()
-    rows = (
-        db.table("hse_class_proposals").select("*")
-          .eq("id", proposal_id).limit(1).execute().data or []
-    )
+    try:
+        rows = (
+            db.table("hse_class_proposals").select("*")
+              .eq("id", proposal_id).limit(1).execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("admin approve lookup failed: %s", e)
+        raise HTTPException(503, "proposal lookup unavailable, please retry")
     if not rows:
         raise HTTPException(404, "proposal not found")
     p = rows[0]
@@ -4700,11 +4744,17 @@ def admin_proposal_reject(
     user in the decision toast."""
     if not _admin_authed(request):
         return RedirectResponse("/admin/login", status_code=303)
+    if not _is_uuid(proposal_id):
+        raise HTTPException(400, "invalid proposal id")
     db = get_db()
-    rows = (
-        db.table("hse_class_proposals").select("status")
-          .eq("id", proposal_id).limit(1).execute().data or []
-    )
+    try:
+        rows = (
+            db.table("hse_class_proposals").select("status")
+              .eq("id", proposal_id).limit(1).execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("admin reject lookup failed: %s", e)
+        raise HTTPException(503, "proposal lookup unavailable, please retry")
     if not rows:
         raise HTTPException(404, "proposal not found")
     if rows[0]["status"] != "pending":
@@ -4729,15 +4779,21 @@ def admin_proposal_duplicate(
     have used. Surfaced to the user in the decision toast."""
     if not _admin_authed(request):
         return RedirectResponse("/admin/login", status_code=303)
+    if not _is_uuid(proposal_id):
+        raise HTTPException(400, "invalid proposal id")
     canonical = (note or "").strip()
     if not canonical:
         raise HTTPException(400, "canonical slug required")
 
     db = get_db()
-    rows = (
-        db.table("hse_class_proposals").select("status, proposed_slug")
-          .eq("id", proposal_id).limit(1).execute().data or []
-    )
+    try:
+        rows = (
+            db.table("hse_class_proposals").select("status, proposed_slug")
+              .eq("id", proposal_id).limit(1).execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("admin duplicate lookup failed: %s", e)
+        raise HTTPException(503, "proposal lookup unavailable, please retry")
     if not rows:
         raise HTTPException(404, "proposal not found")
     if rows[0]["status"] != "pending":

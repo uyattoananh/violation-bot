@@ -54,6 +54,41 @@
       });
     }
 
+    // Global 401-handler — when a user's OAuth session expires (30
+    // days default) while a tab is still open, every fetch starts
+    // returning {"error":"auth_required"} 401. Without intervention
+    // the UI silently breaks: confirm/correct/upload all fail with
+    // generic console errors and the user can't tell why.
+    //
+    // Wrap window.fetch once at page load. On a 401 from any /api/*
+    // endpoint, redirect to /auth/signin with the current URL as
+    // ?next=. The redirect itself becomes a top-level navigation,
+    // so React state / inflight uploads are lost — that's the price
+    // of catching expiry vs. trying to surgically recover.
+    (function () {
+      const _origFetch = window.fetch;
+      let _redirecting = false;
+      window.fetch = async function (...args) {
+        const resp = await _origFetch.apply(this, args);
+        if (resp.status === 401 && !_redirecting) {
+          // Only redirect for our own /api/* — third-party fetches
+          // (R2, OpenRouter direct from browser, etc.) are out of
+          // scope and might 401 for unrelated reasons.
+          let url = "";
+          try { url = typeof args[0] === "string" ? args[0] : (args[0] && args[0].url) || ""; } catch (_) {}
+          const isOurApi = url.startsWith("/api/") || url.includes(window.location.host + "/api/");
+          if (isOurApi) {
+            _redirecting = true;
+            const next = encodeURIComponent(window.location.pathname + window.location.search);
+            // Use replace so the back button doesn't bring them to
+            // a broken signed-out app shell.
+            window.location.replace("/auth/signin?next=" + next);
+          }
+        }
+        return resp;
+      };
+    })();
+
     // Explicit cache nuke on sign-out. The sign-out form posts via
     // fetch() instead of a regular form submit so we can clear all
     // caches client-side BEFORE navigating to /. Without this,
