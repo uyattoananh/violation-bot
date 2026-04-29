@@ -441,6 +441,44 @@
     </div>
   </div>
 
+  <!-- Post-login data-usage disclaimer. Shown once per browser after
+       /auth/me confirms the user is signed in; the user's "I understand"
+       click stores a versioned ack flag in localStorage so we don't pester
+       on every page load. The version (v1) lets us reshow the notice if
+       the disclaimer copy materially changes later. -->
+  <div id="data-notice-modal" class="hidden fixed inset-0 bg-slate-900/70 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+      <div class="flex items-start gap-3 mb-3">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 grid place-items-center">
+          <!-- Sparkle / AI icon — same vibe as "intelligence improving" -->
+          <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v3m0 12v3M5.636 5.636l2.122 2.122m8.485 8.485l2.121 2.121M3 12h3m12 0h3M5.636 18.364l2.122-2.121m8.485-8.485l2.121-2.122"/>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="font-semibold text-slate-900 text-base" data-i18n="notice_title">Your work trains the AI</h3>
+          <div class="text-xs text-emerald-700 font-medium mt-0.5" data-i18n="notice_subtitle">Welcome — quick heads-up before you start.</div>
+        </div>
+      </div>
+      <div class="text-sm text-slate-700 leading-relaxed space-y-3">
+        <p data-i18n="notice_body_1">
+          Every photo you upload, every confirmation you make, and every correction you add becomes training data for the AI. The model gets better at HSE classification over time as you and your colleagues use it.
+        </p>
+        <p data-i18n="notice_body_2">
+          Your photos and edits stay inside AECIS — they're not shared with third parties beyond the AI providers we use to classify them.
+        </p>
+        <p class="text-xs text-slate-500 italic" data-i18n="notice_body_tagline">
+          Accurate confirmations help the AI more than passive use. If a prediction is wrong, take a moment to correct it.
+        </p>
+      </div>
+      <div class="mt-5 flex gap-2">
+        <button id="data-notice-ack" type="button"
+                class="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-lg px-4 py-2.5 transition-colors"
+                data-i18n="notice_ack">I understand</button>
+      </div>
+    </div>
+  </div>
+
   <!-- iOS Add-to-Home-Screen instructions modal. Shown only when the
        install button is tapped on iOS Safari, since iOS doesn't expose
        a programmatic install API (no beforeinstallprompt). The user
@@ -563,6 +601,41 @@
           if (d.picture_url) avatar.src = d.picture_url;
           if (d.is_admin) adminLink.classList.remove("hidden");
           show(userBtn);
+
+          // First-login disclaimer: tell the user their photos and
+          // corrections feed back into the model. Bump the suffix
+          // (vai-data-notice-ack-vN) if the copy materially changes
+          // and we want signed users to see the new wording. Keyed
+          // on email so multiple users sharing a browser each see
+          // it once.
+          (function maybeShowDataNotice() {
+            const NOTICE_VERSION = "v1";
+            const key = `vai-data-notice-ack-${NOTICE_VERSION}:${d.email || "anon"}`;
+            try {
+              if (localStorage.getItem(key)) return;
+            } catch (_) { /* private mode — show once per session */ }
+            const modal = document.getElementById("data-notice-modal");
+            const ack   = document.getElementById("data-notice-ack");
+            if (!modal || !ack) return;
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+            const dismiss = () => {
+              modal.classList.add("hidden");
+              modal.classList.remove("flex");
+              try { localStorage.setItem(key, String(Date.now())); } catch (_) {}
+            };
+            ack.addEventListener("click", dismiss);
+            // Esc and backdrop also dismiss — disclaimer is informational,
+            // not a hard gate; the user can always re-read it via a
+            // future "About" link if needed.
+            document.addEventListener("keydown", function onEsc(e) {
+              if (e.key === "Escape" && !modal.classList.contains("hidden")) {
+                dismiss();
+                document.removeEventListener("keydown", onEsc);
+              }
+            });
+            modal.addEventListener("click", (e) => { if (e.target === modal) dismiss(); });
+          })();
           // Toggle dropdown on click; close on outside click.
           userBtn.addEventListener("click", (e) => {
             e.stopPropagation();
