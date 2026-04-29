@@ -33,13 +33,56 @@
         navigator.serviceWorker
           .register("/service-worker.js", { scope: "/" })
           .then((reg) => {
-            // Fire a console log for the SW dev who's debugging via
-            // chrome://inspect. Production users never see this.
             console.debug("[sw] registered, scope:", reg.scope);
           })
           .catch((err) => console.warn("[sw] registration failed:", err));
       });
+
+      // Auto-reload when a new SW takes control. The SW's install
+      // handler calls skipWaiting() and the activate handler calls
+      // clients.claim(), which together fire a 'controllerchange'
+      // event on the open page. Reloading at that point makes the
+      // page pick up the fresh shell HTML the new SW now serves.
+      // Net effect: every deploy with a bumped CACHE_VERSION updates
+      // every open client without any user action.
+      let _swRefreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (_swRefreshing) return;
+        _swRefreshing = true;
+        console.debug("[sw] controllerchange — reloading page");
+        window.location.reload();
+      });
     }
+
+    // Explicit cache nuke on sign-out. The sign-out form posts via
+    // fetch() instead of a regular form submit so we can clear all
+    // caches client-side BEFORE navigating to /. Without this,
+    // returning to / could be served by stale SW cache showing the
+    // app shell even though the cookie is gone server-side.
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = document.querySelector('form[action="/auth/logout"]');
+      if (!form) return;
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try {
+          await fetch("/auth/logout", {
+            method: "POST",
+            credentials: "same-origin",
+            redirect: "manual",
+          });
+        } catch (err) { /* network error — proceed anyway */ }
+        // Clear every Cache Storage entry — covers shell + runtime caches.
+        try {
+          if ("caches" in window) {
+            const names = await caches.keys();
+            await Promise.all(names.map((n) => caches.delete(n)));
+          }
+        } catch (err) { /* cache unavailable on some browsers */ }
+        // Hard navigate (replace, not push) so the back button doesn't
+        // bring them to a stale signed-in URL.
+        window.location.replace("/");
+      });
+    });
   </script>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased min-h-screen flex flex-col">
