@@ -1322,16 +1322,13 @@ def root(request: Request):
 def _render_landing_page(request: Request) -> HTMLResponse:
     """Public marketing page rendered to anonymous visitors at /.
 
-    Black & white minimalist theme. Hero section sits inside a 16:9
-    'wave strip' framed by hairline white borders, top and bottom.
-    The wave is a vanilla-canvas reconstruction of the 21st.dev
-    `xubohuah/wave-background` component:
-      - vertical lines + horizontal sub-points form a flexible mesh
-      - per-frame distortion via inline 2D simplex noise (no
-        npm `simplex-noise` dep — same algorithm, hand-rolled in
-        ~30 lines so the page stays self-contained for SW caching)
-      - cursor proximity adds local velocity, decays back via
-        spring damping
+    Drafting-paper theme. Off-white paper-tone background with a
+    fine grid (every 24px, ~6mm) overlaid by a heavier grid every
+    5 squares (~3cm) — the engineering / drafting paper inspectors
+    are familiar with. Pure CSS background-image, no canvas, no JS
+    animation: faster paint, accessible by default, honours
+    prefers-reduced-motion automatically.
+
     Bilingual EN/VN, mobile responsive, fully inline.
     """
     google_on = _oauth_enabled()
@@ -1348,109 +1345,208 @@ def _render_landing_page(request: Request) -> HTMLResponse:
 <html lang="en"><head><meta charset="utf-8">
 <title>Violation AI — AECIS HSE inspection</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#f5f3eb">
 <meta name="description" content="AI-powered HSE violation detection for construction sites — built for AECIS inspectors. Sign in with Google or Microsoft to access the inspection workflow.">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/icons/icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
 <style>
+:root {{
+  --paper:        #f5f3eb;
+  --paper-warm:   #efece1;
+  --ink:          #0a0a0a;
+  --ink-soft:     #3a3a3a;
+  --ink-mute:     #6b7280;
+  --ink-faint:    #9ca3af;
+  --rule:         rgba(10, 10, 10, 0.07);
+  --rule-strong:  rgba(10, 10, 10, 0.13);
+  --hairline:     rgba(10, 10, 10, 0.4);
+  --accent:       #b45309;  /* "blueprint red-orange" — drafting-marker tone */
+}}
 * {{ box-sizing: border-box; }}
 html, body {{ margin: 0; padding: 0; }}
-body {{ font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, "Segoe UI", sans-serif;
-       color: #ffffff; background: #000000; min-height: 100vh;
-       -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
-       overflow-x: hidden; }}
+body {{
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  letter-spacing: -0.005em;
+  /* Drafting-paper grid: 24px fine grid + 120px heavy grid (every 5
+     squares). Two layered linear-gradients per axis. The base paper
+     tone is the body background; the gradients punch through. */
+  background-image:
+    linear-gradient(var(--rule) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rule) 1px, transparent 1px),
+    linear-gradient(var(--rule-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rule-strong) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+  background-position: 0 0, 0 0, 0 0, 0 0;
+}}
 .shell {{ display: flex; flex-direction: column; min-height: 100vh; }}
 
-header {{ display: flex; justify-content: space-between; align-items: center;
-         padding: 18px 24px; max-width: 1280px; margin: 0 auto; width: 100%;
-         position: relative; z-index: 5; }}
-.brand {{ display: inline-flex; align-items: center; gap: 10px;
-         font-weight: 600; font-size: 16px; color: #ffffff; text-decoration: none;
-         letter-spacing: -0.01em; }}
-.brand .check {{ width: 26px; height: 26px; border: 1px solid rgba(255,255,255,0.4);
-                border-radius: 999px; display: grid; place-items: center; }}
+header {{
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 24px; max-width: 1280px; margin: 0 auto; width: 100%;
+  position: relative; z-index: 5;
+}}
+.brand {{
+  display: inline-flex; align-items: center; gap: 10px;
+  font-weight: 600; font-size: 16px; color: var(--ink); text-decoration: none;
+  letter-spacing: -0.01em;
+}}
+.brand .check {{
+  width: 26px; height: 26px;
+  border: 1.25px solid var(--ink); border-radius: 999px;
+  display: grid; place-items: center;
+  background: var(--paper);
+}}
 .brand .check svg {{ width: 14px; height: 14px; }}
-.brand .accent {{ color: rgba(255,255,255,0.45); font-weight: 400; }}
+.brand .accent {{ color: var(--ink-faint); font-weight: 400; }}
 
-.locale-toggle {{ display: flex; gap: 0; border: 1px solid rgba(255,255,255,0.18);
-                 border-radius: 999px; overflow: hidden; }}
-.locale-toggle button {{ font: inherit; background: transparent; border: 0; cursor: pointer;
-                        padding: 5px 12px; color: rgba(255,255,255,0.55); font-weight: 500; font-size: 11px;
-                        letter-spacing: 0.04em; transition: background .15s, color .15s; }}
-.locale-toggle button:hover {{ color: #ffffff; }}
-.locale-toggle button.active {{ background: #ffffff; color: #000000; }}
+.locale-toggle {{
+  display: flex; gap: 0;
+  border: 1px solid var(--ink); border-radius: 999px; overflow: hidden;
+  background: var(--paper);
+}}
+.locale-toggle button {{
+  font: inherit; background: transparent; border: 0; cursor: pointer;
+  padding: 5px 12px; color: var(--ink-mute); font-weight: 600; font-size: 11px;
+  letter-spacing: 0.04em;
+  transition: background .15s, color .15s;
+}}
+.locale-toggle button:hover {{ color: var(--ink); }}
+.locale-toggle button.active {{ background: var(--ink); color: var(--paper); }}
 
-/* ============= Hero with wave strip ============= */
-.hero {{ position: relative; width: 100%;
-        min-height: 72vh; display: flex; align-items: center; justify-content: center;
-        padding: 64px 16px; overflow: hidden; }}
-.hero-canvas {{ position: absolute; inset: 0; width: 100%; height: 100%;
-               z-index: 0; pointer-events: auto; }}
-.hero-hairline {{ position: absolute; left: 0; right: 0; height: 1px;
-                 background: rgba(255,255,255,0.7); z-index: 2; pointer-events: none; }}
-.hero-hairline.top {{ top: 0; }}
-.hero-hairline.bottom {{ bottom: 0; }}
-.hero-fade {{ position: absolute; left: 0; right: 0; height: 80px; z-index: 1;
-             pointer-events: none; }}
-.hero-fade.top {{ top: 0; background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%); }}
-.hero-fade.bottom {{ bottom: 0; background: linear-gradient(0deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%); }}
+/* ============= Hero ============= */
+.hero {{
+  position: relative; width: 100%;
+  min-height: 70vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 64px 16px;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.55), transparent 60%);
+}}
+.hero-content {{ position: relative; z-index: 3; max-width: 880px; width: 100%; text-align: center; }}
 
-.hero-content {{ position: relative; z-index: 3; max-width: 880px; width: 100%;
-                text-align: center; pointer-events: none; }}
-.hero-content > * {{ pointer-events: auto; }}
-
-.eyebrow {{ display: inline-block; font-size: 11px; text-transform: uppercase;
-           letter-spacing: 0.18em; font-weight: 600; color: rgba(255,255,255,0.7);
-           border: 1px solid rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 999px;
-           margin-bottom: 24px; backdrop-filter: blur(8px); background: rgba(0,0,0,0.3); }}
-h1 {{ font-size: clamp(36px, 6.5vw, 76px); line-height: 1.02; font-weight: 600;
-     margin: 0 0 22px; letter-spacing: -0.035em; color: #ffffff; }}
-h1 .em {{ font-style: italic; font-weight: 400; color: rgba(255,255,255,0.85); }}
-.lead {{ font-size: clamp(15px, 1.6vw, 18px); color: rgba(255,255,255,0.65);
-        margin: 0 auto 36px; max-width: 620px; line-height: 1.6; }}
-.cta {{ display: inline-flex; align-items: center; gap: 10px; background: #ffffff;
-       color: #000000; text-decoration: none; padding: 14px 28px; border-radius: 999px;
-       font-weight: 600; font-size: 14px; letter-spacing: 0.01em;
-       transition: transform .04s, background .15s, color .15s, box-shadow .15s;
-       box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 8px 32px rgba(255,255,255,0.08); }}
-.cta:hover {{ background: rgba(255,255,255,0.92); box-shadow: 0 0 0 1px rgba(255,255,255,0.1), 0 12px 40px rgba(255,255,255,0.12); }}
+.eyebrow {{
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em;
+  font-weight: 600; color: var(--ink-soft);
+  border: 1px solid var(--ink); padding: 6px 14px; border-radius: 999px;
+  margin-bottom: 24px; background: var(--paper);
+}}
+.eyebrow .dot {{
+  width: 6px; height: 6px; border-radius: 999px; background: var(--accent);
+}}
+h1 {{
+  font-size: clamp(34px, 6.2vw, 72px); line-height: 1.04; font-weight: 600;
+  margin: 0 0 22px; letter-spacing: -0.035em; color: var(--ink);
+}}
+h1 .em {{ font-style: italic; font-weight: 400; color: var(--ink-soft); }}
+.lead {{
+  font-size: clamp(15px, 1.6vw, 18px); color: var(--ink-soft);
+  margin: 0 auto 36px; max-width: 620px; line-height: 1.6;
+}}
+.cta {{
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--ink); color: var(--paper); text-decoration: none;
+  padding: 14px 28px; border-radius: 999px;
+  font-weight: 600; font-size: 14px; letter-spacing: 0.01em;
+  transition: transform .04s, background .15s, box-shadow .15s;
+  box-shadow: 0 0 0 1px var(--ink), 0 6px 20px rgba(10,10,10,0.12);
+}}
+.cta:hover {{ background: #1d1d1d; box-shadow: 0 0 0 1px var(--ink), 0 10px 28px rgba(10,10,10,0.18); }}
 .cta:active {{ transform: scale(0.98); }}
 .cta svg {{ width: 16px; height: 16px; }}
-.providers-note {{ display: block; margin-top: 18px; color: rgba(255,255,255,0.4);
-                  font-size: 12px; letter-spacing: 0.02em; }}
+.providers-note {{
+  display: block; margin-top: 18px; color: var(--ink-mute);
+  font-size: 12px; letter-spacing: 0.02em;
+}}
+
+/* Drafting-style corner ticks at the hero edges. Subtle nod to
+   architectural drawings where the boundary is marked at corners. */
+.tick {{ position: absolute; width: 14px; height: 14px; pointer-events: none; }}
+.tick::before, .tick::after {{
+  content: ""; position: absolute; background: var(--ink); opacity: 0.5;
+}}
+.tick::before {{ width: 14px; height: 1px; }}
+.tick::after  {{ width: 1px;  height: 14px; }}
+.tick.tl {{ top: -1px;    left: -1px;    }}
+.tick.tl::before {{ top: 0; left: 0; }}
+.tick.tl::after  {{ top: 0; left: 0; }}
+.tick.tr {{ top: -1px;    right: -1px;   }}
+.tick.tr::before {{ top: 0; right: 0; }}
+.tick.tr::after  {{ top: 0; right: 0; }}
+.tick.bl {{ bottom: -1px; left: -1px;    }}
+.tick.bl::before {{ bottom: 0; left: 0; }}
+.tick.bl::after  {{ bottom: 0; left: 0; }}
+.tick.br {{ bottom: -1px; right: -1px;   }}
+.tick.br::before {{ bottom: 0; right: 0; }}
+.tick.br::after  {{ bottom: 0; right: 0; }}
 
 /* ============= Features ============= */
-.features-section {{ padding: 80px 16px 60px; max-width: 1080px; margin: 0 auto;
-                    width: 100%; }}
-.features-eyebrow {{ display: block; text-align: center; font-size: 11px;
-                    text-transform: uppercase; letter-spacing: 0.18em;
-                    color: rgba(255,255,255,0.4); margin-bottom: 32px; font-weight: 600; }}
-.features {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 1px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 0; }}
-.feature {{ background: #000000; padding: 28px 24px; }}
-.feature .ic {{ width: 32px; height: 32px; border: 1px solid rgba(255,255,255,0.25);
-                color: #ffffff; display: grid; place-items: center; margin-bottom: 16px;
-                border-radius: 6px; }}
+.features-section {{
+  padding: 80px 16px 60px; max-width: 1080px; margin: 0 auto; width: 100%;
+}}
+.features-eyebrow {{
+  display: block; text-align: center;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--ink-mute); margin-bottom: 32px; font-weight: 600;
+}}
+.features {{
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}}
+.feature {{
+  background: var(--paper);
+  padding: 28px 24px;
+  border-right: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}}
+.feature:last-child {{ border-right: 0; }}
+.feature .ic {{
+  width: 32px; height: 32px;
+  border: 1px solid var(--ink); color: var(--ink);
+  display: grid; place-items: center; margin-bottom: 16px;
+  border-radius: 4px; background: var(--paper);
+}}
 .feature .ic svg {{ width: 16px; height: 16px; }}
-.feature h3 {{ font-size: 15px; margin: 0 0 8px; font-weight: 600; color: #ffffff;
-              letter-spacing: -0.005em; }}
-.feature p {{ font-size: 13px; color: rgba(255,255,255,0.55); margin: 0; line-height: 1.6; }}
+.feature h3 {{
+  font-size: 15px; margin: 0 0 8px; font-weight: 600; color: var(--ink);
+  letter-spacing: -0.005em;
+}}
+.feature p {{ font-size: 13px; color: var(--ink-soft); margin: 0; line-height: 1.6; }}
 
 /* ============= Footer ============= */
-footer {{ text-align: center; color: rgba(255,255,255,0.35); font-size: 11px;
-         padding: 40px 16px 32px; letter-spacing: 0.02em;
-         border-top: 1px solid rgba(255,255,255,0.08); margin-top: auto; }}
-footer a {{ color: rgba(255,255,255,0.7); text-decoration: none; }}
-footer a:hover {{ color: #ffffff; text-decoration: underline; }}
+footer {{
+  text-align: center; color: var(--ink-mute); font-size: 11px;
+  padding: 40px 16px 32px; letter-spacing: 0.02em;
+  border-top: 1px solid var(--hairline); margin-top: auto;
+}}
+footer a {{ color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--hairline); }}
+footer a:hover {{ border-color: var(--ink); }}
 
 [data-locale]:not(.show) {{ display: none; }}
 
 @media (max-width: 640px) {{
   header {{ padding: 14px 16px; }}
-  .hero {{ min-height: 60vh; padding: 48px 12px; }}
+  .hero {{ min-height: 58vh; padding: 48px 12px; }}
   .features-section {{ padding: 56px 12px 48px; }}
+  .features {{ grid-template-columns: 1fr; }}
+  .feature {{ border-right: 0; }}
+  .feature:last-child {{ border-bottom: 0; }}
+}}
+
+@media (max-width: 380px) {{
+  /* Phones with very small screens — reduce grid noise. */
+  body {{ background-size: 18px 18px, 18px 18px, 90px 90px, 90px 90px; }}
 }}
 </style></head><body>
 <div class="shell">
@@ -1466,13 +1562,13 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
 </header>
 
 <section class="hero">
-  <canvas id="waves" class="hero-canvas" aria-hidden="true" role="presentation"></canvas>
-  <div class="hero-fade top"></div>
-  <div class="hero-fade bottom"></div>
-  <div class="hero-hairline top"></div>
-  <div class="hero-hairline bottom"></div>
+  <span class="tick tl"></span>
+  <span class="tick tr"></span>
+  <span class="tick bl"></span>
+  <span class="tick br"></span>
   <div class="hero-content">
     <span class="eyebrow">
+      <span class="dot"></span>
       <span data-locale="en">AECIS HSE inspection · powered by AI</span>
       <span data-locale="vn">Kiểm tra HSE AECIS · do AI hỗ trợ</span>
     </span>
@@ -1545,7 +1641,8 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
 </div>
 
 <script>
-  // ============= Locale toggle (same pattern as before) =============
+  // Locale toggle. Same as the standalone chooser page; persists in
+  // localStorage so the language preference survives across visits.
   (function () {{
     const saved = localStorage.getItem("vai-lang") || "en";
     const enBtn = document.getElementById("loc-en");
@@ -1562,190 +1659,6 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
     enBtn.addEventListener("click", () => apply("en"));
     vnBtn.addEventListener("click", () => apply("vn"));
     apply(saved);
-  }})();
-
-  // ============= Mesh-gradient shader =============
-  // Vanilla WebGL port of the 21st.dev reuno-ui/background-paper-shaders
-  // component, which uses @paper-design/shaders-react's <MeshGradient>
-  // with grayscale colors ["#000000", "#1a1a1a", "#333333", "#ffffff"].
-  // We don't have React or the npm package available; this fragment
-  // shader produces the same visual effect — animated grayscale forms
-  // smoothly interpolated between four drifting control points using
-  // inverse-distance-squared (Shepard) weighting.
-  (function () {{
-    const canvas = document.getElementById("waves");
-    if (!canvas) return;
-    const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
-    if (!gl) {{
-      // No WebGL — fall back to a solid black canvas. Hairlines + text
-      // still render correctly above it.
-      const ctx2d = canvas.getContext("2d");
-      function paint() {{
-        const r = canvas.getBoundingClientRect();
-        canvas.width = r.width; canvas.height = r.height;
-        ctx2d.fillStyle = "#000"; ctx2d.fillRect(0, 0, r.width, r.height);
-      }}
-      paint();
-      window.addEventListener("resize", paint);
-      return;
-    }}
-
-    // ---- Shaders ----
-    // Vertex shader: trivial fullscreen quad.
-    const VS = `attribute vec2 a_pos;
-void main() {{
-  gl_Position = vec4(a_pos, 0.0, 1.0);
-}}`;
-
-    // Fragment shader: Shepard interpolation across four moving
-    // control points in grayscale (#000, #1a1a1a, #333, #fff). The
-    // power on the inverse-distance weight controls how soft the
-    // transitions are; 2.0 gives a smooth, paper-shader-like feel.
-    const FS = `precision highp float;
-uniform vec2  u_res;
-uniform float u_time;
-
-// 4 grayscale control colors, matching the reuno-ui demo.
-const vec3 c0 = vec3(0.0);                  // #000000
-const vec3 c1 = vec3(0.10196);              // #1a1a1a
-const vec3 c2 = vec3(0.20);                 // #333333
-const vec3 c3 = vec3(1.0);                  // #ffffff
-
-// Smooth wrap of a position around the unit square so control
-// points orbit gently rather than colliding with the edges.
-vec2 driftAt(float t, float a, float b, float c, float d) {{
-  return vec2(0.5 + 0.42 * sin(t * a + c),
-              0.5 + 0.42 * cos(t * b + d));
-}}
-
-void main() {{
-  // Aspect-correct UV so distance metric isn't squashed by viewport.
-  vec2 uv = gl_FragCoord.xy / u_res.xy;
-  float aspect = u_res.x / max(u_res.y, 1.0);
-  vec2 p = vec2(uv.x * aspect, uv.y);
-
-  float t = u_time * 0.18;
-
-  // Four drifting attractors, each with its own phase + speed so
-  // they never line up periodically.
-  vec2 q0 = driftAt(t, 0.31, 0.27, 0.0, 0.0);
-  vec2 q1 = driftAt(t, 0.23, 0.41, 1.7, 2.3);
-  vec2 q2 = driftAt(t, 0.37, 0.19, 3.2, 4.1);
-  vec2 q3 = driftAt(t, 0.17, 0.29, 5.0, 1.1);
-
-  // Aspect-correct attractor positions.
-  q0.x *= aspect; q1.x *= aspect; q2.x *= aspect; q3.x *= aspect;
-
-  // Higher-power inverse distance so the nearest attractor strongly
-  // dominates — equal-power Shepard always pulls toward the average,
-  // which would blunt contrast and leave distant pixels stuck at a
-  // boring mid-gray. Power 6 gives the dramatic dark/bright contrast
-  // of the reuno-ui reference.
-  float d0 = distance(p, q0);
-  float d1 = distance(p, q1);
-  float d2 = distance(p, q2);
-  float d3 = distance(p, q3);
-  float w0 = 1.0 / (pow(d0, 6.0) + 1e-4);
-  float w1 = 1.0 / (pow(d1, 6.0) + 1e-4);
-  float w2 = 1.0 / (pow(d2, 6.0) + 1e-4);
-  float w3 = 1.0 / (pow(d3, 6.0) + 1e-4);
-  float total = w0 + w1 + w2 + w3;
-
-  vec3 col = (c0 * w0 + c1 * w1 + c2 * w2 + c3 * w3) / total;
-
-  // Push the result a touch darker overall so the bright attractor
-  // reads as a moving highlight rather than ambient lift. Black layout
-  // around the hero strip stays clean.
-  col = mix(vec3(0.0), col, 0.92);
-
-  gl_FragColor = vec4(col, 1.0);
-}}`;
-
-    function compile(type, src) {{
-      const sh = gl.createShader(type);
-      gl.shaderSource(sh, src);
-      gl.compileShader(sh);
-      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {{
-        console.warn("[shader]", gl.getShaderInfoLog(sh));
-        gl.deleteShader(sh);
-        return null;
-      }}
-      return sh;
-    }}
-
-    const vs = compile(gl.VERTEX_SHADER, VS);
-    const fs = compile(gl.FRAGMENT_SHADER, FS);
-    if (!vs || !fs) return;
-
-    const prog = gl.createProgram();
-    gl.attachShader(prog, vs); gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {{
-      console.warn("[shader] link failed:", gl.getProgramInfoLog(prog));
-      return;
-    }}
-    gl.useProgram(prog);
-
-    // Fullscreen quad — two triangles spanning [-1, 1].
-    const quad = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
-    gl.bufferData(gl.ARRAY_BUFFER,
-      new Float32Array([-1, -1,  1, -1,  -1,  1,
-                        -1,  1,  1, -1,   1,  1]),
-      gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(prog, "a_pos");
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-    const uRes = gl.getUniformLocation(prog, "u_res");
-    const uTime = gl.getUniformLocation(prog, "u_time");
-
-    function resize() {{
-      const rect = canvas.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = Math.max(1, Math.round(rect.width * dpr));
-      const h = Math.max(1, Math.round(rect.height * dpr));
-      if (canvas.width !== w || canvas.height !== h) {{
-        canvas.width = w;
-        canvas.height = h;
-      }}
-      gl.viewport(0, 0, w, h);
-      gl.uniform2f(uRes, w, h);
-    }}
-
-    // Honour prefers-reduced-motion. Users who set this OS preference
-    // expect motion to stop — we freeze the shader on the first frame
-    // and skip the animation loop entirely. The mesh-gradient still
-    // renders as a static visual, just no drift.
-    const reduceMotion = (() => {{
-      try {{ return window.matchMedia("(prefers-reduced-motion: reduce)").matches; }}
-      catch {{ return false; }}
-    }})();
-
-    let t0 = performance.now();
-    let raf = 0;
-    function frame(now) {{
-      gl.uniform1f(uTime, (now - t0) / 1000);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-      if (!reduceMotion) {{
-        raf = requestAnimationFrame(frame);
-      }}
-    }}
-
-    document.addEventListener("visibilitychange", () => {{
-      if (document.hidden) {{
-        cancelAnimationFrame(raf);
-      }} else {{
-        // Reset the time origin so the shader doesn't lurch forward.
-        t0 = performance.now() - (now => now)(0);
-        t0 = performance.now();
-        raf = requestAnimationFrame(frame);
-      }}
-    }});
-
-    window.addEventListener("resize", resize);
-    resize();
-    raf = requestAnimationFrame(frame);
   }})();
 </script>
 </body></html>"""
@@ -4080,59 +3993,110 @@ def auth_signin(request: Request, next: str = "/"):
 <html lang="en"><head><meta charset="utf-8">
 <title>Sign in · Violation AI</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#f5f3eb">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/icons/icon-180.png">
 <style>
+:root {{
+  --paper:        #f5f3eb;
+  --ink:          #0a0a0a;
+  --ink-soft:     #3a3a3a;
+  --ink-mute:     #6b7280;
+  --rule:         rgba(10, 10, 10, 0.07);
+  --rule-strong:  rgba(10, 10, 10, 0.13);
+  --hairline:     rgba(10, 10, 10, 0.4);
+}}
 * {{ box-sizing: border-box; }}
 html, body {{ height: 100%; }}
-body {{ font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
-       margin: 0; background: #000000; color: #ffffff; min-height: 100vh;
-       -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
-       display: flex; align-items: center; justify-content: center; padding: 16px;
-       letter-spacing: -0.005em; }}
-.card {{ background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 18px; padding: 36px 30px; max-width: 400px; width: 100%;
-        text-align: center; backdrop-filter: blur(8px); }}
-.brand {{ display: inline-flex; align-items: center; gap: 10px;
-         font-size: 17px; font-weight: 600; margin-bottom: 6px; color: #ffffff; }}
-.brand .check {{ width: 28px; height: 28px; border: 1px solid rgba(255,255,255,0.4);
-                border-radius: 999px; display: grid; place-items: center; color: #fff; }}
+body {{
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+  margin: 0; background: var(--paper); color: var(--ink); min-height: 100vh;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  letter-spacing: -0.005em;
+  /* Same drafting-paper grid as the landing so the auth flow reads
+     as one continuous theme. */
+  background-image:
+    linear-gradient(var(--rule) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rule) 1px, transparent 1px),
+    linear-gradient(var(--rule-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rule-strong) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+}}
+.card {{
+  position: relative;
+  background: var(--paper); border: 1px solid var(--ink); border-radius: 0;
+  padding: 36px 30px; max-width: 400px; width: 100%; text-align: center;
+}}
+/* Drafting-style corner ticks on the card. */
+.card .corner {{ position: absolute; width: 14px; height: 14px; pointer-events: none; }}
+.card .corner::before, .card .corner::after {{ content: ""; position: absolute; background: var(--ink); }}
+.card .corner::before {{ width: 14px; height: 1px; }}
+.card .corner::after  {{ width: 1px;  height: 14px; }}
+.card .corner.tl {{ top: -1px;    left: -1px; }}
+.card .corner.tl::before, .card .corner.tl::after {{ top: 0; left: 0; }}
+.card .corner.tr {{ top: -1px;    right: -1px; }}
+.card .corner.tr::before, .card .corner.tr::after {{ top: 0; right: 0; }}
+.card .corner.bl {{ bottom: -1px; left: -1px; }}
+.card .corner.bl::before, .card .corner.bl::after {{ bottom: 0; left: 0; }}
+.card .corner.br {{ bottom: -1px; right: -1px; }}
+.card .corner.br::before, .card .corner.br::after {{ bottom: 0; right: 0; }}
+
+.brand {{
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: 17px; font-weight: 600; margin-bottom: 6px; color: var(--ink);
+}}
+.brand .check {{
+  width: 28px; height: 28px; border: 1.25px solid var(--ink); border-radius: 999px;
+  display: grid; place-items: center; color: var(--ink); background: var(--paper);
+}}
 .brand .check svg {{ width: 14px; height: 14px; }}
-.brand .accent {{ color: rgba(255,255,255,0.45); font-weight: 400; }}
-h1 {{ font-size: 24px; margin: 14px 0 8px; font-weight: 600; letter-spacing: -0.025em; color: #ffffff; }}
-.sub {{ color: rgba(255,255,255,0.55); font-size: 13px; margin: 0 0 28px; line-height: 1.5; }}
+.brand .accent {{ color: var(--ink-mute); font-weight: 400; }}
+h1 {{ font-size: 24px; margin: 14px 0 8px; font-weight: 600; letter-spacing: -0.025em; color: var(--ink); }}
+.sub {{ color: var(--ink-soft); font-size: 13px; margin: 0 0 28px; line-height: 1.5; }}
 .providers {{ display: flex; flex-direction: column; gap: 10px; }}
-.provider-btn {{ display: flex; align-items: center; justify-content: center; gap: 12px;
-                padding: 13px 18px; border-radius: 999px; text-decoration: none;
-                font-weight: 600; font-size: 14px; letter-spacing: 0.005em;
-                transition: transform .04s, background .15s, border-color .15s, box-shadow .15s; }}
+.provider-btn {{
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 13px 18px; border-radius: 999px; text-decoration: none;
+  font-weight: 600; font-size: 14px; letter-spacing: 0.005em;
+  transition: transform .04s, background .15s, border-color .15s, box-shadow .15s;
+}}
 .provider-btn:active {{ transform: scale(0.98); }}
-.provider-btn.google {{ background: #ffffff; color: #0f172a; border: 1px solid #ffffff; }}
-.provider-btn.google:hover {{ background: rgba(255,255,255,0.92); box-shadow: 0 4px 16px rgba(255,255,255,0.08); }}
-.provider-btn.microsoft {{ background: rgba(255,255,255,0.06); color: #ffffff;
-                           border: 1px solid rgba(255,255,255,0.18); }}
-.provider-btn.microsoft:hover {{ background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.28); }}
-.foot {{ color: rgba(255,255,255,0.35); font-size: 11px; margin-top: 28px; line-height: 1.5; }}
-.foot a {{ color: rgba(255,255,255,0.7); text-decoration: underline; text-decoration-color: rgba(255,255,255,0.25); }}
-.locale-toggle {{ position: absolute; top: 16px; right: 16px; display: flex; gap: 0;
-                 border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; overflow: hidden; }}
-.locale-toggle button {{ font: inherit; background: transparent; border: 0; cursor: pointer;
-                        padding: 5px 12px; color: rgba(255,255,255,0.55); font-weight: 600;
-                        font-size: 11px; letter-spacing: 0.04em; transition: background .15s, color .15s; }}
-.locale-toggle button:hover {{ color: #ffffff; }}
-.locale-toggle button.active {{ background: #ffffff; color: #000000; }}
-.back-link {{ position: absolute; top: 16px; left: 16px; color: rgba(255,255,255,0.45);
-             text-decoration: none; font-size: 12px; letter-spacing: 0.02em;
-             padding: 5px 10px; border-radius: 999px; border: 1px solid transparent;
-             transition: color .15s, border-color .15s; }}
-.back-link:hover {{ color: #ffffff; border-color: rgba(255,255,255,0.18); }}
-.no-providers {{ background: rgba(239,68,68,0.06); color: #fca5a5;
-                 border: 1px solid rgba(239,68,68,0.25);
-                 padding: 14px; border-radius: 10px; font-size: 12px; text-align: left;
-                 line-height: 1.5; }}
-.no-providers code {{ background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 4px;
-                      font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #fde68a; }}
+.provider-btn.google {{ background: var(--paper); color: var(--ink); border: 1px solid var(--ink); }}
+.provider-btn.google:hover {{ background: #ebe7da; box-shadow: 0 4px 14px rgba(10,10,10,0.06); }}
+.provider-btn.microsoft {{ background: var(--ink); color: var(--paper); border: 1px solid var(--ink); }}
+.provider-btn.microsoft:hover {{ background: #1f1f1f; }}
+.foot {{ color: var(--ink-mute); font-size: 11px; margin-top: 28px; line-height: 1.5; }}
+.foot a {{ color: var(--ink); text-decoration: underline; text-decoration-color: var(--hairline); }}
+.locale-toggle {{
+  position: absolute; top: 16px; right: 16px; display: flex; gap: 0;
+  border: 1px solid var(--ink); border-radius: 999px; overflow: hidden;
+  background: var(--paper);
+}}
+.locale-toggle button {{
+  font: inherit; background: transparent; border: 0; cursor: pointer;
+  padding: 5px 12px; color: var(--ink-mute); font-weight: 600;
+  font-size: 11px; letter-spacing: 0.04em; transition: background .15s, color .15s;
+}}
+.locale-toggle button:hover {{ color: var(--ink); }}
+.locale-toggle button.active {{ background: var(--ink); color: var(--paper); }}
+.back-link {{
+  position: absolute; top: 16px; left: 16px; color: var(--ink-mute);
+  text-decoration: none; font-size: 12px; letter-spacing: 0.02em;
+  padding: 5px 10px; border-radius: 999px; border: 1px solid transparent;
+  transition: color .15s, border-color .15s; background: var(--paper);
+}}
+.back-link:hover {{ color: var(--ink); border-color: var(--ink); }}
+.no-providers {{
+  background: rgba(180,83,9,0.06); color: #92400e;
+  border: 1px solid rgba(180,83,9,0.3);
+  padding: 14px; border-radius: 8px; font-size: 12px; text-align: left;
+  line-height: 1.5;
+}}
+.no-providers code {{
+  background: rgba(10,10,10,0.06); padding: 1px 6px; border-radius: 4px;
+  font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--ink);
+}}
 [data-locale]:not(.show) {{ display: none; }}
 </style></head><body>
 <a class="back-link" href="/">← <span data-locale="en">Back</span><span data-locale="vn">Quay lại</span></a>
@@ -4141,6 +4105,10 @@ h1 {{ font-size: 24px; margin: 14px 0 8px; font-weight: 600; letter-spacing: -0.
   <button id="loc-vn" type="button">VN</button>
 </div>
 <div class="card">
+  <span class="corner tl"></span>
+  <span class="corner tr"></span>
+  <span class="corner bl"></span>
+  <span class="corner br"></span>
   <div class="brand">
     <span class="check"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
     <span>Violation <span class="accent">/ AI</span></span>
