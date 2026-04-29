@@ -23,7 +23,13 @@
  * functions in index.html). Old caches get cleaned up on activate.
  */
 
-const CACHE_VERSION = "v1";
+// Bump on every release that changes the rendered HTML/JS. The
+// browser fetches the SW file on each navigation; a different
+// version string triggers re-precache + cleanup of the old
+// cache name in `activate`. Phase 5 added the auth-pill markup
+// + JS — without this bump, returning users keep seeing the
+// pre-Phase-5 shell.
+const CACHE_VERSION = "v2-phase5";
 const SHELL_CACHE = `violation-ai-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `violation-ai-runtime-${CACHE_VERSION}`;
 
