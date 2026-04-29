@@ -397,11 +397,26 @@
 
 </section>  <!-- end #view-detail -->
 
-<!-- Batch summary card template (cloned for each batch in list view) -->
+<!-- Batch summary card template (cloned for each batch in list view).
+     The outer element is a <div role="button"> rather than a <button> so
+     we can nest a real <button> (delete) inside it without invalid markup. -->
 <template id="batch-card-template">
-  <button class="batch-card text-left bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-emerald-300 active:bg-emerald-50/30 transition-all p-4 flex flex-col gap-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          data-batch-id="">
-    <div class="flex items-start justify-between gap-2">
+  <div class="batch-card relative text-left bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-emerald-300 active:bg-emerald-50/30 transition-all p-4 flex flex-col gap-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
+       role="button"
+       tabindex="0"
+       data-batch-id="">
+    <!-- Delete batch (top-right). stopPropagation in handler so the
+         outer card's open-batch click doesn't also fire. -->
+    <button type="button"
+            class="batch-card-delete absolute top-2 right-2 bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors z-10"
+            aria-label="Delete batch"
+            title="Delete batch">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+      </svg>
+    </button>
+    <div class="flex items-start justify-between gap-2 pr-8">
       <div class="font-semibold text-slate-900 batch-card-label flex-1 truncate"></div>
       <div class="text-[10px] uppercase tracking-wider text-slate-400 batch-card-when whitespace-nowrap"></div>
     </div>
@@ -427,7 +442,7 @@
       <span class="batch-card-id font-mono"></span>
       <span class="batch-card-pct tabular-nums"></span>
     </div>
-  </button>
+  </div>
 </template>
 
 <script>
@@ -476,6 +491,11 @@ const I18N = {
     list_empty_title: "No batches yet.",
     list_empty_sub: "Start a new batch to upload and label your first set of photos.",
     back_to_list: "All batches",
+    batch_delete: "Delete batch",
+    batch_delete_confirm: (n) =>
+      `Delete this batch and all ${n} of its photo${n === 1 ? "" : "s"}? This cannot be undone.`,
+    batch_delete_done: (n) => `Deleted batch (${n} photo${n === 1 ? "" : "s"})`,
+    batch_delete_failed: "Delete failed",
     state_failed: "Classification failed",
     state_retry: "Retry classification",
     retry_toast: "Re-queued for classification",
@@ -571,6 +591,11 @@ const I18N = {
     list_empty_title: "Chưa có lô nào.",
     list_empty_sub: "Bắt đầu lô mới để tải lên và gán nhãn các ảnh đầu tiên.",
     back_to_list: "Tất cả các lô",
+    batch_delete: "Xóa lô ảnh",
+    batch_delete_confirm: (n) =>
+      `Xóa lô này và toàn bộ ${n} ảnh trong đó? Hành động này không thể hoàn tác.`,
+    batch_delete_done: (n) => `Đã xóa lô (${n} ảnh)`,
+    batch_delete_failed: "Xóa thất bại",
     state_failed: "Phân loại thất bại",
     state_retry: "Thử phân loại lại",
     retry_toast: "Đã đưa vào hàng đợi phân loại lại",
@@ -1787,7 +1812,25 @@ async function refreshBatchesList() {
         else when = d.toLocaleDateString();
         el(".batch-card-when", node).textContent = when;
       } catch (e) { /* ignore */ }
-      node.addEventListener("click", () => openBatch(b.batch_id, b.label));
+      // Localize the delete button's tooltip + aria-label so VN users
+      // see the right text on hover / via screen reader.
+      const delBtn = el(".batch-card-delete", node);
+      if (delBtn) {
+        delBtn.title = t("batch_delete");
+        delBtn.setAttribute("aria-label", t("batch_delete"));
+        delBtn.addEventListener("click", (ev) => {
+          // Prevent the outer card's open-batch click from firing
+          ev.stopPropagation();
+          deleteBatch(b.batch_id, b.photo_count, b.label);
+        });
+      }
+      // Whole-card click = open the batch, but ONLY if the click didn't
+      // originate inside the delete button (defensive — stopPropagation
+      // above should already block it).
+      node.addEventListener("click", (ev) => {
+        if (ev.target.closest(".batch-card-delete")) return;
+        openBatch(b.batch_id, b.label);
+      });
       node.addEventListener("keydown", e => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -1798,6 +1841,36 @@ async function refreshBatchesList() {
       grid.appendChild(node);
     });
   } catch (e) { /* silent */ }
+}
+
+// Delete a whole batch (photos + R2 + classify_jobs + corrections).
+// Triggered by the trash icon on each batch card in the list view.
+// Confirms first because this is irrecoverable. If the deleted batch is
+// the user's currently-open one, also clear the persisted CURRENT_BATCH_ID
+// so they don't re-enter a tombstoned batch on next page load.
+async function deleteBatch(batchId, photoCount, label) {
+  const n = photoCount || 0;
+  const confirmMsg = t("batch_delete_confirm")(n);
+  if (!window.confirm(confirmMsg)) return;
+  try {
+    const r = await fetch("/api/batches/" + encodeURIComponent(batchId), {
+      method: "DELETE",
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+    if (CURRENT_BATCH_ID === batchId) {
+      // Don't strand the user inside a deleted batch — bounce them to
+      // a fresh batch id so the next /api/pending poll has clean state.
+      CURRENT_BATCH_ID = _uuid4();
+      CURRENT_BATCH_LABEL = "";
+      localStorage.setItem("violation-ai-batch-id", CURRENT_BATCH_ID);
+      localStorage.removeItem("violation-ai-batch-label");
+    }
+    showToast(t("batch_delete_done")(data.deleted ?? n));
+    refreshBatchesList();
+  } catch (e) {
+    showError(`${t("batch_delete_failed")}: ${e.message}`);
+  }
 }
 
 function openBatch(batchId, label) {

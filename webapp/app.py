@@ -657,6 +657,110 @@ def clear_batch_reviews(batch_id: str):
     return {"ok": True, "batch_id": batch_id}
 
 
+@app.delete("/api/batches/{batch_id}")
+def delete_batch(batch_id: str):
+    """Hard-delete every photo in the batch — DB rows + R2 objects + the
+    classify_jobs / classifications / corrections cascade. Surfaced from
+    the batch-list view so the inspector can wipe a finished or abandoned
+    job in one click instead of deleting photos one at a time.
+
+    Cascade order matches /api/photos/{id} delete: classify_jobs ->
+    corrections -> classifications -> photo_embeddings (only if no other
+    photo shares the sha) -> photos -> R2 objects.
+
+    Returns count of photos deleted, plus any individual failures so the
+    caller can surface partial-success.
+    """
+    if not DEFAULT_TENANT_ID:
+        raise HTTPException(500, "Server has no default tenant configured")
+    db = get_db()
+    r2 = get_r2()
+
+    # Fetch every photo in the batch up-front — we need the storage_keys
+    # for R2 cleanup and the sha256s to know which embeddings are safe to drop.
+    try:
+        photos = (
+            db.table("photos").select("id, storage_key, sha256")
+              .eq("tenant_id", DEFAULT_TENANT_ID)
+              .eq("batch_id", batch_id)
+              .limit(10000).execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        if "batch_id" in str(e):
+            raise HTTPException(500, "batch_id column not yet migrated")
+        raise
+    if not photos:
+        # Idempotent: empty batch = nothing to do, not an error.
+        return {"ok": True, "batch_id": batch_id, "deleted": 0}
+
+    photo_ids = [p["id"] for p in photos]
+    shas = list({p["sha256"] for p in photos if p.get("sha256")})
+
+    failures: list[dict] = []
+
+    # Cascade child rows in chunks to avoid PostgREST URL-length limits.
+    # 100 ids per IN-clause keeps us well under any practical limit.
+    for tbl in ("classify_jobs", "corrections", "classifications"):
+        for i in range(0, len(photo_ids), 100):
+            chunk = photo_ids[i:i + 100]
+            try:
+                db.table(tbl).delete().in_("photo_id", chunk).execute()
+            except Exception as e:  # noqa: BLE001
+                log.warning("delete from %s failed for batch=%s: %s", tbl, batch_id, e)
+                failures.append({"step": f"delete_{tbl}", "error": str(e)[:200]})
+
+    # photo_embeddings: drop only the shas that no surviving photo references.
+    # We're about to delete this batch's photos, so a sha is safe to drop iff
+    # no OTHER photo (outside this batch) shares it.
+    safe_to_drop_shas: list[str] = []
+    for sha in shas:
+        try:
+            others = (
+                db.table("photos").select("id").eq("sha256", sha)
+                  .not_.in_("id", photo_ids).limit(1).execute().data or []
+            )
+            if not others:
+                safe_to_drop_shas.append(sha)
+        except Exception as e:  # noqa: BLE001
+            log.warning("embedding-survival check failed for sha=%s: %s", sha[:8], e)
+    for i in range(0, len(safe_to_drop_shas), 100):
+        chunk = safe_to_drop_shas[i:i + 100]
+        try:
+            db.table("photo_embeddings").delete().in_("sha256", chunk).execute()
+        except Exception as e:  # noqa: BLE001
+            log.warning("photo_embeddings delete failed: %s", e)
+            failures.append({"step": "delete_embeddings", "error": str(e)[:200]})
+
+    # photos rows.
+    deleted = 0
+    for i in range(0, len(photo_ids), 100):
+        chunk = photo_ids[i:i + 100]
+        try:
+            db.table("photos").delete().in_("id", chunk).execute()
+            deleted += len(chunk)
+        except Exception as e:  # noqa: BLE001
+            log.error("photos delete failed (chunk %d): %s", i, e)
+            failures.append({"step": "delete_photos", "error": str(e)[:200]})
+
+    # R2 objects (best-effort — DB is authoritative).
+    for p in photos:
+        key = p.get("storage_key")
+        if not key:
+            continue
+        try:
+            r2.delete_object(Bucket=R2_BUCKET, Key=key)
+        except Exception as e:  # noqa: BLE001
+            log.warning("R2 delete failed for %s: %s", key, e)
+
+    return {
+        "ok": not failures,
+        "batch_id": batch_id,
+        "deleted": deleted,
+        "embeddings_dropped": len(safe_to_drop_shas),
+        "failures": failures,
+    }
+
+
 @app.post("/api/photos/{photo_id}/retry")
 def retry_classify(photo_id: str):
     """Reset a failed (or stuck) classify_jobs row back to 'pending' so the
