@@ -1517,6 +1517,58 @@ h1 .em {{ font-style: italic; font-weight: 400; color: var(--ink-soft); }}
 .cta:hover {{ background: #1d1d1d; box-shadow: 0 0 0 1px var(--ink), 0 10px 28px rgba(10,10,10,0.18); }}
 .cta:active {{ transform: scale(0.98); }}
 .cta svg {{ width: 16px; height: 16px; }}
+.cta-block {{ display: inline-flex; width: 100%; justify-content: center; margin-top: 14px; }}
+/* Secondary CTA — paper-tone outlined button matching the drafting
+   theme. Used for the PWA install button so it sits below the
+   primary "Sign in" CTA without competing for attention. */
+.cta-secondary {{
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--paper); color: var(--ink); cursor: pointer;
+  padding: 10px 22px; border-radius: 999px;
+  font: inherit; font-weight: 600; font-size: 13px; letter-spacing: 0.01em;
+  border: 1px solid var(--ink);
+  transition: background .15s, color .15s, transform .04s;
+}}
+.cta-secondary:hover {{ background: var(--ink); color: var(--paper); }}
+.cta-secondary:active {{ transform: scale(0.98); }}
+.cta-secondary svg {{ width: 14px; height: 14px; }}
+
+/* PWA install instructions modal */
+.lp-modal {{
+  display: none; position: fixed; inset: 0; z-index: 100;
+  background: rgba(10,10,10,0.55); padding: 16px;
+  align-items: center; justify-content: center;
+}}
+.lp-modal.show {{ display: flex; }}
+.lp-modal-card {{
+  background: var(--paper); border: 1px solid var(--ink); border-radius: 12px;
+  padding: 22px; max-width: 420px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}}
+.lp-modal-head {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }}
+.lp-modal-head h3 {{ margin: 0; font-size: 16px; font-weight: 600; color: var(--ink); }}
+.lp-modal-head button {{
+  background: transparent; border: 0; color: var(--ink-mute); cursor: pointer;
+  font-size: 22px; line-height: 1; padding: 0 4px;
+}}
+.lp-modal-head button:hover {{ color: var(--ink); }}
+.lp-modal ol {{ margin: 0; padding: 0; list-style: none; color: var(--ink-soft); font-size: 14px; }}
+.lp-modal ol li {{ display: flex; gap: 10px; padding: 8px 0; align-items: flex-start; }}
+.lp-modal ol li .num {{
+  flex: 0 0 22px; height: 22px; border-radius: 999px;
+  background: var(--ink); color: var(--paper);
+  display: grid; place-items: center; font-size: 11px; font-weight: 700;
+}}
+.lp-modal ol li .body {{ flex: 1; line-height: 1.5; }}
+.lp-modal ol li .body strong {{ color: var(--ink); font-weight: 600; }}
+.lp-modal ol li .body svg.share {{
+  display: inline-block; width: 18px; height: 18px;
+  vertical-align: -4px; color: #2563eb; margin: 0 2px;
+}}
+.lp-modal #lp-modal-note {{
+  margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--rule-strong);
+  font-size: 12px; color: var(--ink-mute); line-height: 1.55;
+}}
 .providers-note {{
   display: block; margin-top: 18px; color: var(--ink-mute);
   font-size: 12px; letter-spacing: 0.02em;
@@ -1643,8 +1695,37 @@ footer a:hover {{ border-color: var(--ink); }}
       <span data-locale="en">{providers_blurb_en} · AECIS-internal &amp; partner accounts only</span>
       <span data-locale="vn">{providers_blurb_vn} · chỉ dành cho tài khoản nội bộ &amp; đối tác AECIS</span>
     </span>
+    <!-- Install-as-PWA button. Hidden by default; revealed by JS only
+         on mobile + when not already running standalone. iOS/Android
+         click handlers drop into a small instructions sheet because we
+         can't trigger Add-to-Home-Screen programmatically pre-auth. -->
+    <div id="lp-install-wrap" style="display:none; margin-top:18px;">
+      <button id="lp-install-btn" type="button" class="cta-secondary">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v12m0 0l-4-4m4 4l4-4M4.5 19.5h15"/></svg>
+        <span data-locale="en">Install app to home screen</span>
+        <span data-locale="vn">Cài ứng dụng lên màn hình chính</span>
+      </button>
+    </div>
   </div>
 </section>
+
+<!-- PWA install instructions sheet — shown when the user taps the
+     button and either (a) we're on iOS [no programmatic install API]
+     or (b) Chrome hasn't fired beforeinstallprompt yet. -->
+<div id="lp-install-modal" class="lp-modal" role="dialog" aria-modal="true">
+  <div class="lp-modal-card">
+    <div class="lp-modal-head">
+      <h3 id="lp-modal-title">Install on iPhone / iPad</h3>
+      <button id="lp-modal-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <ol id="lp-modal-steps"></ol>
+    <p id="lp-modal-note"></p>
+    <button id="lp-modal-ok" type="button" class="cta cta-block">
+      <span data-locale="en">Got it</span>
+      <span data-locale="vn">Đã hiểu</span>
+    </button>
+  </div>
+</div>
 
 <section class="features-section">
   <span class="features-eyebrow">
@@ -1713,6 +1794,109 @@ footer a:hover {{ border-color: var(--ink); }}
     enBtn.addEventListener("click", () => apply("en"));
     vnBtn.addEventListener("click", () => apply("vn"));
     apply(saved);
+  }})();
+
+  // PWA install affordance for the landing page. Mirrors the in-app
+  // _base.html implementation but is fully self-contained because the
+  // landing page renders its own HTML (doesn't extend _base.html).
+  // Two install paths exist:
+  //   1. Android Chrome/Edge/Samsung — `beforeinstallprompt` capture
+  //      → button click triggers .prompt(). One-tap install.
+  //   2. iOS Safari — no programmatic install API; show step-by-step
+  //      instructions for Share -> Add to Home Screen.
+  // The button is always visible on mobile so a user who lands cold
+  // (Chrome hasn't fired beforeinstallprompt yet) still has a way in.
+  (function () {{
+    const wrap = document.getElementById("lp-install-wrap");
+    const btn  = document.getElementById("lp-install-btn");
+    const modal = document.getElementById("lp-install-modal");
+    const closeBtn = document.getElementById("lp-modal-close");
+    const okBtn = document.getElementById("lp-modal-ok");
+    const titleEl = document.getElementById("lp-modal-title");
+    const stepsEl = document.getElementById("lp-modal-steps");
+    const noteEl = document.getElementById("lp-modal-note");
+    if (!wrap || !btn || !modal) return;
+
+    // Skip when already installed — no point teasing the install
+    // button if they're already running standalone.
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+    if (isStandalone) return;
+
+    const ua = navigator.userAgent || "";
+    const isIOS =
+      /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isMobile = isIOS || /Android|Mobile/i.test(ua);
+    if (!isMobile) return;   // desktop: hide
+
+    wrap.style.display = "block";
+
+    let deferredPrompt = null;
+    window.addEventListener("beforeinstallprompt", (e) => {{
+      e.preventDefault();
+      deferredPrompt = e;
+    }});
+    window.addEventListener("appinstalled", () => {{
+      deferredPrompt = null;
+      wrap.style.display = "none";
+    }});
+
+    function lang() {{ return localStorage.getItem("vai-lang") || "en"; }}
+    function buildIosSteps() {{
+      const en = lang() !== "vn";
+      const shareSvg = '<svg class="share" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15M9 12l3-3m0 0l3 3m-3-3v12"/></svg>';
+      titleEl.textContent = en ? "Install on iPhone / iPad" : "Cài đặt trên iPhone / iPad";
+      stepsEl.innerHTML = en
+        ? `<li><span class="num">1</span><span class="body">Tap the Share button ${{shareSvg}} at the bottom of Safari.</span></li>
+           <li><span class="num">2</span><span class="body">Scroll and tap <strong>"Add to Home Screen"</strong>.</span></li>
+           <li><span class="num">3</span><span class="body">Tap <strong>"Add"</strong> in the top-right.</span></li>`
+        : `<li><span class="num">1</span><span class="body">Bấm nút Chia sẻ ${{shareSvg}} ở dưới cùng Safari.</span></li>
+           <li><span class="num">2</span><span class="body">Cuộn xuống và bấm <strong>"Thêm vào Màn hình chính"</strong>.</span></li>
+           <li><span class="num">3</span><span class="body">Bấm <strong>"Thêm"</strong> ở góc trên bên phải.</span></li>`;
+      noteEl.textContent = en
+        ? 'Must be opened in Safari — the share-sheet "Add to Home Screen" doesn’t appear in Chrome on iOS.'
+        : 'Phải mở bằng Safari — nút "Thêm vào Màn hình chính" không xuất hiện trên Chrome iOS.';
+    }}
+    function buildAndroidSteps() {{
+      const en = lang() !== "vn";
+      titleEl.textContent = en ? "Install on Android" : "Cài đặt trên Android";
+      stepsEl.innerHTML = en
+        ? `<li><span class="num">1</span><span class="body">Tap the browser menu <strong>&#x22EE;</strong> in the top-right.</span></li>
+           <li><span class="num">2</span><span class="body">Tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</span></li>
+           <li><span class="num">3</span><span class="body">Confirm <strong>"Install"</strong>.</span></li>`
+        : `<li><span class="num">1</span><span class="body">Bấm menu trình duyệt <strong>&#x22EE;</strong> ở góc trên bên phải.</span></li>
+           <li><span class="num">2</span><span class="body">Bấm <strong>"Cài ứng dụng"</strong> hoặc <strong>"Thêm vào Màn hình chính"</strong>.</span></li>
+           <li><span class="num">3</span><span class="body">Xác nhận <strong>"Cài đặt"</strong>.</span></li>`;
+      noteEl.textContent = en
+        ? "Wording varies by browser (Chrome / Edge / Samsung / Firefox) but the menu item is always near the top."
+        : "Tên gọi có thể khác nhau giữa Chrome / Edge / Samsung / Firefox, nhưng mục này luôn nằm gần đầu danh sách.";
+    }}
+    function openModal() {{
+      if (isIOS) buildIosSteps(); else buildAndroidSteps();
+      modal.classList.add("show");
+    }}
+    function closeModal() {{ modal.classList.remove("show"); }}
+
+    btn.addEventListener("click", async () => {{
+      if (deferredPrompt) {{
+        try {{
+          deferredPrompt.prompt();
+          const choice = await deferredPrompt.userChoice;
+          if (choice && choice.outcome === "accepted") wrap.style.display = "none";
+        }} catch (_) {{}}
+        finally {{ deferredPrompt = null; }}
+        return;
+      }}
+      openModal();
+    }});
+    closeBtn.addEventListener("click", closeModal);
+    okBtn.addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => {{ if (e.target === modal) closeModal(); }});
+    document.addEventListener("keydown", (e) => {{
+      if (e.key === "Escape" && modal.classList.contains("show")) closeModal();
+    }});
   }})();
 </script>
 </body></html>"""

@@ -449,10 +449,10 @@
   <div id="pwa-ios-modal" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-semibold text-slate-900" data-i18n="pwa_ios_title">Install on iPhone / iPad</h3>
+        <h3 class="font-semibold text-slate-900" data-pwa-title data-i18n="pwa_ios_title">Install on iPhone / iPad</h3>
         <button id="pwa-ios-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
       </div>
-      <ol class="text-sm text-slate-700 space-y-3">
+      <ol data-pwa-steps class="text-sm text-slate-700 space-y-3">
         <li class="flex items-start gap-2.5">
           <span class="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold grid place-items-center">1</span>
           <span class="flex-1 flex items-center gap-2 flex-wrap">
@@ -481,7 +481,7 @@
           </span>
         </li>
       </ol>
-      <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500" data-i18n="pwa_ios_note">
+      <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500" data-pwa-note data-i18n="pwa_ios_note">
         Must be opened in Safari — the share sheet's "Add to Home Screen" doesn't appear in Chrome on iOS.
       </div>
       <button id="pwa-ios-ok" type="button"
@@ -652,58 +652,91 @@
         iosModal.classList.remove("flex");
       }
 
-      // ---- Android path: capture the deferred prompt ----
+      // ---- Always show on mobile ----
+      // Original implementation only revealed the button on Android
+      // *after* `beforeinstallprompt` fired. Chrome gates that event
+      // behind engagement heuristics (visit count, time on page) — a
+      // brand-new visitor sees nothing for several seconds, sometimes
+      // never until the next visit. Show the button immediately and
+      // route the click to native-prompt-if-available or
+      // instructions-otherwise.
+      show();
+
+      // ---- Android path: capture the deferred prompt when (and if)
+      //      the browser eventually fires it. ----
       let deferredPrompt = null;
       window.addEventListener("beforeinstallprompt", (e) => {
-        // Stop the browser's own install banner; we'll trigger it
-        // ourselves on click so the user has a clearer affordance.
+        // Stop the browser's own banner; we'll trigger the prompt
+        // ourselves on button click for a clearer affordance.
         e.preventDefault();
         deferredPrompt = e;
-        show();
       });
 
-      // If install actually completes, hide the button so we don't
-      // tease an action that no longer makes sense.
+      // If install completes, hide the button so we don't tease an
+      // action that no longer makes sense.
       window.addEventListener("appinstalled", () => {
         deferredPrompt = null;
         hide();
         try { console.debug("[pwa] installed"); } catch (_) {}
       });
 
-      // ---- iOS path: Safari never fires beforeinstallprompt, so
-      //      we have to assume installable and show the button right
-      //      away. The click handler routes to the instructions modal. ----
-      if (isIOS) show();
+      // Render the modal content for the user's platform. iOS gets
+      // the Safari share-sheet flow; Android gets a generic
+      // "tap menu (⋮) → Install app" hint that covers Chrome,
+      // Edge, Samsung Internet, and Firefox.
+      function applyPlatformContent() {
+        const titleEl = document.querySelector('[data-pwa-title]');
+        const stepsEl = document.querySelector('[data-pwa-steps]');
+        const noteEl  = document.querySelector('[data-pwa-note]');
+        if (!titleEl || !stepsEl) return;
+        if (isIOS) {
+          // Defaults are iOS — the modal HTML already shows the
+          // Safari share-sheet steps. Nothing to swap in.
+          return;
+        }
+        // Android: replace the iOS steps with browser-menu instructions.
+        titleEl.textContent = "Install on Android";
+        stepsEl.innerHTML = `
+          <li class="flex items-start gap-2.5">
+            <span class="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold grid place-items-center">1</span>
+            <span class="flex-1 flex items-center gap-2 flex-wrap">
+              <span>Tap the browser menu</span>
+              <span class="inline-grid w-5 h-5 place-items-center text-slate-700 font-bold">&#x22EE;</span>
+              <span class="text-xs text-slate-500">(top right)</span>
+            </span>
+          </li>
+          <li class="flex items-start gap-2.5">
+            <span class="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold grid place-items-center">2</span>
+            <span class="flex-1">Tap <span class="font-medium text-slate-900">"Install app"</span> or <span class="font-medium text-slate-900">"Add to Home screen"</span>.</span>
+          </li>
+          <li class="flex items-start gap-2.5">
+            <span class="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold grid place-items-center">3</span>
+            <span class="flex-1">Confirm <span class="font-medium text-slate-900">"Install"</span>.</span>
+          </li>`;
+        if (noteEl) {
+          noteEl.textContent = "Wording varies by browser (Chrome / Edge / Samsung / Firefox) but the menu item is always near the top.";
+        }
+      }
+      applyPlatformContent();
 
-      // ---- Click handler — branch by platform ----
+      // ---- Click handler ----
       btn.addEventListener("click", async () => {
+        // Prefer the native install prompt when the browser has
+        // offered it. No prompt? Fall back to the per-platform
+        // instructions modal.
         if (deferredPrompt) {
-          // Android path: native prompt. `prompt()` returns when the
-          // user picks; userChoice resolves with {outcome: "accepted"|"dismissed"}.
           try {
             deferredPrompt.prompt();
             const choice = await deferredPrompt.userChoice;
-            if (choice && choice.outcome === "accepted") {
-              hide();
-            }
+            if (choice && choice.outcome === "accepted") hide();
           } catch (err) {
-            // Some browsers throw if prompt() is called twice. Fall
-            // back to hiding the button so we don't re-trigger.
             console.warn("[pwa] prompt failed", err);
           } finally {
             deferredPrompt = null;
           }
           return;
         }
-        if (isIOS) {
-          openIosModal();
-          return;
-        }
-        // Last-resort fallback: no deferred prompt and not iOS — could
-        // be a desktop browser sneaking past the mobile filter, or a
-        // browser that suppresses beforeinstallprompt. Show iOS-style
-        // instructions as the most universal hint we can give.
-        openIosModal();
+        openIosModal();   // modal renders iOS or Android steps depending on UA
       });
 
       // Modal close handlers — backdrop, X button, OK button, Esc key.
