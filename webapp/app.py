@@ -817,6 +817,26 @@ async def security_headers_middleware(request: Request, call_next):
         "geolocation=(), microphone=(), camera=(self), payment=()",
     )
 
+    # Content Security Policy — narrow but pragmatic. Allows the
+    # Tailwind CDN we already load, inline styles + scripts (hard to
+    # avoid with our handler-rendered HTML), images from any HTTPS
+    # host (R2 + Google avatars + Graph thumbnails), and form posts
+    # to Google + Microsoft auth endpoints. `frame-ancestors 'none'`
+    # backs up X-Frame-Options for browsers that prefer CSP.
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob: https:; "
+        "connect-src 'self' https:; "
+        "font-src 'self' data:; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self' https://accounts.google.com "
+        "https://login.microsoftonline.com",
+    )
+
     # `/` dispatches between landing + app based on auth state — never
     # cache it shared. Same for /admin and /auth/me which leak
     # session-tied state. Static + SW handle their own cache headers.
@@ -850,7 +870,14 @@ def _unique_proposed_slug(base: str) -> str:
     """Return `base`, or `base_2`, `base_3`, ... if the DB already has
     that proposed_slug. Bounded loop — gives up after 50 attempts and
     falls back to a uuid suffix so the unique constraint never blocks a
-    submission. The loop bound is generous; real collisions are rare."""
+    submission. The loop bound is generous; real collisions are rare.
+
+    Resilience: ANY DB exception (network, timeout, table missing, etc.)
+    falls back to `base + uuid suffix` rather than raising. The downstream
+    INSERT then either succeeds or surfaces a clean 503 from the caller's
+    try/except — we never want a transient DB hiccup to bubble up as an
+    uncaught 500 to the user submitting a proposal.
+    """
     db = get_db()
     candidate = base
     for n in range(2, 52):
@@ -861,11 +888,11 @@ def _unique_proposed_slug(base: str) -> str:
                   .limit(1).execute().data or []
             )
         except Exception as e:  # noqa: BLE001
-            # Table missing (pre-migration) — return base; the insert
-            # will surface the real error if any.
-            if "hse_class_proposals" in str(e):
-                return base
-            raise
+            log.warning("_unique_proposed_slug DB lookup failed: %s", e)
+            # Best-effort fallback: append a uuid suffix and let the
+            # INSERT decide. If the DB is genuinely down, the INSERT
+            # also fails, and the caller's try/except returns 503.
+            return f"{base}_{uuid.uuid4().hex[:6]}"
         if not rows:
             return candidate
         candidate = f"{base}_{n}"
@@ -3439,10 +3466,15 @@ async def api_proposals_create(
             }).execute().data or []
         )
     except Exception as e:  # noqa: BLE001
-        if "hse_class_proposals" in str(e):
+        msg = str(e)
+        if "hse_class_proposals" in msg:
             raise HTTPException(503, "proposals not configured (run migration)")
+        # Network errors, timeouts, etc. — surface as 503 (transient,
+        # try again) rather than 500 (server bug, scarier message).
+        # The frontend renders both as "Submission failed" but 503
+        # is honest about what happened.
         log.warning("proposal insert failed: %s", e)
-        raise HTTPException(500, "proposal insert failed")
+        raise HTTPException(503, "submission temporarily unavailable, please retry")
 
     rec = row[0] if row else {}
     body = {
