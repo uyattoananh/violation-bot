@@ -700,6 +700,13 @@ _AUTH_GATE_WHITELIST_PREFIXES = (
     "/metrics",          # Existing metrics endpoint — keep open for now
 )
 
+# Exact paths the gate lets through. The root handler is split: it
+# renders the landing page for anonymous visitors and the app shell for
+# authenticated ones, so the gate must NOT short-circuit it to /signin.
+_AUTH_GATE_WHITELIST_EXACT = (
+    "/",
+)
+
 
 def _is_authed(request: Request) -> bool:
     """A request is 'authed' if it has either a valid OAuth session
@@ -730,6 +737,8 @@ async def auth_gate_middleware(request: Request, call_next):
 
     # Whitelist short-circuits the gate. Keep this list minimal — every
     # entry is a route that runs WITHOUT a session check.
+    if path in _AUTH_GATE_WHITELIST_EXACT:
+        return await call_next(request)
     if any(path.startswith(p) for p in _AUTH_GATE_WHITELIST_PREFIXES):
         return await call_next(request)
 
@@ -1140,6 +1149,18 @@ def service_worker_js():
 
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
+    """Root handler — softlocks the app behind sign-in.
+
+    Anonymous visitors get the marketing landing page (introduces the
+    product, sign-in CTA, public metadata only). Authenticated visitors
+    get the existing app shell. This means / is a useful URL to share
+    externally (no immediate redirect to /auth/signin), and existing
+    bookmarks of / continue to work for signed-in inspectors without
+    a round-trip.
+    """
+    if not _is_authed(request):
+        return _render_landing_page(request)
+
     tax = app.state.taxonomy or load_taxonomy()
     # Load fine-types lookup once and cache on app.state
     if not hasattr(app.state, "fine_types"):
@@ -1156,6 +1177,191 @@ def root(request: Request):
             "model": os.environ.get("OPENROUTER_MODEL", "?"),
         },
     )
+
+
+def _render_landing_page(request: Request) -> HTMLResponse:
+    """Public marketing page rendered to anonymous visitors at /.
+
+    Stylistically aligned with the app (emerald + slate, system-ui font,
+    same check-circle logo) so the transition through sign-in feels
+    continuous. Bilingual EN/VN, mobile responsive, no external assets
+    (every byte is inline so the SW can cache the whole shell offline).
+
+    The 'Sign in' CTA points at /auth/signin which then offers the
+    Google + Microsoft buttons — the same chooser the gate redirects
+    to for protected paths.
+    """
+    google_on = _oauth_enabled()
+    azure_on = _azure_oauth_enabled()
+    providers_blurb_en = "Sign in with " + (
+        "Google or Microsoft" if (google_on and azure_on) else
+        ("Google" if google_on else ("Microsoft" if azure_on else "your provider"))
+    )
+    providers_blurb_vn = "Đăng nhập bằng " + (
+        "Google hoặc Microsoft" if (google_on and azure_on) else
+        ("Google" if google_on else ("Microsoft" if azure_on else "nhà cung cấp của bạn"))
+    )
+    html = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Violation AI — AECIS HSE inspection</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10b981">
+<meta name="description" content="AI-powered HSE violation detection for construction sites — built for AECIS inspectors. Sign in with Google or Microsoft to access the inspection workflow.">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+<style>
+* {{ box-sizing: border-box; }}
+html, body {{ margin: 0; padding: 0; }}
+body {{ font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+       color: #0f172a; background: #f8fafc; min-height: 100vh; }}
+.bg {{ background: linear-gradient(160deg, #ecfdf5 0%, #f8fafc 60%, #f1f5f9 100%);
+      min-height: 100vh; display: flex; flex-direction: column; }}
+
+header {{ display: flex; justify-content: space-between; align-items: center;
+         padding: 16px 24px; max-width: 1100px; margin: 0 auto; width: 100%; }}
+.brand {{ display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }}
+.brand .check {{ width: 32px; height: 32px; border-radius: 999px; background: #10b981;
+                color: #fff; display: grid; place-items: center; box-shadow: 0 2px 8px rgba(16,185,129,.25); }}
+.brand .check svg {{ width: 18px; height: 18px; }}
+.brand .accent {{ color: #10b981; }}
+.locale-toggle {{ display: flex; gap: 4px; background: rgba(255,255,255,0.7); border-radius: 999px;
+                 padding: 2px; border: 1px solid #e2e8f0; }}
+.locale-toggle button {{ font: inherit; background: none; border: 0; cursor: pointer;
+                        padding: 4px 10px; border-radius: 999px; color: #64748b; font-weight: 600; font-size: 12px; }}
+.locale-toggle button.active {{ background: #10b981; color: #fff; }}
+
+main {{ flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }}
+.hero {{ max-width: 920px; width: 100%; text-align: center; }}
+.eyebrow {{ display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: .12em;
+           font-weight: 700; color: #047857; background: #d1fae5; padding: 6px 14px;
+           border-radius: 999px; margin-bottom: 18px; }}
+h1 {{ font-size: clamp(28px, 4.5vw, 44px); line-height: 1.15; font-weight: 700; margin: 0 0 18px;
+     letter-spacing: -0.02em; }}
+h1 .accent {{ color: #10b981; }}
+.lead {{ font-size: clamp(15px, 1.8vw, 18px); color: #475569; margin: 0 auto 28px;
+        max-width: 620px; }}
+.cta {{ display: inline-flex; align-items: center; gap: 10px; background: #10b981;
+       color: #fff; text-decoration: none; padding: 14px 28px; border-radius: 12px;
+       font-weight: 700; font-size: 15px; box-shadow: 0 4px 16px rgba(16,185,129,.3);
+       transition: transform .04s, box-shadow .15s, background .15s; }}
+.cta:hover {{ background: #059669; box-shadow: 0 6px 20px rgba(16,185,129,.38); }}
+.cta:active {{ transform: scale(0.98); }}
+.cta svg {{ width: 18px; height: 18px; }}
+.providers-note {{ display: block; margin-top: 12px; color: #64748b; font-size: 13px; }}
+
+.features {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px; max-width: 1080px; margin: 60px auto 0; padding: 0 16px; }}
+.feature {{ background: rgba(255,255,255,0.7); border: 1px solid #e2e8f0; border-radius: 14px;
+           padding: 22px; text-align: left; backdrop-filter: blur(6px); }}
+.feature .ic {{ width: 36px; height: 36px; border-radius: 8px; background: #d1fae5; color: #047857;
+                display: grid; place-items: center; margin-bottom: 12px; }}
+.feature .ic svg {{ width: 20px; height: 20px; }}
+.feature h3 {{ font-size: 15px; margin: 0 0 6px; font-weight: 600; }}
+.feature p {{ font-size: 13px; color: #64748b; margin: 0; line-height: 1.55; }}
+
+footer {{ text-align: center; color: #94a3b8; font-size: 12px; padding: 32px 16px; }}
+footer a {{ color: inherit; }}
+
+[data-locale]:not(.show) {{ display: none; }}
+</style></head><body class="bg"><div class="bg">
+<header>
+  <a class="brand" href="/" style="text-decoration:none;color:inherit">
+    <span class="check"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+    <span>Violation <span class="accent">AI</span></span>
+  </a>
+  <div class="locale-toggle">
+    <button id="loc-en" type="button" class="active">EN</button>
+    <button id="loc-vn" type="button">VN</button>
+  </div>
+</header>
+
+<main><div class="hero">
+  <span class="eyebrow">
+    <span data-locale="en">AECIS HSE inspection · powered by AI</span>
+    <span data-locale="vn">Kiểm tra HSE AECIS · do AI hỗ trợ</span>
+  </span>
+  <h1>
+    <span data-locale="en">Spot construction-site <span class="accent">safety violations</span> in seconds.</span>
+    <span data-locale="vn">Phát hiện <span class="accent">vi phạm an toàn</span> công trường trong vài giây.</span>
+  </h1>
+  <p class="lead">
+    <span data-locale="en">Upload site photos. The AI classifies them against the AECIS HSE taxonomy in English &amp; Vietnamese, ranks confidence, and lets you correct on the spot. Built for inspectors, exported as PDF / ZIP / CSV.</span>
+    <span data-locale="vn">Tải ảnh hiện trường lên. AI phân loại theo bảng phân loại HSE AECIS bằng tiếng Anh &amp; tiếng Việt, xếp hạng độ tin cậy và cho phép bạn chỉnh tại chỗ. Xây dựng cho cán bộ kiểm tra, xuất PDF / ZIP / CSV.</span>
+  </p>
+  <a class="cta" href="/auth/signin">
+    <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 003 3h2a3 3 0 003-3V7a3 3 0 00-3-3h-2a3 3 0 00-3 3v1"/></svg>
+    <span data-locale="en">Sign in to continue</span>
+    <span data-locale="vn">Đăng nhập để tiếp tục</span>
+  </a>
+  <span class="providers-note">
+    <span data-locale="en">{providers_blurb_en} · AECIS-internal &amp; partner accounts only</span>
+    <span data-locale="vn">{providers_blurb_vn} · chỉ dành cho tài khoản nội bộ &amp; đối tác AECIS</span>
+  </span>
+
+  <div class="features">
+    <div class="feature">
+      <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5l5-5 4 4 6-7 3 3v6.5a2 2 0 01-2 2H5a2 2 0 01-2-2V16.5z"/></svg></div>
+      <h3>
+        <span data-locale="en">Upload &amp; classify</span>
+        <span data-locale="vn">Tải lên &amp; phân loại</span>
+      </h3>
+      <p>
+        <span data-locale="en">Drop site photos straight from your phone. The AI tags HSE violation type and fine-grained AECIS sub-type within seconds.</span>
+        <span data-locale="vn">Thả ảnh từ điện thoại. AI gắn nhãn loại vi phạm HSE và loại con AECIS chi tiết trong vài giây.</span>
+      </p>
+    </div>
+    <div class="feature">
+      <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.6 2A9 9 0 11 3.4 14a9 9 0 0117.2 0z"/></svg></div>
+      <h3>
+        <span data-locale="en">Confirm or correct</span>
+        <span data-locale="vn">Xác nhận hoặc chỉnh sửa</span>
+      </h3>
+      <p>
+        <span data-locale="en">Every confirmation trains the model. Wrong call? Re-mark the region or propose a new sub-type for admin review.</span>
+        <span data-locale="vn">Mỗi xác nhận đều giúp AI học. Sai? Vẽ lại vùng hoặc đề xuất loại con mới để quản trị viên duyệt.</span>
+      </p>
+    </div>
+    <div class="feature">
+      <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
+      <h3>
+        <span data-locale="en">Export &amp; share</span>
+        <span data-locale="vn">Xuất &amp; chia sẻ</span>
+      </h3>
+      <p>
+        <span data-locale="en">PDF cover-sheet, renamed-photos ZIP, CSV, or JSON — emailed straight to the safety officer or downloaded.</span>
+        <span data-locale="vn">PDF có trang bìa, ZIP ảnh đã đổi tên, CSV hoặc JSON — gửi email cho cán bộ an toàn hoặc tải về.</span>
+      </p>
+    </div>
+  </div>
+</div></main>
+
+<footer>
+  <span data-locale="en">© AECIS · HSE Inspection Tool · <a href="/auth/signin">Sign in</a></span>
+  <span data-locale="vn">© AECIS · Công cụ kiểm tra HSE · <a href="/auth/signin">Đăng nhập</a></span>
+</footer>
+</div>
+<script>
+  (function () {{
+    const saved = localStorage.getItem("vai-lang") || "en";
+    const enBtn = document.getElementById("loc-en");
+    const vnBtn = document.getElementById("loc-vn");
+    function apply(loc) {{
+      document.querySelectorAll("[data-locale]").forEach(el => {{
+        el.classList.toggle("show", el.dataset.locale === loc);
+      }});
+      enBtn.classList.toggle("active", loc === "en");
+      vnBtn.classList.toggle("active", loc === "vn");
+      localStorage.setItem("vai-lang", loc);
+      document.documentElement.lang = loc === "vn" ? "vi" : "en";
+    }}
+    enBtn.addEventListener("click", () => apply("en"));
+    vnBtn.addEventListener("click", () => apply("vn"));
+    apply(saved);
+  }})();
+</script>
+</body></html>"""
+    return HTMLResponse(html)
 
 
 # Legacy paths — redirect everything to /
@@ -3031,36 +3237,76 @@ def api_proposals_mine(request: Request):
 
 
 @app.get("/api/usage/today")
-def api_usage_today():
+def api_usage_today(request: Request):
     """Estimate today's OpenRouter spend by summing tokens × public list
     rate per model from the classifications table (UTC day boundary).
 
-    Cheap enough to call on every page load — the query is bounded by
-    today's row count, typically <500 rows. Returns a single dict so the
-    footer can render without parsing.
+    Scope:
+      - Admins: see global spend (all users, all batches) — same shape
+        as before. The admin /admin panel uses this for the cost tile.
+      - Signed-in non-admins: see their own spend, joined through
+        photos.user_id. Lets each inspector watch their personal
+        consumption without leaking everyone else's.
+      - Pre-auth (only reachable when AUTH_REQUIRED=0 in dev): falls
+        through to the legacy global view since there's no user_id to
+        scope by.
+
+    Cheap enough to call on every page load — bounded by today's row
+    count, typically <500 rows.
     """
     if not DEFAULT_TENANT_ID:
         return {"date": "", "calls": 0, "input_tokens": 0,
                 "output_tokens": 0, "estimated_cost_usd": 0.0,
-                "by_model": {}}
+                "by_model": {}, "scope": "none"}
     db = get_db()
     from datetime import datetime, timezone
     today = datetime.now(timezone.utc).date()
     start_iso = f"{today.isoformat()}T00:00:00Z"
 
+    # Scope decision: admin gets global, regular signed-in user gets
+    # personal (joined via photos.user_id), anonymous (only possible
+    # when the gate is disabled) gets the legacy global view.
+    user = _get_session_user(request)
+    is_admin = bool(user and user.get("is_admin")) or _admin_authed(request)
+    user_id = user["id"] if user else None
+    scope = "global" if is_admin else ("personal" if user_id else "global")
+
     try:
-        rows = (
-            db.table("classifications")
-              .select("model, input_tokens, output_tokens")
-              .gte("created_at", start_iso)
-              .limit(10000)
-              .execute().data or []
-        )
+        if scope == "personal" and user_id:
+            # Pull this user's photo ids for today, then classifications
+            # filtered by those. Two short queries beat fetching all
+            # classifications and filtering in Python.
+            my_photo_ids_rows = (
+                db.table("photos").select("id")
+                  .eq("user_id", user_id)
+                  .gte("uploaded_at", start_iso)
+                  .limit(5000).execute().data or []
+            )
+            my_photo_ids = [r["id"] for r in my_photo_ids_rows]
+            if not my_photo_ids:
+                rows = []
+            else:
+                rows = (
+                    db.table("classifications")
+                      .select("model, input_tokens, output_tokens")
+                      .in_("photo_id", my_photo_ids)
+                      .gte("created_at", start_iso)
+                      .limit(10000)
+                      .execute().data or []
+                )
+        else:
+            rows = (
+                db.table("classifications")
+                  .select("model, input_tokens, output_tokens")
+                  .gte("created_at", start_iso)
+                  .limit(10000)
+                  .execute().data or []
+            )
     except Exception as e:  # noqa: BLE001
         log.warning("usage query failed: %s", e)
         return {"date": today.isoformat(), "calls": 0, "input_tokens": 0,
                 "output_tokens": 0, "estimated_cost_usd": 0.0,
-                "by_model": {}, "error": str(e)[:120]}
+                "by_model": {}, "scope": scope, "error": str(e)[:120]}
 
     total_in = 0
     total_out = 0
@@ -3089,6 +3335,10 @@ def api_usage_today():
         "output_tokens": total_out,
         "estimated_cost_usd": round(cost, 4),
         "by_model": by_model,
+        # Frontend uses this to label the ticker tooltip ("you today" vs
+        # "everyone today"). Admins see the global figure even though
+        # they're authenticated, so the label tracks the actual scope.
+        "scope": scope,
     }
 
 

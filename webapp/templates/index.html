@@ -1105,14 +1105,18 @@ async function refreshCostTicker() {
     else if (cost >= 0.01) s = "$" + cost.toFixed(2);
     else                  s = "$" + cost.toFixed(4);
     if (t.textContent !== s) t.textContent = s;
-    // Tooltip: per-model breakdown so the user can see e.g. "Flash: 42 calls / $0.08"
+    // Tooltip: per-model breakdown + scope label. The 'scope' field
+    // tells us whether this is the user's personal spend or the
+    // global one (admin view) so the tooltip is honest about what
+    // it's showing.
     const wrap = el("#cost-ticker-wrap");
     if (wrap && d.by_model) {
       const parts = Object.entries(d.by_model).map(([m, v]) => {
         const bare = (m || "").split(":").pop();
         return `${bare}: ${v.calls} calls · $${v.cost.toFixed(4)}`;
       });
-      wrap.title = `Today (${d.date} UTC):\n${d.calls} classifications · ${d.input_tokens.toLocaleString()} in / ${d.output_tokens.toLocaleString()} out tokens\n\n${parts.join("\n")}`;
+      const scopeLabel = d.scope === "personal" ? "Your spend" : "All users";
+      wrap.title = `${scopeLabel} today (${d.date} UTC):\n${d.calls} classifications · ${d.input_tokens.toLocaleString()} in / ${d.output_tokens.toLocaleString()} out tokens\n\n${parts.join("\n")}`;
     }
   } catch (e) { /* silent — ticker is non-critical */ }
 }
