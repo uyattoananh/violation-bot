@@ -111,6 +111,14 @@
           <span class="text-slate-500" data-i18n="footer_corrected">corrected</span>
         </span>
       </div>
+      <!-- Today's quota usage. Read from /api/usage/me — per cookie-id,
+           independent of the global cost ticker which is admin-only. -->
+      <div class="flex items-center gap-1 text-slate-500 tabular-nums" id="quota-wrap" title="Free tier daily limit. Resets at 00:00 UTC.">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
+        </svg>
+        <span id="quota-text"><span id="quota-used">0</span>/<span id="quota-limit">30</span></span>
+      </div>
       <!-- Today's estimated cost (sums tokens * public list rates).
            Refreshes on page load + every 60s. OpenRouter dashboard is
            authoritative for billing; this is a sanity-check ticker. -->

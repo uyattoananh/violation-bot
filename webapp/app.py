@@ -222,6 +222,112 @@ except ImportError:
     log.warning("slowapi not installed — rate limiting disabled")
 
 
+# ---------- cookie-keyed user identification + quota ----------
+# Phase 2 of the v2 roadmap (FUTURE_FEATURES.txt). Until real auth
+# (Azure AD / phase 5) ships, we identify users by a stable cookie.
+# Every cookie maps to a row in daily_quota_usage for the rate cap and
+# daily_user_stats for the admin dashboard. When auth ships, a one-shot
+# migration maps cookie-keys to real user.id values and the same tables
+# keep working without code changes.
+
+_USER_COOKIE_NAME = "vai_uid"
+_USER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365   # 1 year
+_DAILY_QUOTA = int(os.environ.get("QUOTA_FREE_PER_DAY", "30"))
+_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")    # None = admin disabled
+_ADMIN_COOKIE_NAME = "vai_admin"
+_ADMIN_COOKIE_MAX_AGE = 60 * 60 * 12   # 12 hours
+
+
+def _get_or_set_user_key(request: Request, response_headers: dict | None = None) -> str:
+    """Read the user-key cookie; mint a fresh UUID if missing.
+
+    Returns the key. The caller is responsible for setting the cookie
+    on the outbound response when this function minted a new one —
+    we expose that via response.set_cookie in the routes that care.
+    """
+    val = request.cookies.get(_USER_COOKIE_NAME)
+    if val and len(val) >= 16:
+        return val
+    return f"vk_{uuid.uuid4().hex}"
+
+
+def _attach_user_cookie(response, key: str) -> None:
+    """Set the user-key cookie on an outbound response if it's not
+    already set on this request."""
+    response.set_cookie(
+        _USER_COOKIE_NAME,
+        value=key,
+        max_age=_USER_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=os.environ.get("COOKIE_SECURE", "1") not in ("0", "false", "no"),
+    )
+
+
+def _quota_today_used(user_key: str) -> int:
+    """Return how many classifications this user has consumed today
+    (UTC). 0 if no row yet."""
+    if not user_key:
+        return 0
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        rows = (
+            get_db().table("daily_quota_usage")
+              .select("photos_classified")
+              .eq("user_key", user_key).eq("day", today)
+              .limit(1).execute().data or []
+        )
+        return int(rows[0]["photos_classified"]) if rows else 0
+    except Exception as e:  # noqa: BLE001
+        # If the table doesn't exist yet (pre-migration), treat as
+        # unbounded — quota is best-effort, not a security gate.
+        if "daily_quota_usage" in str(e):
+            return 0
+        log.warning("quota lookup failed: %s", e)
+        return 0
+
+
+def _quota_increment(user_key: str, n: int) -> None:
+    """Add n classifications to the user's today bucket. Upsert: row
+    is created on first photo; subsequent photos atomic-add. Best-effort
+    — failures are logged, not raised, so a quota table outage doesn't
+    block uploads."""
+    if not user_key or n <= 0:
+        return
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).date().isoformat()
+    db = get_db()
+    try:
+        # Read-modify-write. PostgREST doesn't expose UPSERT-with-add
+        # so we do select-then-upsert. Race window is small at our
+        # write rate; even if two photos race we lose at most 1 count
+        # (the limit is approximate by design).
+        existing = (
+            db.table("daily_quota_usage").select("photos_classified")
+              .eq("user_key", user_key).eq("day", today)
+              .limit(1).execute().data or []
+        )
+        current = int(existing[0]["photos_classified"]) if existing else 0
+        db.table("daily_quota_usage").upsert({
+            "user_key": user_key,
+            "day": today,
+            "photos_classified": current + n,
+        }, on_conflict="user_key,day").execute()
+    except Exception as e:  # noqa: BLE001
+        if "daily_quota_usage" not in str(e):
+            log.warning("quota increment failed: %s", e)
+
+
+def _admin_authed(request: Request) -> bool:
+    """Cheap admin gate. Cookie set after correct password POST.
+    Returns False when ADMIN_PASSWORD env var isn't set (admin off).
+    """
+    if not _ADMIN_PASSWORD:
+        return False
+    return request.cookies.get(_ADMIN_COOKIE_NAME) == _ADMIN_PASSWORD
+
+
 # ---------- helpers ----------
 
 # Register HEIC opener so iPhone photos load. Optional — falls through if
@@ -396,14 +502,14 @@ def _safe_corrections_insert(payload: dict) -> None:
     between code-deploy and SQL-migration without 500ing on every confirm."""
     db = get_db()
     p = dict(payload)   # don't mutate caller's dict
-    for _ in range(4):  # at most one retry per optional column
+    for _ in range(5):  # at most one retry per optional column
         try:
             db.table("corrections").insert(p).execute()
             return
         except Exception as e:  # noqa: BLE001
             msg = str(e)
             stripped = False
-            for col in ("fine_hse_type_slug", "batch_id"):
+            for col in ("fine_hse_type_slug", "batch_id", "user_key"):
                 if col in msg and col in p:
                     p.pop(col, None)
                     log.warning("corrections.%s column missing — degraded insert", col)
@@ -591,12 +697,42 @@ async def upload(
             return str(uuid.uuid4())
     batch_id = _coerce_uuid(batch_id)
 
+    # Quota gate. Read user-key cookie, look up today's usage, refuse
+    # the request if already at cap. Per-photo enforcement (a 50-photo
+    # batch from a free user with 28/30 used uploads the next 2 and
+    # rejects the remaining 48 with a clear error).
+    user_key = _get_or_set_user_key(request)
+    used_today = _quota_today_used(user_key)
+    remaining = max(0, _DAILY_QUOTA - used_today)
+    if remaining <= 0:
+        from datetime import datetime, timezone, timedelta
+        tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).date()
+        resets_at = f"{tomorrow.isoformat()}T00:00:00Z"
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "daily_limit_reached",
+                "limit": _DAILY_QUOTA,
+                "used": used_today,
+                "resets_at": resets_at,
+            },
+        )
+
     db = get_db()
     r2 = get_r2()
     created = []
     rejected = []
     warnings: list[dict] = []  # per-photo quality flags (uploaded but suspect)
+    accepted_count = 0
+    quota_used = used_today
     for f in files:
+        # Per-photo quota enforcement: stop when we hit cap mid-batch.
+        # The remaining files in this request go to "rejected" with
+        # reason=daily_limit so the frontend can group them in the
+        # error banner.
+        if quota_used >= _DAILY_QUOTA:
+            rejected.append({"filename": f.filename, "reason": "daily_limit_reached"})
+            continue
         raw = await f.read()
         # Reject non-image / 0-byte payloads at the upload boundary. If we
         # accept them, they sit in "Analyzing..." forever because the
@@ -662,6 +798,7 @@ async def upload(
             "bytes": len(body),
             "batch_id": batch_id,
             "batch_label": batch_label,
+            "user_key": user_key,
         }
         if gps:
             photo_payload["exif_lat"] = gps[0]
@@ -676,7 +813,7 @@ async def upload(
             except Exception as exc:  # noqa: BLE001
                 msg = str(exc)
                 stripped = False
-                for col in ("batch_id", "batch_label", "exif_lat", "exif_lon"):
+                for col in ("batch_id", "batch_label", "exif_lat", "exif_lon", "user_key"):
                     if col in msg and col in payload:
                         payload.pop(col, None)
                         stripped = True
@@ -689,16 +826,32 @@ async def upload(
         photo_row = _insert_with_fallback(photo_payload)
         db.table("classify_jobs").insert({"photo_id": photo_row["id"]}).execute()
         created.append({"id": photo_row["id"], "dedup": False})
+        accepted_count += 1
+        quota_used += 1
         if quality:
             warnings.append({"filename": f.filename, "id": photo_row["id"], **quality})
 
-    return {
+    # Update the daily-quota counter once with the final accepted count
+    # — single DB round-trip per upload regardless of batch size.
+    if accepted_count:
+        _quota_increment(user_key, accepted_count)
+
+    response_body = {
         "uploaded": created,
         "rejected": rejected,
         "warnings": warnings,
         "count": len(created),
         "batch_id": batch_id,
+        "quota_used": quota_used,
+        "quota_limit": _DAILY_QUOTA,
     }
+    # Set the user-key cookie on the response so subsequent /api/usage
+    # calls can identify the same client. JSONResponse lets us mutate
+    # cookies; the @app.post handler returning a dict gets a default
+    # JSONResponse from FastAPI, so we wrap explicitly here.
+    resp = JSONResponse(content=response_body)
+    _attach_user_cookie(resp, user_key)
+    return resp
 
 
 @app.get("/api/batches")
@@ -1240,7 +1393,7 @@ def _training_set_size() -> int:
 
 
 @app.post("/api/photos/{photo_id}/confirm")
-def confirm(photo_id: str, fine_hse_type_slug: str | None = Form(None)):
+def confirm(request: Request, photo_id: str, fine_hse_type_slug: str | None = Form(None)):
     """Inspector confirms the AI's prediction. Optionally also picks a
     fine-grained AECIS sub-type to refine within the predicted parent."""
     db = get_db()
@@ -1272,6 +1425,7 @@ def confirm(photo_id: str, fine_hse_type_slug: str | None = Form(None)):
         "hse_type_slug": c["hse_type_slug"],
         "fine_hse_type_slug": fine_hse_type_slug,
         "batch_id": batch_id_for_corr,
+        "user_key": _get_or_set_user_key(request),
     }
     _safe_corrections_insert(payload)
     # Feedback loop: confirmations are high-quality labels — add to retrieval index
@@ -1282,6 +1436,7 @@ def confirm(photo_id: str, fine_hse_type_slug: str | None = Form(None)):
 
 @app.post("/api/photos/{photo_id}/correct")
 def correct(
+    request: Request,
     photo_id: str,
     location_slug: str = Form(...),
     hse_type_slug: str = Form(...),
@@ -1318,6 +1473,7 @@ def correct(
         "fine_hse_type_slug": fine_hse_type_slug,
         "batch_id": batch_id_for_corr,
         "note": note,
+        "user_key": _get_or_set_user_key(request),
     }
     _safe_corrections_insert(payload)
     # Feedback loop: inspector-corrected label is high-quality — add to retrieval index
@@ -1750,6 +1906,27 @@ def _price_for_model(model_id: str | None) -> tuple[float, float]:
     return _MODEL_PRICING.get(bare, (3.0, 15.0))
 
 
+@app.get("/api/usage/me")
+def api_usage_me(request: Request):
+    """Per-user view of today's quota: how many photos used, what's
+    the limit, when does the bucket reset. Read by the footer to
+    render the N/30 indicator without exposing global cost numbers
+    (those are admin-only and live at /api/usage/today)."""
+    from datetime import datetime, timezone, timedelta
+    user_key = _get_or_set_user_key(request)
+    used = _quota_today_used(user_key)
+    tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).date()
+    body = {
+        "used": used,
+        "limit": _DAILY_QUOTA,
+        "remaining": max(0, _DAILY_QUOTA - used),
+        "resets_at": f"{tomorrow.isoformat()}T00:00:00Z",
+    }
+    resp = JSONResponse(content=body)
+    _attach_user_cookie(resp, user_key)
+    return resp
+
+
 @app.get("/api/usage/today")
 def api_usage_today():
     """Estimate today's OpenRouter spend by summing tokens × public list
@@ -1810,6 +1987,207 @@ def api_usage_today():
         "estimated_cost_usd": round(cost, 4),
         "by_model": by_model,
     }
+
+
+# ---------- admin (env-var-password gated; replaced by real auth in phase 5) ----------
+
+@app.post("/admin/login")
+def admin_login(request: Request, password: str = Form(...)):
+    """Sets the admin cookie if the env-var password matches. The
+    cookie value IS the password — simple and short-lived (12h).
+    When real auth ships, this route gets replaced by Azure AD."""
+    if not _ADMIN_PASSWORD:
+        raise HTTPException(503, "admin disabled (set ADMIN_PASSWORD env)")
+    if password != _ADMIN_PASSWORD:
+        raise HTTPException(401, "wrong password")
+    resp = RedirectResponse("/admin/stats", status_code=303)
+    resp.set_cookie(
+        _ADMIN_COOKIE_NAME,
+        value=_ADMIN_PASSWORD,
+        max_age=_ADMIN_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=os.environ.get("COOKIE_SECURE", "1") not in ("0", "false", "no"),
+    )
+    return resp
+
+
+@app.get("/admin/login", response_class=HTMLResponse)
+def admin_login_form(request: Request):
+    """Tiny HTML form for the admin password. Inline, no template
+    needed — admin UX is intentionally sparse."""
+    if _admin_authed(request):
+        return RedirectResponse("/admin/stats", status_code=303)
+    if not _ADMIN_PASSWORD:
+        return HTMLResponse(
+            "<h1>admin disabled</h1><p>Set <code>ADMIN_PASSWORD</code> env "
+            "var on the server to enable.</p>", status_code=503)
+    return HTMLResponse("""
+<!doctype html><html><head><meta charset=utf-8><title>Admin login</title>
+<style>body{font:14px/1.4 system-ui;max-width:360px;margin:80px auto;padding:24px;background:#f8fafc}
+h1{font-size:18px;margin:0 0 16px}
+form{display:flex;gap:8px}
+input{flex:1;padding:8px;border:1px solid #cbd5e1;border-radius:6px}
+button{background:#0f172a;color:#fff;border:0;padding:8px 16px;border-radius:6px;cursor:pointer}
+</style></head><body>
+<h1>Admin login</h1>
+<form method=POST action=/admin/login>
+  <input type=password name=password placeholder=password autofocus required>
+  <button type=submit>Sign in</button>
+</form>
+</body></html>""")
+
+
+@app.get("/admin/stats", response_class=HTMLResponse)
+def admin_stats(request: Request, days: int = 30):
+    """Admin dashboard: daily usage roll-up across all users.
+    Lazy roll-up — recomputed from the raw tables on each request
+    rather than maintained in daily_user_stats. At our scale (a few
+    thousand rows/day max), the lazy path is fine; the daily_user_stats
+    table is reserved for when scale demands a cron-fed materialized
+    view.
+
+    Renders inline HTML — no template, no charts library. The data
+    fits cleanly in tables; charts are nice-to-have later.
+    """
+    if not _admin_authed(request):
+        return RedirectResponse("/admin/login", status_code=303)
+
+    from datetime import datetime, timezone, timedelta
+    db = get_db()
+    end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=days)
+    start_iso = f"{start.isoformat()}T00:00:00Z"
+
+    # Pull recent photos + corrections with user_key, group in Python.
+    photos = (
+        db.table("photos").select("id, user_key, uploaded_at, batch_id")
+          .gte("uploaded_at", start_iso)
+          .limit(50000).execute().data or []
+    )
+    corrs = (
+        db.table("corrections").select("id, user_key, action, created_at")
+          .gte("created_at", start_iso)
+          .limit(50000).execute().data or []
+    )
+
+    # Per-day, per-user roll-up
+    from collections import defaultdict
+    by_day_user: dict[tuple, dict] = defaultdict(
+        lambda: {"uploaded": 0, "reviewed": 0, "confirms": 0, "corrections": 0}
+    )
+    by_user_total: dict[str, dict] = defaultdict(
+        lambda: {"uploaded": 0, "reviewed": 0, "confirms": 0, "corrections": 0,
+                 "first_seen": None, "last_seen": None}
+    )
+    for p in photos:
+        uk = p.get("user_key") or "(no key)"
+        day = (p.get("uploaded_at") or "")[:10]
+        if not day:
+            continue
+        by_day_user[(day, uk)]["uploaded"] += 1
+        by_user_total[uk]["uploaded"] += 1
+        if not by_user_total[uk]["first_seen"] or day < by_user_total[uk]["first_seen"]:
+            by_user_total[uk]["first_seen"] = day
+        if not by_user_total[uk]["last_seen"] or day > by_user_total[uk]["last_seen"]:
+            by_user_total[uk]["last_seen"] = day
+    for c in corrs:
+        uk = c.get("user_key") or "(no key)"
+        day = (c.get("created_at") or "")[:10]
+        if not day:
+            continue
+        action = c.get("action") or ""
+        by_day_user[(day, uk)]["reviewed"] += 1
+        by_user_total[uk]["reviewed"] += 1
+        if action == "confirm":
+            by_day_user[(day, uk)]["confirms"] += 1
+            by_user_total[uk]["confirms"] += 1
+        elif action == "correct":
+            by_day_user[(day, uk)]["corrections"] += 1
+            by_user_total[uk]["corrections"] += 1
+        if not by_user_total[uk]["first_seen"] or day < by_user_total[uk]["first_seen"]:
+            by_user_total[uk]["first_seen"] = day
+        if not by_user_total[uk]["last_seen"] or day > by_user_total[uk]["last_seen"]:
+            by_user_total[uk]["last_seen"] = day
+
+    # Headline numbers
+    today = end.isoformat()
+    today_users = {uk for (d, uk) in by_day_user if d == today}
+    week_start = (end - timedelta(days=7)).isoformat()
+    week_users = {uk for (d, uk) in by_day_user if d >= week_start}
+    month_users = set(by_user_total.keys())
+
+    headline = {
+        "DAU (today)": len(today_users),
+        "WAU (last 7d)": len(week_users),
+        f"MAU (last {days}d)": len(month_users),
+        "Photos uploaded": sum(u["uploaded"] for u in by_user_total.values()),
+        "Photos reviewed": sum(u["reviewed"] for u in by_user_total.values()),
+        "Confirm rate": (
+            f"{sum(u['confirms'] for u in by_user_total.values())}/"
+            f"{sum(u['reviewed'] for u in by_user_total.values()) or 1}"
+        ),
+    }
+
+    # Per-day table
+    days_sorted = sorted({d for (d, _) in by_day_user}, reverse=True)
+    daily_rows = []
+    for d in days_sorted[:days]:
+        users_today = {uk for (dd, uk) in by_day_user if dd == d}
+        ups = sum(u["uploaded"] for (dd, _), u in by_day_user.items() if dd == d)
+        revs = sum(u["reviewed"] for (dd, _), u in by_day_user.items() if dd == d)
+        cnfs = sum(u["confirms"] for (dd, _), u in by_day_user.items() if dd == d)
+        cors = sum(u["corrections"] for (dd, _), u in by_day_user.items() if dd == d)
+        daily_rows.append((d, len(users_today), ups, revs, cnfs, cors))
+
+    # Per-user table (top 30 by uploads)
+    user_rows = sorted(by_user_total.items(),
+                       key=lambda kv: -kv[1]["uploaded"])[:30]
+
+    def _esc(s):
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    head_html = "".join(
+        f"<div class=stat><div class=k>{_esc(k)}</div><div class=v>{_esc(v)}</div></div>"
+        for k, v in headline.items()
+    )
+    daily_html = "".join(
+        f"<tr><td>{_esc(d)}</td><td>{n}</td><td>{u}</td><td>{r}</td><td>{c}</td><td>{x}</td></tr>"
+        for d, n, u, r, c, x in daily_rows
+    )
+    user_html = "".join(
+        f"<tr><td class=mono>{_esc(uk[:14])}…</td><td>{u['uploaded']}</td>"
+        f"<td>{u['reviewed']}</td><td>{u['confirms']}</td>"
+        f"<td>{u['corrections']}</td><td>{u['first_seen'] or ''}</td>"
+        f"<td>{u['last_seen'] or ''}</td></tr>"
+        for uk, u in user_rows
+    )
+
+    html = f"""<!doctype html><html><head><meta charset=utf-8><title>Admin stats</title>
+<style>
+body{{font:13px/1.5 system-ui;max-width:1100px;margin:24px auto;padding:0 16px;background:#f8fafc;color:#0f172a}}
+h1{{font-size:20px;margin:0 0 16px}}
+h2{{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:32px 0 8px;font-weight:600}}
+.stats{{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}}
+.stat{{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px}}
+.k{{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#64748b}}
+.v{{font-size:18px;font-weight:600;margin-top:4px;font-variant-numeric:tabular-nums}}
+table{{border-collapse:collapse;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}}
+th,td{{text-align:left;padding:6px 10px;border-bottom:1px solid #f1f5f9;font-variant-numeric:tabular-nums}}
+th{{background:#f1f5f9;color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.04em}}
+tr:last-child td{{border-bottom:0}}
+.mono{{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#475569}}
+</style></head><body>
+<h1>Admin stats <span style=color:#94a3b8;font-weight:400>· last {days} days</span></h1>
+<div class=stats>{head_html}</div>
+<h2>Daily activity</h2>
+<table><thead><tr><th>Day</th><th>Users</th><th>Uploaded</th><th>Reviewed</th><th>Confirms</th><th>Corrections</th></tr></thead>
+<tbody>{daily_html or '<tr><td colspan=6 style=text-align:center;color:#94a3b8>(no data)</td></tr>'}</tbody></table>
+<h2>Top users · last {days} days</h2>
+<table><thead><tr><th>User key</th><th>Uploaded</th><th>Reviewed</th><th>Confirms</th><th>Corrections</th><th>First seen</th><th>Last seen</th></tr></thead>
+<tbody>{user_html or '<tr><td colspan=7 style=text-align:center;color:#94a3b8>(no data)</td></tr>'}</tbody></table>
+</body></html>"""
+    return HTMLResponse(html)
 
 
 @app.get("/api/export/summary")

@@ -514,6 +514,8 @@ const I18N = {
     upload_classifying: "Photos uploaded — classifying in background",
     upload_done_notif: "Batch finished classifying",
     upload_failed: "Upload failed",
+    quota_reached: (limit, reset) => `Daily limit of ${limit} photos reached. Resets at ${reset}.`,
+    quota_partial_cutoff: (n, limit) => `${n} photo${n === 1 ? "" : "s"} skipped — daily limit of ${limit} reached.`,
     state_analyzing: "Analyzing photo…",
     ai_suggests: "AI suggests",
     btn_confirm: "Confirm",
@@ -638,6 +640,8 @@ const I18N = {
     upload_classifying: "Đã tải xong — AI đang phân loại trong nền",
     upload_done_notif: "Phân loại lô ảnh đã xong",
     upload_failed: "Tải lên thất bại",
+    quota_reached: (limit, reset) => `Đã đạt giới hạn ${limit} ảnh/ngày. Đặt lại lúc ${reset}.`,
+    quota_partial_cutoff: (n, limit) => `${n} ảnh bị bỏ qua — đã đạt giới hạn ${limit} ảnh/ngày.`,
     state_analyzing: "Đang phân tích ảnh…",
     ai_suggests: "AI gợi ý",
     btn_confirm: "Xác nhận",
@@ -934,6 +938,33 @@ function renderTrainingSetSize(n) {
 // and renders it in the footer. Polls every 60s; cheap enough that the
 // frequency could be tighter, but a minute is fine for a sanity-check
 // number that doesn't need to be live.
+// Per-user quota indicator (footer "N/30"). Read from /api/usage/me,
+// updates colour as the user approaches/exceeds cap. Independent of
+// the cost ticker (admin-only).
+async function refreshQuotaIndicator() {
+  try {
+    const r = await fetch("/api/usage/me");
+    if (!r.ok) return;
+    const d = await r.json();
+    const used = el("#quota-used");
+    const limit = el("#quota-limit");
+    const wrap = el("#quota-wrap");
+    if (used) used.textContent = d.used ?? 0;
+    if (limit) limit.textContent = d.limit ?? 30;
+    if (wrap) {
+      const ratio = (d.used ?? 0) / Math.max(1, d.limit ?? 30);
+      wrap.classList.remove("text-slate-500", "text-amber-600", "text-rose-600");
+      wrap.classList.add(
+        ratio >= 1 ? "text-rose-600" :
+        ratio >= 0.8 ? "text-amber-600" :
+        "text-slate-500"
+      );
+      const reset = d.resets_at ? new Date(d.resets_at).toLocaleString() : "00:00 UTC";
+      wrap.title = `${d.used}/${d.limit} photos used today (resets at ${reset})`;
+    }
+  } catch (e) { /* silent */ }
+}
+
 async function refreshCostTicker() {
   const t = el("#cost-ticker");
   if (!t) return;
@@ -1868,19 +1899,50 @@ async function uploadFiles(files) {
     if (CURRENT_BATCH_LABEL) fd.append("batch_label", CURRENT_BATCH_LABEL);
     try {
       const resp = await fetch("/api/upload", { method: "POST", body: fd });
+      // 429 = daily quota cap. Body has structured detail; surface
+      // friendly error with reset time.
+      if (resp.status === 429) {
+        let detail429 = {};
+        try { detail429 = (await resp.json()).detail || {}; } catch (e) {}
+        const reset = detail429.resets_at
+          ? new Date(detail429.resets_at).toLocaleString()
+          : "00:00 UTC tomorrow";
+        showError(t("quota_reached")(detail429.limit ?? 30, reset));
+        refreshQuotaIndicator();
+        break;
+      }
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       uploadedCount += data.count || 0;
       allCreated.push(...(data.uploaded || []));
       SESSION.uploaded += data.count || 0;
       updateStats();
+      // Surface server-side quota updates so the footer counter
+      // doesn't lag behind reality (refreshQuotaIndicator polls
+      // every 30s but we just consumed N photos; show it now).
+      if (typeof data.quota_used === "number") {
+        const usedEl = el("#quota-used");
+        const limitEl = el("#quota-limit");
+        if (usedEl) usedEl.textContent = data.quota_used;
+        if (limitEl && data.quota_limit) limitEl.textContent = data.quota_limit;
+        refreshQuotaIndicator();   // also fires class-color update
+      }
       detail.textContent = `${uploadedCount} / ${total}`;
       bar.style.width = `${Math.round((uploadedCount / total) * 100)}%`;
-      // Surface server-side rejections (non-images, 0-byte, truncated)
+      // Surface server-side rejections. Two reason families:
+      //   not_an_image / empty_or_too_small  -> file unusable
+      //   daily_limit_reached                -> quota cut us off mid-batch
       if (Array.isArray(data.rejected) && data.rejected.length) {
-        const names = data.rejected.map(r => r.filename || "(unnamed)").slice(0, 5).join(", ");
-        const more = data.rejected.length > 5 ? ` (+${data.rejected.length - 5} more)` : "";
-        showError(`${data.rejected.length} file(s) skipped — not a supported image: ${names}${more}`);
+        const quotaCut = data.rejected.filter(r => r.reason === "daily_limit_reached");
+        const fileBad  = data.rejected.filter(r => r.reason !== "daily_limit_reached");
+        if (quotaCut.length) {
+          showError(t("quota_partial_cutoff")(quotaCut.length, data.quota_limit ?? 30));
+        }
+        if (fileBad.length) {
+          const names = fileBad.map(r => r.filename || "(unnamed)").slice(0, 5).join(", ");
+          const more = fileBad.length > 5 ? ` (+${fileBad.length - 5} more)` : "";
+          showError(`${fileBad.length} file(s) skipped — not a supported image: ${names}${more}`);
+        }
       }
       // Quality warnings: photo uploaded but AI may struggle (blurry/dark/tiny).
       // Tag the cards via QUALITY_FLAGS so they render with a yellow quality pill.
@@ -2571,6 +2633,8 @@ setInterval(poll, 4000);
 // Cost ticker — refresh on load + every 60s
 refreshCostTicker();
 setInterval(refreshCostTicker, 60_000);
+refreshQuotaIndicator();
+setInterval(refreshQuotaIndicator, 30_000);
 
 });  // end DOMContentLoaded
 </script>
