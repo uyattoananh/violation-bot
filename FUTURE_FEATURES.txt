@@ -1,11 +1,17 @@
-FUTURE IMPLEMENTATION PLAN
-==========================
+FUTURE IMPLEMENTATION PLAN  —  STATUS: COMPLETE except Phase 6 (deferred)
+=========================================================================
 
 Captured 2026-04-29. Items below are scoped, ranked by dependency
 order, and include implementation notes from the session that produced
-the current production state (commit d9205ca).
+the current production state.
 
-These are NOT yet implemented. Each block is a spec, not code.
+UPDATE 2026-04-29 (later same day): Phases 1-5 + 7 shipped to
+production. Phase 6 deferred — see "STATUS SUMMARY" block at the
+bottom for the closing notes.
+
+The original block descriptions (1-7 below) are kept as the spec of
+record. The IMPLEMENTATION ORDER section near the end has the
+phase-by-phase status lines.
 
 
 =============================================================
@@ -503,26 +509,106 @@ visible value much sooner.
 
 
 =============================================================
+EXTRAS NOT IN THE ORIGINAL ROADMAP (shipped 2026-04-29)
+=============================================================
+
+  EXTRA-A  Admin panel merge — /admin/stats and /admin/proposals
+           consolidated into a single sticky-header /admin page.
+           Old URLs 303 to /admin#stats and /admin#proposals.
+
+  EXTRA-B  Auth gate (AUTH_REQUIRED=1) — middleware redirects
+           anonymous HTML to /auth/signin and returns 401 JSON
+           for /api/* fetches. Whitelist: /auth/*, /static/*,
+           /service-worker.js, /admin/login, /metrics, /healthz,
+           and the bare / (which dispatches landing vs app
+           inside its handler).
+
+  EXTRA-C  Public landing page at / — bilingual (EN/VN) marketing
+           page rendered to anonymous visitors. Hero + three
+           feature cards + sign-in CTA pointing at /auth/signin.
+           Authenticated visitors get the existing app shell.
+           No external assets — entire shell is inline so the
+           SW caches it offline.
+
+  EXTRA-D  Per-user cost ticker — /api/usage/today returns scope=
+           "personal" for non-admin signed-in users (joined via
+           photos.user_id). Admins still see scope="global".
+           Tooltip labels honestly: "Your spend today" vs
+           "All users today".
+
+
+=============================================================
+STATUS SUMMARY (closing the roadmap)
+=============================================================
+
+  [DONE] #1 PWA conversion                       Phase 1
+  [DONE] #2 OAuth + Login                        Phase 5 (Google) +
+                                                 Phase 7 (Azure)
+  [DONE] #3 Free-tier 30/day quota               Phase 2
+  [DONE] #4 User + usage statistics              Phase 2 (admin)
+  [DONE] #5 Email output                         Phase 3
+  [DONE] #6 User-submitted HSE classes           Phase 4
+  [DEFERRED] #7 14-day verification              see below
+
+WHY #7 IS DEFERRED
+  Original motivation was to filter bots and abandoned-test accounts.
+  After Azure Entra ID became the primary sign-in path (corporate AD
+  identities, validated by AECIS IT during onboarding), the value of
+  a separate 14-day SMS / email re-verification step is small. Every
+  Azure-authenticated user is already a verified employee or partner;
+  Google sign-in is available as a fallback for external collaborators
+  but those are typically a small minority.
+
+  The schema for #7 (users.phone_e164, phone_verified_at,
+  trial_expires_at, verified) was NOT added in Phase 5/7. If abuse
+  appears (volume of personal-Google accounts, or quota laundering),
+  light it up via:
+    1. ALTER TABLE users ADD COLUMN verified BOOL DEFAULT FALSE
+    2. domain-allowlist auto-verify on first sign-in (toananh.com,
+       aecis.com)
+    3. soft block: read-only mode for verified=false past day 14
+  Estimated reactivation effort: ~½ day if domain-only, ~2 days
+  with SMS fallback.
+
+
+=============================================================
 THINGS TO KEEP IN MIND ACROSS ALL OF THESE
 =============================================================
 
   - Backwards compatibility: a chunk of existing data has no user_id
-    (was inserted before auth). Decide: backfill with a "legacy" user,
-    or keep tenant_id as the only ownership signal for old rows.
+    (was inserted before auth). Phase 5 retro-attributes per-cookie
+    rows on first sign-in for THAT user; rows from cookies that never
+    log in stay user_id=NULL forever. Either ignore them, backfill
+    with a 'legacy@' placeholder user, or surface as "anonymous" in
+    admin views. Status quo (NULL) is fine — no functional impact.
 
   - Tenant migration: the system currently ships single-tenant
     ("Public Demo"). Multi-tenant requires a tenant-picker on signup
-    and admin tooling to create new tenants. That's NOT in any of
-    the 7 items above — flag it as a parallel workstream.
+    and admin tooling to create new tenants. NOT in any of the 7
+    items above — parallel workstream, ~5 days estimate. Triggered
+    when the second AECIS client onboards.
 
-  - Cost ticker (already implemented) needs to become PER-USER once
-    auth is in. Today it's per-tenant. Trivial change but easy to
-    forget.
+  - Per-user cost ticker: SHIPPED as EXTRA-D. Admins still see
+    global; non-admins see personal. The admin-stats panel could
+    grow per-user cost columns later (currently only counts photos
+    + corrections per user).
 
-  - The audit trail (corrections.created_at) needs to record user_id
-    too. Schema migration, not hard.
+  - The audit trail (corrections.user_key, corrections.user_id) is
+    already populated by Phase 5. No further migration needed.
 
   - Documentation: every feature above needs a short user-facing
     help doc. AECIS clients aren't going to read source code.
+    Open task — write a per-feature README under docs/ when a real
+    inspector hits a "how do I…?" question that's worth canonicalising.
+
+  - Session expiry handling on the frontend: the gate redirects on
+    page navigation, but a fetch() that returns 401 mid-session
+    (after the 30-day session expires) is not currently caught by
+    JS. Low-risk because the session is long. Future enhancement:
+    intercept 401 responses and redirect to /auth/signin.
+
+  - SW cache version: every change to the rendered shell needs a
+    CACHE_VERSION bump in webapp/static/service-worker.js so PWA
+    users actually pick up the new HTML. Easy to forget.
 
 End of plan.
