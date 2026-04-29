@@ -437,6 +437,14 @@
                   title="Mark the hazard region and let the AI re-detect">
             <span data-i18n="markup_link">Mark region & re-detect</span>
           </button>
+          <!-- When none of the existing fine sub-types fits, the
+               inspector can propose a new one. The proposal queues for
+               admin review at /admin/proposals; the inspector keeps a
+               'pending:<slug>' tag on the correction in the meantime. -->
+          <button type="button" class="btn-propose mt-1 w-full text-[11px] text-slate-500 hover:text-emerald-700 underline-offset-2 hover:underline transition-colors"
+                  title="Suggest a new fine sub-type for admin review">
+            <span data-i18n="propose_link">None fit? Propose a new sub-type</span>
+          </button>
         </form>
       </div>
 
@@ -584,6 +592,25 @@ const I18N = {
     markup_done: (label) => `Re-detected: ${label}`,
     markup_failed: "Re-detect failed",
     markup_no_region: "Drag a rectangle on the photo first",
+    propose_link: "None fit? Propose a new sub-type",
+    propose_title: "Propose new sub-type",
+    propose_help: "None of the existing sub-types fit? Propose a new one. An admin reviews each proposal; on approval it joins the live taxonomy and we backfill any photos you tagged with this proposal.",
+    propose_parent: "Under category",
+    propose_label_en: "Name (English)",
+    propose_label_vn: "Name (Tiếng Việt)",
+    propose_description: "Why is this needed?",
+    propose_send: "Submit for review",
+    propose_no_parent: "Pick a category first.",
+    propose_need_both: "Both English and Vietnamese names required.",
+    propose_sending: "Submitting…",
+    propose_submitted: "Proposal submitted for review.",
+    propose_failed: "Submission failed",
+    propose_already_exists: "A sub-type with this name already exists.",
+    propose_daily_limit: (limit) => `Daily proposal limit (${limit}) reached. Try again tomorrow.`,
+    propose_quota: (used, lim) => `${used} of ${lim} proposals used today.`,
+    decision_approved: (label) => `Your proposed sub-type "${label}" was approved.`,
+    decision_rejected: (label, note) => `Your proposed sub-type "${label}" was rejected${note ? ": " + note : "."}`,
+    decision_duplicate: (label, target) => `Your proposed sub-type "${label}" was marked as a duplicate of ${target}.`,
     quality_warn_one: (reason) => `1 photo flagged as ${reason} — AI may struggle`,
     quality_warn_many: (n, reason) => `${n} photos flagged (${reason}) — AI may struggle`,
     quality_blurry: "blurry",
@@ -724,6 +751,25 @@ const I18N = {
     markup_done: (label) => `Nhận diện lại: ${label}`,
     markup_failed: "Nhận diện lại thất bại",
     markup_no_region: "Hãy vẽ hình chữ nhật trên ảnh trước",
+    propose_link: "Không thấy phù hợp? Đề xuất loại mới",
+    propose_title: "Đề xuất loại HSE mới",
+    propose_help: "Không có loại nào phù hợp? Đề xuất loại mới. Quản trị viên sẽ duyệt từng đề xuất; nếu được duyệt, loại đó sẽ được thêm vào hệ thống và các ảnh bạn đã gán đề xuất này sẽ được cập nhật tự động.",
+    propose_parent: "Thuộc nhóm",
+    propose_label_en: "Tên (Tiếng Anh)",
+    propose_label_vn: "Tên (Tiếng Việt)",
+    propose_description: "Vì sao cần loại này?",
+    propose_send: "Gửi duyệt",
+    propose_no_parent: "Vui lòng chọn nhóm trước.",
+    propose_need_both: "Cần cả tên tiếng Anh và tiếng Việt.",
+    propose_sending: "Đang gửi…",
+    propose_submitted: "Đã gửi đề xuất để duyệt.",
+    propose_failed: "Gửi thất bại",
+    propose_already_exists: "Đã có loại với tên này.",
+    propose_daily_limit: (limit) => `Đã đạt giới hạn đề xuất/ngày (${limit}). Thử lại ngày mai.`,
+    propose_quota: (used, lim) => `Đã dùng ${used} / ${lim} đề xuất hôm nay.`,
+    decision_approved: (label) => `Đề xuất "${label}" của bạn đã được duyệt.`,
+    decision_rejected: (label, note) => `Đề xuất "${label}" của bạn bị từ chối${note ? ": " + note : "."}`,
+    decision_duplicate: (label, target) => `Đề xuất "${label}" của bạn được đánh dấu trùng với ${target}.`,
     quality_warn_one: (reason) => `1 ảnh có vấn đề chất lượng (${reason}) — AI có thể khó nhận diện`,
     quality_warn_many: (n, reason) => `${n} ảnh có vấn đề chất lượng (${reason}) — AI có thể khó nhận diện`,
     quality_blurry: "mờ",
@@ -1002,6 +1048,41 @@ async function refreshQuotaIndicator() {
     }
   } catch (e) { /* silent */ }
 }
+
+// Phase 4: pull decided HSE-class proposals for this cookie that the
+// user hasn't been notified about yet. Called once on page load.
+// Each decision becomes a toast; the server flips notified_user=TRUE
+// on the same call so a refresh doesn't repeat them.
+async function checkProposalDecisions() {
+  try {
+    const r = await fetch("/api/proposals/decisions");
+    if (!r.ok) return;
+    const d = await r.json();
+    const decisions = d.decisions || [];
+    if (!decisions.length) return;
+    // Sequence the toasts so they don't overlap. showToast() doesn't
+    // queue so we space manually with setTimeout.
+    decisions.forEach((dec, i) => {
+      setTimeout(() => {
+        const labelLang = LANG === "vn" ? (dec.label_vn || dec.label_en) : dec.label_en;
+        const status = dec.status;
+        const note = dec.reviewer_note || "";
+        let msg;
+        if (status === "approved") {
+          msg = t("decision_approved")(labelLang);
+        } else if (status === "duplicate") {
+          msg = t("decision_duplicate")(labelLang, dec.approved_slug || note || "?");
+        } else {
+          msg = t("decision_rejected")(labelLang, note);
+        }
+        // Toasts default to 4s; show decisions for 6s so the user has
+        // time to read them.
+        showToast(msg, { timeoutMs: 6000 });
+      }, i * 800);
+    });
+  } catch (e) { /* silent — non-critical */ }
+}
+
 
 async function refreshCostTicker() {
   const t = el("#cost-ticker");
@@ -1507,6 +1588,159 @@ function closeMarkupModal() {
   });
 }
 
+// =================== Propose new HSE sub-type modal ===================
+// Inspector clicks "None fit? Propose a new sub-type" on a card. The
+// propose modal opens with the card's photo + parent slug pre-filled.
+// On submit, we POST to /api/proposals; the server returns a
+// 'pending:<slug>' placeholder which we drop into the fine-picker so
+// the inspector can save the correction with the proposal attached.
+// Admin reviews at /admin/proposals; on approval the placeholder is
+// retro-patched to the real slug. The user sees a one-time toast on
+// their next visit telling them the outcome.
+
+let _PROPOSE_CARD = null;
+
+function openProposeModal(card) {
+  _PROPOSE_CARD = card;
+  const photoId = card.dataset.photoId;
+  const parentSlug = el(".hse-select", card)?.value || "";
+
+  if (!parentSlug) {
+    showToast(t("propose_no_parent"));
+    return;
+  }
+
+  el("#propose-parent-slug").value = parentSlug;
+  el("#propose-photo-id").value = photoId || "";
+  el("#propose-parent-display").textContent = parentSlug;
+  el("#propose-label-en").value = "";
+  el("#propose-label-vn").value = "";
+  el("#propose-description").value = "";
+  el("#propose-status").textContent = "";
+  el("#propose-quota").textContent = "";
+  el("#propose-submit").disabled = false;
+
+  const modal = el("#propose-modal");
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+
+  // Pre-fill the EN label with the search box content if the inspector
+  // typed something there before clicking "propose" (common case: they
+  // searched, didn't find a match, hit propose). The fine picker's
+  // search input is a sibling within the same card.
+  const fineSearch = el(".fine-picker-search", card);
+  if (fineSearch?.value) {
+    el("#propose-label-en").value = fineSearch.value.trim();
+  }
+
+  el("#propose-label-en").focus();
+
+  // Surface today's daily-cap usage so the inspector knows how many
+  // proposals they have left.
+  fetch("/api/proposals/mine").then(r => r.json()).then(data => {
+    const used = data.used_today || 0;
+    const lim = data.limit || 3;
+    el("#propose-quota").textContent = t("propose_quota")(used, lim);
+  }).catch(() => { /* non-fatal */ });
+}
+
+function closeProposeModal() {
+  const modal = el("#propose-modal");
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+  _PROPOSE_CARD = null;
+}
+
+// One-time wiring of the propose modal handlers.
+{
+  const closeBtn = el("#propose-close");
+  const cancelBtn = el("#propose-cancel");
+  if (closeBtn) closeBtn.addEventListener("click", closeProposeModal);
+  if (cancelBtn) cancelBtn.addEventListener("click", closeProposeModal);
+
+  const form = el("#propose-form");
+  if (form) form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const status = el("#propose-status");
+    const submit = el("#propose-submit");
+    const parentSlug = el("#propose-parent-slug").value;
+    const photoId = el("#propose-photo-id").value;
+    const labelEn = el("#propose-label-en").value.trim();
+    const labelVn = el("#propose-label-vn").value.trim();
+    const description = el("#propose-description").value.trim();
+
+    if (!labelEn || !labelVn) {
+      status.textContent = t("propose_need_both");
+      return;
+    }
+
+    submit.disabled = true;
+    status.textContent = t("propose_sending");
+
+    try {
+      const fd = new FormData();
+      fd.append("parent_slug", parentSlug);
+      fd.append("label_en", labelEn);
+      fd.append("label_vn", labelVn);
+      if (description) fd.append("description", description);
+      if (photoId) fd.append("example_photo_id", photoId);
+
+      const resp = await fetch("/api/proposals", { method: "POST", body: fd });
+      const data = await resp.json().catch(() => ({}));
+
+      if (resp.status === 429) {
+        const lim = (data.detail && data.detail.limit) || 3;
+        status.textContent = t("propose_daily_limit")(lim);
+        submit.disabled = false;
+        return;
+      }
+      if (resp.status === 409) {
+        status.textContent = t("propose_already_exists");
+        submit.disabled = false;
+        return;
+      }
+      if (!resp.ok) {
+        status.textContent = t("propose_failed") + (data.detail ? `: ${data.detail}` : "");
+        submit.disabled = false;
+        return;
+      }
+
+      // Success — pin the pending slug onto the card's fine picker so
+      // the next "Save correction" click attaches the proposal to the
+      // photo. We add a synthetic option so the picker renders nicely.
+      if (_PROPOSE_CARD && data.proposed_slug) {
+        const card = _PROPOSE_CARD;
+        // Stash a synthetic fine-type entry on FINE_BY_SLUG so the
+        // existing render code shows the human-readable label.
+        if (typeof FINE_BY_SLUG !== "undefined") {
+          FINE_BY_SLUG[data.proposed_slug] = {
+            slug: data.proposed_slug,
+            label_en: data.label_en + " (pending)",
+            label_vn: data.label_vn + " (đang chờ)",
+          };
+        }
+        try { _finePickerSetValue(card, data.proposed_slug); } catch {}
+        // Keep the search box visible so the inspector knows what's selected.
+        const fineSearch = el(".fine-picker-search", card);
+        if (fineSearch) fineSearch.value = data.label_en + " (pending)";
+      }
+
+      showToast(t("propose_submitted"));
+      closeProposeModal();
+    } catch (err) {
+      status.textContent = `${t("propose_failed")}: ${err.message}`;
+      submit.disabled = false;
+    }
+  });
+
+  // Esc closes the modal (consistent with email + markup modals).
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !el("#propose-modal").classList.contains("hidden")) {
+      closeProposeModal();
+    }
+  });
+}
+
 // =================== Card DOM ===================
 function getOrCreateCard(photo) {
   let entry = photoCache.get(photo.id);
@@ -1562,6 +1796,15 @@ function getOrCreateCard(photo) {
       e.stopPropagation();
       const thumbSrc = el(".thumb", card)?.src;
       openMarkupModal(card, photo.id, thumbSrc);
+    });
+  }
+  // "Propose new sub-type" button — same edit form section, opens
+  // the propose-modal with the card's parent slug + photo pre-filled.
+  const proposeBtn = el(".btn-propose", card);
+  if (proposeBtn) {
+    proposeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openProposeModal(card);
     });
   }
   el(".edit-form",   card).addEventListener("submit", (e) => { e.preventDefault(); correctCard(card); });
@@ -2791,6 +3034,8 @@ refreshCostTicker();
 setInterval(refreshCostTicker, 60_000);
 refreshQuotaIndicator();
 setInterval(refreshQuotaIndicator, 30_000);
+// One-shot check for decisions on the user's pending proposals.
+checkProposalDecisions();
 
 });  // end DOMContentLoaded
 </script>

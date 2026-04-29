@@ -473,14 +473,23 @@ built underneath cookie/session attribution in the meantime.
 
 Realistic phasing:
 
-  PHASE 1 (~3 days):   PWA — manifest, service worker, install flow,
-                       offline app shell, optionally background sync
-  PHASE 2 (~3 days):   Quota + stats (cookie-keyed)
-  PHASE 3 (~3 days):   Email export
-  PHASE 4 (~5 days):   User-submitted classes
+  PHASE 1 (~3 days):   [DONE] PWA — manifest, service worker, install
+                       flow, offline app shell, R2 thumbnail SWR cache
+  PHASE 2 (~3 days):   [DONE] Quota + stats (cookie-keyed)
+                       /admin/login + /admin/stats dashboard live
+  PHASE 3 (~3 days):   [DONE] Email export — "Email it" in export menu
+                       falls back to 7-day R2 link for >20MB blobs
+  PHASE 4 (~5 days):   [DONE] User-submitted classes — Propose-new
+                       button in correct-region modal, admin queue at
+                       /admin/proposals, hot-reload of taxonomy on
+                       approval, retro-patch of pending: corrections,
+                       one-time decision toast on user's next visit
   PHASE 5 (~3 days):   Auth — Google OAuth + retro-attribution
                        migration of pre-auth rows
   PHASE 6 (~2 days):   14-day verification (lights up after auth)
+  PHASE 7 (~1 day):    Add Azure Entra ID as second OAuth provider
+                       (credentials staged in
+                        ~/Desktop/violation-bot/secrets/azure_entra_id.txt)
 
 Total: ~3 weeks of focused work.
 

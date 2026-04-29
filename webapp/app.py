@@ -31,6 +31,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import sys
 import uuid
@@ -236,6 +237,10 @@ _DAILY_QUOTA = int(os.environ.get("QUOTA_FREE_PER_DAY", "30"))
 _ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")    # None = admin disabled
 _ADMIN_COOKIE_NAME = "vai_admin"
 _ADMIN_COOKIE_MAX_AGE = 60 * 60 * 12   # 12 hours
+# Phase 4 — per-cookie daily cap on new HSE-class proposals. Three is
+# small enough to deter spam, large enough that an inspector finding
+# multiple gaps in a single shift can submit them all.
+_PROPOSAL_DAILY_PER_USER = int(os.environ.get("PROPOSAL_DAILY_PER_USER", "3"))
 
 
 def _get_or_set_user_key(request: Request, response_headers: dict | None = None) -> str:
@@ -326,6 +331,87 @@ def _admin_authed(request: Request) -> bool:
     if not _ADMIN_PASSWORD:
         return False
     return request.cookies.get(_ADMIN_COOKIE_NAME) == _ADMIN_PASSWORD
+
+
+# ---------- phase 4: hse-class proposal helpers ----------
+
+_SLUG_NON_ALNUM = re.compile(r"[^a-zA-Z0-9]+")
+
+
+def _normalize_proposed_slug(label_en: str) -> str:
+    """Convert an English label into a slug that matches the existing
+    fine_hse_types_by_parent.json convention: leading/trailing junk
+    stripped, runs of non-alnum collapsed to '_', truncated to ~80 chars.
+
+    Example:
+      "Worker without harness on scaffold" -> "Worker_without_harness_on_scaffold"
+      "PPE — missing!! (gloves)"          -> "PPE_missing_gloves"
+    """
+    s = _SLUG_NON_ALNUM.sub("_", (label_en or "").strip()).strip("_")
+    return s[:80] or "proposal"
+
+
+def _unique_proposed_slug(base: str) -> str:
+    """Return `base`, or `base_2`, `base_3`, ... if the DB already has
+    that proposed_slug. Bounded loop — gives up after 50 attempts and
+    falls back to a uuid suffix so the unique constraint never blocks a
+    submission. The loop bound is generous; real collisions are rare."""
+    db = get_db()
+    candidate = base
+    for n in range(2, 52):
+        try:
+            rows = (
+                db.table("hse_class_proposals").select("id")
+                  .eq("proposed_slug", candidate)
+                  .limit(1).execute().data or []
+            )
+        except Exception as e:  # noqa: BLE001
+            # Table missing (pre-migration) — return base; the insert
+            # will surface the real error if any.
+            if "hse_class_proposals" in str(e):
+                return base
+            raise
+        if not rows:
+            return candidate
+        candidate = f"{base}_{n}"
+    # 50-deep collision is implausible — punt with a uuid suffix.
+    return f"{base}_{uuid.uuid4().hex[:6]}"
+
+
+def _proposal_count_today(user_key: str) -> int:
+    """Count proposals submitted by user_key in the current UTC day.
+    Used by the throttle check before insert. Returns 0 on error so a
+    flaky DB doesn't accidentally block legit submissions."""
+    if not user_key:
+        return 0
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        rows = (
+            get_db().table("hse_class_proposals")
+              .select("id", count="exact")
+              .eq("proposed_by_user_key", user_key)
+              .gte("created_at", f"{today}T00:00:00Z")
+              .limit(1).execute()
+        )
+        return int(rows.count or 0)
+    except Exception as e:  # noqa: BLE001
+        if "hse_class_proposals" in str(e):
+            return 0
+        log.warning("proposal count failed: %s", e)
+        return 0
+
+
+def _reload_fine_types_cache() -> None:
+    """Force the next request to re-read fine_hse_types_by_parent.json.
+    Called after the admin appends a new approved slug, so workers see
+    the new vocabulary on the next /api/upload without a process restart.
+    """
+    if hasattr(app.state, "fine_types"):
+        try:
+            delattr(app.state, "fine_types")
+        except Exception:  # noqa: BLE001
+            pass
 
 
 # ---------- helpers ----------
@@ -2314,6 +2400,209 @@ def api_usage_me(request: Request):
     return resp
 
 
+# ---------- phase 4: hse-class proposals (user side) ----------
+
+@app.post("/api/proposals")
+async def api_proposals_create(
+    request: Request,
+    parent_slug: str = Form(...),
+    label_en: str = Form(...),
+    label_vn: str = Form(...),
+    description: str | None = Form(None),
+    example_photo_id: str | None = Form(None),
+):
+    """Inspector proposes a new fine HSE sub-type.
+
+    Validates: parent_slug exists in fine_hse_types_by_parent.json,
+    label_en + label_vn are non-empty + reasonable length, daily cap
+    not exceeded, generated slug isn't already in the live taxonomy
+    or pending queue.
+
+    Returns the proposal row (with the placeholder 'pending:<slug>'
+    that the UI can stash on the correction so the user keeps working
+    while the admin reviews).
+    """
+    user_key = _get_or_set_user_key(request)
+
+    # Hot-load fine-types if app.state hasn't seen one yet (e.g. fresh
+    # boot, no /). Same lazy load as the / route.
+    if not hasattr(app.state, "fine_types"):
+        fine_path = REPO_ROOT / "data" / "fine_hse_types_by_parent.json"
+        try:
+            app.state.fine_types = json.loads(
+                fine_path.read_text(encoding="utf-8")
+            ).get("parents", {})
+        except Exception:  # noqa: BLE001
+            app.state.fine_types = {}
+
+    parents: dict = app.state.fine_types or {}
+    if parent_slug not in parents:
+        raise HTTPException(400, f"unknown parent_slug: {parent_slug}")
+
+    label_en = (label_en or "").strip()
+    label_vn = (label_vn or "").strip()
+    description = (description or "").strip() or None
+    if not label_en or not label_vn:
+        raise HTTPException(400, "label_en and label_vn required")
+    if len(label_en) > 200 or len(label_vn) > 200:
+        raise HTTPException(400, "label too long (max 200 chars)")
+    if description and len(description) > 1000:
+        raise HTTPException(400, "description too long (max 1000 chars)")
+
+    # Per-cookie throttle. Keep this check after cheap validation so the
+    # error surface for a typo isn't "you hit the daily cap".
+    used_today = _proposal_count_today(user_key)
+    if used_today >= _PROPOSAL_DAILY_PER_USER:
+        raise HTTPException(
+            429,
+            detail={
+                "error": "proposal_daily_limit",
+                "limit": _PROPOSAL_DAILY_PER_USER,
+                "used": used_today,
+            },
+        )
+
+    # Don't let an inspector propose a slug that already exists under
+    # the chosen parent. Also reject same-label-EN to avoid near-dups.
+    existing = parents.get(parent_slug, [])
+    base = _normalize_proposed_slug(label_en)
+    label_lower = label_en.lower()
+    for ex in existing:
+        if (ex.get("slug") or "").lower() == base.lower():
+            raise HTTPException(409, "slug already exists under this parent")
+        if (ex.get("label_en") or "").strip().lower() == label_lower:
+            raise HTTPException(409, "label already exists under this parent")
+
+    proposed_slug = f"pending:{_unique_proposed_slug(base)}"
+
+    # Tolerate example_photo_id being a non-UUID (e.g. blank or a UI
+    # sentinel) — store NULL rather than failing the insert.
+    photo_id_clean: str | None = None
+    if example_photo_id:
+        try:
+            uuid.UUID(example_photo_id)
+            photo_id_clean = example_photo_id
+        except (ValueError, TypeError):
+            photo_id_clean = None
+
+    db = get_db()
+    try:
+        row = (
+            db.table("hse_class_proposals").insert({
+                "proposed_by_user_key": user_key,
+                "parent_slug": parent_slug,
+                "proposed_slug": proposed_slug,
+                "label_en": label_en,
+                "label_vn": label_vn,
+                "description": description,
+                "example_photo_id": photo_id_clean,
+                "status": "pending",
+            }).execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        if "hse_class_proposals" in str(e):
+            raise HTTPException(503, "proposals not configured (run migration)")
+        log.warning("proposal insert failed: %s", e)
+        raise HTTPException(500, "proposal insert failed")
+
+    rec = row[0] if row else {}
+    body = {
+        "id": rec.get("id"),
+        "proposed_slug": proposed_slug,   # 'pending:<slug>' — UI stores this on the correction
+        "parent_slug": parent_slug,
+        "label_en": label_en,
+        "label_vn": label_vn,
+        "status": "pending",
+        "used_today": used_today + 1,
+        "limit": _PROPOSAL_DAILY_PER_USER,
+    }
+    resp = JSONResponse(content=body)
+    _attach_user_cookie(resp, user_key)
+    return resp
+
+
+@app.get("/api/proposals/decisions")
+def api_proposals_decisions(request: Request):
+    """Pull decided proposals for this cookie that the user hasn't
+    been told about yet. The first call returns up to 10 rows + flips
+    notified_user=TRUE on those rows so the toast is one-shot.
+
+    Called once per page load by index.html. Returns an empty list
+    when the user has no pending notifications, so the call is cheap
+    + safe to fire on every visit.
+    """
+    user_key = _get_or_set_user_key(request)
+    db = get_db()
+    try:
+        rows = (
+            db.table("hse_class_proposals")
+              .select("id, parent_slug, label_en, label_vn, status, "
+                      "approved_slug, reviewer_note, reviewed_at")
+              .eq("proposed_by_user_key", user_key)
+              .neq("status", "pending")
+              .eq("notified_user", False)
+              .order("reviewed_at", desc=True)
+              .limit(10).execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        if "hse_class_proposals" in str(e):
+            return JSONResponse(content={"decisions": []})
+        log.warning("proposal decisions lookup failed: %s", e)
+        return JSONResponse(content={"decisions": []})
+
+    if rows:
+        ids = [r["id"] for r in rows]
+        try:
+            db.table("hse_class_proposals").update({
+                "notified_user": True,
+            }).in_("id", ids).execute()
+        except Exception as e:  # noqa: BLE001
+            log.warning("proposal notify-mark failed: %s", e)
+            # Non-fatal — the user just sees the toast again next visit.
+
+    resp = JSONResponse(content={"decisions": rows})
+    _attach_user_cookie(resp, user_key)
+    return resp
+
+
+@app.get("/api/proposals/mine")
+def api_proposals_mine(request: Request):
+    """List THIS cookie's recent proposals (any status). Used by the
+    Propose modal's 'your recent submissions' section so the inspector
+    can see what they've already sent + the daily cap usage."""
+    user_key = _get_or_set_user_key(request)
+    db = get_db()
+    try:
+        rows = (
+            db.table("hse_class_proposals")
+              .select("id, parent_slug, proposed_slug, label_en, label_vn, "
+                      "status, approved_slug, reviewer_note, "
+                      "created_at, reviewed_at")
+              .eq("proposed_by_user_key", user_key)
+              .order("created_at", desc=True)
+              .limit(20).execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        if "hse_class_proposals" in str(e):
+            return JSONResponse(content={
+                "proposals": [],
+                "used_today": 0,
+                "limit": _PROPOSAL_DAILY_PER_USER,
+            })
+        log.warning("proposals/mine failed: %s", e)
+        rows = []
+
+    used_today = _proposal_count_today(user_key)
+    body = {
+        "proposals": rows,
+        "used_today": used_today,
+        "limit": _PROPOSAL_DAILY_PER_USER,
+    }
+    resp = JSONResponse(content=body)
+    _attach_user_cookie(resp, user_key)
+    return resp
+
+
 @app.get("/api/usage/today")
 def api_usage_today():
     """Estimate today's OpenRouter spend by summing tokens × public list
@@ -2575,6 +2864,384 @@ tr:last-child td{{border-bottom:0}}
 <tbody>{user_html or '<tr><td colspan=7 style=text-align:center;color:#94a3b8>(no data)</td></tr>'}</tbody></table>
 </body></html>"""
     return HTMLResponse(html)
+
+
+# ---------- phase 4: hse-class proposals (admin side) ----------
+
+def _append_to_fine_taxonomy(parent_slug: str, slug: str,
+                             label_en: str, label_vn: str) -> None:
+    """Idempotently append one approved sub-type to
+    data/fine_hse_types_by_parent.json. Writes via temp file + rename
+    so a crash mid-write doesn't leave a half-written JSON on disk.
+    Caller is responsible for invalidating the in-memory cache."""
+    fine_path = REPO_ROOT / "data" / "fine_hse_types_by_parent.json"
+    tmp_path = fine_path.with_suffix(".json.tmp")
+    if not fine_path.exists():
+        raise RuntimeError(f"taxonomy file not found: {fine_path}")
+    data = json.loads(fine_path.read_text(encoding="utf-8"))
+    parents = data.setdefault("parents", {})
+    bucket = parents.setdefault(parent_slug, [])
+
+    # If a row with the same slug already exists, leave it (idempotent
+    # re-approve doesn't double-write).
+    if any((row.get("slug") or "") == slug for row in bucket):
+        return
+
+    bucket.append({
+        "slug": slug,
+        "label_en": label_en,
+        "label_vn": label_vn,
+        "primary_work_zone": "User-submitted",
+    })
+    tmp_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    tmp_path.replace(fine_path)
+
+
+def _retro_patch_corrections(old_slug: str, new_slug: str) -> int:
+    """Replace `pending:<x>` with the approved slug on any corrections
+    that were saved while the proposal was pending. Returns the number
+    of rows touched. Best-effort — failures are logged."""
+    if not old_slug or not new_slug:
+        return 0
+    db = get_db()
+    try:
+        rows = (
+            db.table("corrections").select("id")
+              .eq("fine_hse_type_slug", old_slug)
+              .limit(1000).execute().data or []
+        )
+        if not rows:
+            return 0
+        ids = [r["id"] for r in rows]
+        db.table("corrections").update({
+            "fine_hse_type_slug": new_slug,
+        }).in_("id", ids).execute()
+        return len(ids)
+    except Exception as e:  # noqa: BLE001
+        log.warning("retro-patch corrections failed: %s", e)
+        return 0
+
+
+@app.get("/admin/proposals", response_class=HTMLResponse)
+def admin_proposals(request: Request, status: str = "pending"):
+    """Admin review queue. Default filter is `pending`; pass
+    ?status=approved|rejected|duplicate|all to see decided items.
+
+    Inline HTML — same minimalist style as /admin/stats. Each row has
+    Approve / Reject / Duplicate buttons that POST to the per-id
+    endpoints below. The page reloads after each action.
+    """
+    if not _admin_authed(request):
+        return RedirectResponse("/admin/login", status_code=303)
+
+    db = get_db()
+    valid = {"pending", "approved", "rejected", "duplicate", "all"}
+    if status not in valid:
+        status = "pending"
+
+    try:
+        q = (
+            db.table("hse_class_proposals")
+              .select("id, proposed_by_user_key, parent_slug, proposed_slug, "
+                      "label_en, label_vn, description, example_photo_id, "
+                      "status, reviewer_note, approved_slug, "
+                      "created_at, reviewed_at, reviewed_by")
+              .order("created_at", desc=True).limit(200)
+        )
+        if status != "all":
+            q = q.eq("status", status)
+        rows = q.execute().data or []
+    except Exception as e:  # noqa: BLE001
+        if "hse_class_proposals" in str(e):
+            return HTMLResponse(
+                "<h1>proposals not configured</h1>"
+                "<p>Run <code>scripts/add_hse_class_proposals_table.py</code> "
+                "and apply the SQL.</p>", status_code=503)
+        raise
+
+    # Load thumbnails for the example_photo_id refs in one batch query.
+    photo_thumbs: dict[str, str] = {}
+    photo_ids = [r["example_photo_id"] for r in rows if r.get("example_photo_id")]
+    if photo_ids:
+        try:
+            phs = (
+                db.table("photos").select("id, r2_thumb_key, r2_object_key")
+                  .in_("id", photo_ids).execute().data or []
+            )
+            for p in phs:
+                key = p.get("r2_thumb_key") or p.get("r2_object_key")
+                if key:
+                    photo_thumbs[p["id"]] = f"/r2/{key}"
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _esc(s: object) -> str:
+        return (str(s or "")
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;"))
+
+    counts = {k: 0 for k in ("pending", "approved", "rejected", "duplicate")}
+    try:
+        all_rows = (
+            db.table("hse_class_proposals").select("status")
+              .limit(5000).execute().data or []
+        )
+        for r in all_rows:
+            counts[r.get("status", "pending")] = counts.get(r.get("status", "pending"), 0) + 1
+    except Exception:  # noqa: BLE001
+        pass
+
+    body_rows = []
+    for r in rows:
+        thumb = photo_thumbs.get(r.get("example_photo_id") or "")
+        thumb_html = (
+            f"<img src='{_esc(thumb)}' alt='' loading='lazy' "
+            "style='width:96px;height:96px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0'>"
+            if thumb else
+            "<div style='width:96px;height:96px;border-radius:6px;border:1px dashed #cbd5e1;"
+            "display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px'>no photo</div>"
+        )
+        st = r.get("status", "pending")
+        st_color = {
+            "pending": "#f59e0b",
+            "approved": "#10b981",
+            "rejected": "#ef4444",
+            "duplicate": "#6366f1",
+        }.get(st, "#64748b")
+        if st == "pending":
+            actions_html = (
+                f"<form method=POST action='/admin/proposals/{r['id']}/approve' style='display:inline'>"
+                "<button class='btn approve' type=submit>Approve</button></form> "
+                f"<form method=POST action='/admin/proposals/{r['id']}/reject' "
+                "style='display:inline-flex;gap:4px;align-items:center;margin-left:6px'>"
+                "<input name=note placeholder='reason (optional)' "
+                "style='padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:11px;width:140px'>"
+                "<button class='btn reject' type=submit>Reject</button></form> "
+                f"<form method=POST action='/admin/proposals/{r['id']}/duplicate' "
+                "style='display:inline-flex;gap:4px;align-items:center;margin-left:6px'>"
+                "<input name=note placeholder='canonical slug' required "
+                "style='padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font-size:11px;width:160px'>"
+                "<button class='btn dup' type=submit>Duplicate</button></form>"
+            )
+        else:
+            decided_at = (r.get("reviewed_at") or "")[:19].replace("T", " ")
+            note = r.get("reviewer_note") or ""
+            approved_slug = r.get("approved_slug") or ""
+            extra = (
+                f"<div style='font-size:11px;color:#64748b;margin-top:4px'>"
+                f"slug: <code>{_esc(approved_slug)}</code></div>"
+                if approved_slug else ""
+            )
+            actions_html = (
+                f"<div style='font-size:11px;color:#64748b'>{_esc(decided_at)}</div>"
+                f"<div style='font-size:12px;color:#0f172a;margin-top:4px'>{_esc(note)}</div>"
+                + extra
+            )
+
+        desc = r.get("description") or ""
+        body_rows.append(
+            f"<tr><td>{thumb_html}</td>"
+            f"<td><div style='font-weight:600'>{_esc(r['label_en'])}</div>"
+            f"<div style='color:#475569;font-size:12px;margin-top:2px'>{_esc(r['label_vn'])}</div>"
+            f"{f'<div style=color:#64748b;font-size:12px;margin-top:6px;line-height:1.4>{_esc(desc)}</div>' if desc else ''}"
+            f"<div style='font-size:11px;color:#94a3b8;margin-top:8px'>"
+            f"parent: <code>{_esc(r['parent_slug'])}</code> · "
+            f"by <code>{_esc((r.get('proposed_by_user_key') or '')[:14])}…</code> · "
+            f"{_esc((r.get('created_at') or '')[:19].replace('T', ' '))}"
+            f"</div></td>"
+            f"<td><span style='display:inline-block;padding:2px 8px;border-radius:999px;"
+            f"background:{st_color}20;color:{st_color};font-size:11px;font-weight:600;"
+            f"text-transform:uppercase;letter-spacing:.04em'>{_esc(st)}</span></td>"
+            f"<td style='min-width:280px'>{actions_html}</td></tr>"
+        )
+
+    rows_html = "".join(body_rows) or (
+        "<tr><td colspan=4 style='text-align:center;color:#94a3b8;padding:32px'>"
+        "(no proposals in this status)</td></tr>"
+    )
+
+    tabs = []
+    for s in ("pending", "approved", "rejected", "duplicate", "all"):
+        cnt = "" if s == "all" else f" ({counts.get(s, 0)})"
+        tabs.append(
+            f"<a href='/admin/proposals?status={s}' "
+            f"class='tab{' active' if s == status else ''}'>{s}{cnt}</a>"
+        )
+
+    html = f"""<!doctype html><html><head><meta charset=utf-8><title>Admin proposals</title>
+<style>
+body{{font:13px/1.5 system-ui;max-width:1200px;margin:24px auto;padding:0 16px;background:#f8fafc;color:#0f172a}}
+h1{{font-size:20px;margin:0 0 16px}}
+.tabs{{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid #e2e8f0}}
+.tab{{padding:8px 14px;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;font-size:13px;text-transform:capitalize}}
+.tab.active{{color:#0f172a;border-bottom-color:#10b981;font-weight:600}}
+.tab:hover{{color:#0f172a}}
+table{{border-collapse:collapse;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}}
+th,td{{text-align:left;padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top}}
+th{{background:#f1f5f9;color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.04em}}
+tr:last-child td{{border-bottom:0}}
+.btn{{border:0;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600}}
+.btn.approve{{background:#10b981;color:#fff}}
+.btn.approve:hover{{background:#059669}}
+.btn.reject{{background:#fff;color:#ef4444;border:1px solid #ef4444}}
+.btn.reject:hover{{background:#fef2f2}}
+.btn.dup{{background:#fff;color:#6366f1;border:1px solid #6366f1}}
+.btn.dup:hover{{background:#eef2ff}}
+code{{font-family:ui-monospace,Menlo,monospace;background:#f1f5f9;padding:1px 6px;border-radius:4px}}
+.nav{{margin-bottom:8px}}
+.nav a{{color:#64748b;text-decoration:none;font-size:12px;margin-right:12px}}
+.nav a:hover{{color:#0f172a}}
+</style></head><body>
+<div class=nav><a href='/admin/stats'>← Stats</a> <a href='/'>← App</a></div>
+<h1>HSE class proposals</h1>
+<div class=tabs>{''.join(tabs)}</div>
+<table><thead><tr><th>Photo</th><th>Proposal</th><th>Status</th><th>Action</th></tr></thead>
+<tbody>{rows_html}</tbody></table>
+</body></html>"""
+    return HTMLResponse(html)
+
+
+@app.post("/admin/proposals/{proposal_id}/approve")
+def admin_proposal_approve(proposal_id: str, request: Request):
+    """Approve a proposal: append to fine_hse_types_by_parent.json,
+    retro-patch any corrections still tagged with `pending:<slug>`,
+    invalidate the in-memory taxonomy cache, and mark the row decided."""
+    if not _admin_authed(request):
+        return RedirectResponse("/admin/login", status_code=303)
+
+    db = get_db()
+    rows = (
+        db.table("hse_class_proposals").select("*")
+          .eq("id", proposal_id).limit(1).execute().data or []
+    )
+    if not rows:
+        raise HTTPException(404, "proposal not found")
+    p = rows[0]
+    if p["status"] != "pending":
+        return RedirectResponse("/admin/proposals", status_code=303)
+
+    pending_slug = p["proposed_slug"]   # e.g. "pending:Worker_no_harness"
+    final_slug = pending_slug.split(":", 1)[1] if ":" in pending_slug else pending_slug
+    # Disambiguate against the live taxonomy too (in case another
+    # parent has the same slug under a different bucket — shouldn't
+    # happen but cheap to defend).
+    if not hasattr(app.state, "fine_types"):
+        fine_path = REPO_ROOT / "data" / "fine_hse_types_by_parent.json"
+        try:
+            app.state.fine_types = json.loads(
+                fine_path.read_text(encoding="utf-8")
+            ).get("parents", {})
+        except Exception:  # noqa: BLE001
+            app.state.fine_types = {}
+    seen_slugs = {
+        row.get("slug") for parent_rows in (app.state.fine_types or {}).values()
+        for row in parent_rows
+    }
+    if final_slug in seen_slugs:
+        suffix = 2
+        while f"{final_slug}_{suffix}" in seen_slugs:
+            suffix += 1
+        final_slug = f"{final_slug}_{suffix}"
+
+    try:
+        _append_to_fine_taxonomy(
+            p["parent_slug"], final_slug, p["label_en"], p["label_vn"]
+        )
+    except Exception as e:  # noqa: BLE001
+        log.error("approve: taxonomy append failed: %s", e)
+        raise HTTPException(500, "taxonomy file write failed")
+
+    _reload_fine_types_cache()
+    patched = _retro_patch_corrections(pending_slug, final_slug)
+
+    from datetime import datetime, timezone
+    db.table("hse_class_proposals").update({
+        "status": "approved",
+        "approved_slug": final_slug,
+        "reviewed_at": datetime.now(timezone.utc).isoformat(),
+        "reviewed_by": "admin",
+        "reviewer_note": (
+            f"Approved as '{final_slug}'."
+            + (f" Retro-patched {patched} corrections." if patched else "")
+        ),
+    }).eq("id", proposal_id).execute()
+
+    return RedirectResponse("/admin/proposals", status_code=303)
+
+
+@app.post("/admin/proposals/{proposal_id}/reject")
+def admin_proposal_reject(
+    proposal_id: str, request: Request, note: str | None = Form(None)
+):
+    """Mark a proposal rejected. The note (optional) is shown to the
+    user in the decision toast."""
+    if not _admin_authed(request):
+        return RedirectResponse("/admin/login", status_code=303)
+    db = get_db()
+    rows = (
+        db.table("hse_class_proposals").select("status")
+          .eq("id", proposal_id).limit(1).execute().data or []
+    )
+    if not rows:
+        raise HTTPException(404, "proposal not found")
+    if rows[0]["status"] != "pending":
+        return RedirectResponse("/admin/proposals", status_code=303)
+
+    from datetime import datetime, timezone
+    db.table("hse_class_proposals").update({
+        "status": "rejected",
+        "reviewer_note": (note or "").strip() or "Rejected.",
+        "reviewed_at": datetime.now(timezone.utc).isoformat(),
+        "reviewed_by": "admin",
+    }).eq("id", proposal_id).execute()
+    return RedirectResponse("/admin/proposals", status_code=303)
+
+
+@app.post("/admin/proposals/{proposal_id}/duplicate")
+def admin_proposal_duplicate(
+    proposal_id: str, request: Request, note: str = Form(...)
+):
+    """Mark a proposal as a duplicate of an existing slug. The note is
+    REQUIRED here — it should be the canonical slug the user should
+    have used. Surfaced to the user in the decision toast."""
+    if not _admin_authed(request):
+        return RedirectResponse("/admin/login", status_code=303)
+    canonical = (note or "").strip()
+    if not canonical:
+        raise HTTPException(400, "canonical slug required")
+
+    db = get_db()
+    rows = (
+        db.table("hse_class_proposals").select("status, proposed_slug")
+          .eq("id", proposal_id).limit(1).execute().data or []
+    )
+    if not rows:
+        raise HTTPException(404, "proposal not found")
+    if rows[0]["status"] != "pending":
+        return RedirectResponse("/admin/proposals", status_code=303)
+
+    # Retro-patch corrections that used the pending slug to the canonical
+    # one — same intent as approve, just routing to an existing taxonomy
+    # row instead of a new one.
+    patched = _retro_patch_corrections(rows[0]["proposed_slug"], canonical)
+
+    from datetime import datetime, timezone
+    db.table("hse_class_proposals").update({
+        "status": "duplicate",
+        "approved_slug": canonical,
+        "reviewer_note": (
+            f"Marked as duplicate of '{canonical}'."
+            + (f" Retro-patched {patched} corrections." if patched else "")
+        ),
+        "reviewed_at": datetime.now(timezone.utc).isoformat(),
+        "reviewed_by": "admin",
+    }).eq("id", proposal_id).execute()
+    return RedirectResponse("/admin/proposals", status_code=303)
 
 
 @app.get("/api/export/summary")

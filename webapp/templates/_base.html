@@ -222,6 +222,64 @@
     </div>
   </div>
 
+  <!-- Propose new HSE sub-type modal. Inspector hits this when none of
+       the existing fine sub-types under the AI-picked parent matches
+       what they actually saw. The proposal queues for admin review at
+       /admin/proposals; the inspector keeps working with a placeholder
+       'pending:<slug>' on the correction in the meantime, retro-patched
+       to the real slug on approval. -->
+  <div id="propose-modal" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold" data-i18n="propose_title">Propose new sub-type</h3>
+        <button id="propose-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
+      </div>
+      <p class="text-xs text-slate-500 mb-3" data-i18n="propose_help">
+        None of the existing sub-types fit? Propose a new one. An admin
+        reviews each proposal; on approval it joins the live taxonomy and
+        we backfill any photos you tagged with this proposal.
+      </p>
+      <form id="propose-form" class="text-sm space-y-3">
+        <input type="hidden" id="propose-parent-slug">
+        <input type="hidden" id="propose-photo-id">
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1" data-i18n="propose_parent">Under category</label>
+          <div id="propose-parent-display" class="text-sm text-slate-900 font-mono bg-slate-50 border border-slate-200 rounded px-2 py-1.5"></div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1" data-i18n="propose_label_en">Name (English)</label>
+          <input id="propose-label-en" type="text" required maxlength="200"
+                 placeholder="e.g. Worker without harness on scaffold edge"
+                 class="w-full border border-slate-300 rounded px-2 py-2 bg-white">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1" data-i18n="propose_label_vn">Name (Tiếng Việt)</label>
+          <input id="propose-label-vn" type="text" required maxlength="200"
+                 placeholder="VD: Công nhân không đeo dây an toàn trên cạnh giàn giáo"
+                 class="w-full border border-slate-300 rounded px-2 py-2 bg-white">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1" data-i18n="propose_description">
+            Why is this needed? <span class="text-slate-400 font-normal">(optional)</span>
+          </label>
+          <textarea id="propose-description" rows="2" maxlength="280"
+                    placeholder="One line on why the existing sub-types don't capture this hazard"
+                    class="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-sm"></textarea>
+        </div>
+        <div id="propose-status" class="text-xs text-slate-400 min-h-[16px]"></div>
+        <div class="flex gap-2 pt-1">
+          <button type="submit" id="propose-submit"
+                  class="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-lg px-4 py-2 disabled:bg-slate-300 disabled:cursor-not-allowed">
+            <span data-i18n="propose_send">Submit for review</span>
+          </button>
+          <button type="button" id="propose-cancel"
+                  class="text-slate-500 hover:text-slate-900 text-sm px-3" data-i18n="edit_cancel">Cancel</button>
+        </div>
+        <div class="text-[11px] text-slate-400 pt-1" id="propose-quota"></div>
+      </form>
+    </div>
+  </div>
+
   <!-- Per-photo history modal (audit trail). Populated by openHistoryModal(). -->
   <div id="history-modal" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-5 max-w-2xl w-full shadow-2xl max-h-[85vh] flex flex-col">
