@@ -921,6 +921,114 @@ def photo_history(photo_id: str):
     return {"photo_id": photo_id, "history": out}
 
 
+@app.post("/api/photos/{photo_id}/reclassify-region")
+@_maybe_limit("_RATE_LIMIT_RETRY")
+async def reclassify_region(request: Request, photo_id: str,
+                            region: UploadFile = File(...)):
+    """Re-classify a photo using a region the inspector cropped/highlighted.
+
+    Use case: the AI got confused (e.g. picked Electrical for a photo
+    where the actual hazard is the missing handrail at the floor edge).
+    Inspector circles/crops the actual hazard, posts the cropped pixels
+    here, and we re-run the classifier on JUST that region. Result
+    overwrites the photo's current classifications row.
+
+    The cropped image is NOT stored separately — we don't replace the
+    original photo in R2. Only the classification gets updated. So the
+    inspector's pixel-level annotation is ephemeral; what persists is
+    the AI's better answer plus rationale.
+    """
+    db = get_db()
+    photo_rows = db.table("photos").select("*").eq("id", photo_id).execute().data or []
+    if not photo_rows:
+        raise HTTPException(404, "photo not found")
+    photo = photo_rows[0]
+
+    raw = await region.read()
+    if not raw or len(raw) < 100:
+        raise HTTPException(400, "region payload empty or truncated")
+    if not _looks_like_supported_image(raw):
+        raise HTTPException(400, "region not a supported image")
+
+    # Run the classifier on the cropped bytes via a temp file (the
+    # classify pipeline expects a file path so it can run CLIP for RAG
+    # retrieval on the same bytes).
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tf:
+        tf.write(raw)
+        tmp_path = Path(tf.name)
+    try:
+        # Same in-session learning pull-in as the worker, so corrections
+        # made earlier in the batch carry over to the re-classify call.
+        recent_corrections: list[dict] = []
+        try:
+            cs = (
+                db.table("corrections").select(
+                    "hse_type_slug, fine_hse_type_slug, note, created_at")
+                .eq("batch_id", photo.get("batch_id") or "")
+                .order("created_at", desc=True).limit(8).execute().data or []
+            )
+            recent_corrections = [r for r in cs if r.get("hse_type_slug")]
+        except Exception:  # noqa: BLE001
+            pass
+
+        cls = classify_image(
+            tmp_path,
+            recent_corrections=recent_corrections,
+            fine_grained=True,
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    # Replace the current classifications row.
+    try:
+        db.table("classifications").update({"is_current": False}).eq(
+            "photo_id", photo_id).execute()
+    except Exception as e:  # noqa: BLE001
+        log.warning("clear-current failed for %s: %s", photo_id, e)
+
+    insert_payload = {
+        "photo_id": photo_id,
+        "location_slug": cls.location.slug,
+        "hse_type_slug": cls.hse_type.slug,
+        "location_confidence": cls.location.confidence,
+        "hse_type_confidence": cls.hse_type.confidence,
+        "rationale": cls.rationale,
+        "model": cls.model + "+region-marked",
+        "source": "user_marked_region",
+        "input_tokens": cls.input_tokens,
+        "output_tokens": cls.output_tokens,
+        "raw_response": cls.raw_response,
+        "is_current": True,
+    }
+    if cls.fine_hse_type:
+        insert_payload["fine_hse_type_slug"] = cls.fine_hse_type.slug
+        insert_payload["fine_hse_type_confidence"] = cls.fine_hse_type.confidence
+    try:
+        db.table("classifications").insert(insert_payload).execute()
+    except Exception as e:  # noqa: BLE001
+        if "fine_hse_type" in str(e):
+            insert_payload.pop("fine_hse_type_slug", None)
+            insert_payload.pop("fine_hse_type_confidence", None)
+            db.table("classifications").insert(insert_payload).execute()
+        else:
+            raise
+
+    log.info("reclassify-region photo=%s -> hse=%s fine=%s",
+             photo_id, cls.hse_type.slug,
+             cls.fine_hse_type.slug if cls.fine_hse_type else "<none>")
+
+    return {
+        "ok": True,
+        "photo_id": photo_id,
+        "hse_type_slug": cls.hse_type.slug,
+        "fine_hse_type_slug": cls.fine_hse_type.slug if cls.fine_hse_type else None,
+        "fine_hse_type_label_en": cls.fine_hse_type.label_en if cls.fine_hse_type else None,
+        "rationale": cls.rationale,
+        "confidence": cls.hse_type.confidence,
+    }
+
+
 @app.post("/api/photos/{photo_id}/retry")
 @_maybe_limit("_RATE_LIMIT_RETRY")
 def retry_classify(request: Request, photo_id: str):

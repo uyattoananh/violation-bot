@@ -365,15 +365,39 @@
           <select name="hse_type_slug" class="hse-select w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white"></select>
 
           <!-- Optional AECIS-canonical sub-type, populated from
-               data/fine_hse_types_by_parent.json. The list filters
-               based on the current value of .hse-select. -->
+               data/fine_hse_types_by_parent.json. The list defaults to
+               sub-types of the current parent (.hse-select), but the
+               inspector can toggle "all categories" to search across
+               every fine type when the AI picked the wrong parent. -->
           <label class="block font-medium mb-0.5 text-slate-700" data-i18n="edit_fine_label">
             AECIS sub-type <span class="text-slate-400 font-normal">(optional)</span>
           </label>
-          <select name="fine_hse_type_slug"
-                  class="fine-select w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white">
-            <option value="">— none —</option>
-          </select>
+          <!-- The fine-picker is a custom searchable combobox (native
+               <select> doesn't scale to 300+ options well). The hidden
+               input is what gets posted; the visible input is the search
+               box; the dropdown is a filtered scrollable list. -->
+          <div class="fine-picker relative mb-2">
+            <input type="hidden" name="fine_hse_type_slug" class="fine-picker-value">
+            <div class="flex items-stretch gap-1">
+              <input type="text"
+                     class="fine-picker-search flex-1 border border-slate-300 rounded px-2 py-1.5 bg-white"
+                     placeholder="Search sub-types…"
+                     autocomplete="off">
+              <button type="button"
+                      class="fine-picker-scope text-[10px] text-slate-500 hover:text-slate-900 border border-slate-300 hover:border-emerald-400 rounded px-2 bg-white transition-colors whitespace-nowrap"
+                      title="Toggle: this category only / all categories">
+                <span class="fine-picker-scope-label">in category</span>
+              </button>
+              <button type="button"
+                      class="fine-picker-clear hidden text-slate-400 hover:text-rose-600 border border-slate-300 rounded px-2 bg-white transition-colors"
+                      title="Clear">
+                ×
+              </button>
+            </div>
+            <div class="fine-picker-list hidden absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto z-30">
+              <!-- options rendered by JS -->
+            </div>
+          </div>
 
           <!-- Location is determined by the AI internally and stored, but not
                surfaced in the UI per the AECIS workflow (location is the
@@ -395,6 +419,14 @@
               Cancel
             </button>
           </div>
+          <!-- Last-resort tool: when the AI got the photo wrong, the
+               inspector marks just the hazard region and re-runs. The
+               classifier sees only the cropped region, so the output
+               isn't biased by other equipment in the same scene. -->
+          <button type="button" class="btn-markup mt-2 w-full text-[11px] text-slate-500 hover:text-emerald-700 underline-offset-2 hover:underline transition-colors"
+                  title="Mark the hazard region and let the AI re-detect">
+            <span data-i18n="markup_link">Mark region & re-detect</span>
+          </button>
         </form>
       </div>
 
@@ -490,6 +522,11 @@ const I18N = {
     edit_hse_label: "HSE type",
     edit_loc_label: "Location",
     edit_fine_label: "AECIS sub-type <span class='text-slate-400 font-normal'>(optional)</span>",
+    fine_search_placeholder: "Search sub-types…",
+    fine_search_placeholder_all: "Search ALL 386+ sub-types…",
+    fine_scope_in_category: "in category",
+    fine_scope_all: "all categories",
+    fine_no_results: "No matches",
     edit_note_ph: "optional note for the audit log",
     edit_save: "Save correction",
     edit_cancel: "Cancel",
@@ -524,6 +561,17 @@ const I18N = {
     history_empty: "No corrections recorded for this photo yet.",
     history_action_confirm: "Confirmed",
     history_action_correct: "Corrected to",
+    markup_link: "Mark region & re-detect",
+    markup_title: "Mark the violation",
+    markup_help: "Drag to draw a rectangle around the hazard. The AI re-classifies on just that region.",
+    markup_clear: "Clear",
+    markup_submit: "Re-detect on region",
+    markup_status_drawing: "Drawing…",
+    markup_status_drawn: (w, h) => `Region: ${Math.round(w)} × ${Math.round(h)} px`,
+    markup_status_running: "Running AI on the region…",
+    markup_done: (label) => `Re-detected: ${label}`,
+    markup_failed: "Re-detect failed",
+    markup_no_region: "Drag a rectangle on the photo first",
     quality_warn_one: (reason) => `1 photo flagged as ${reason} — AI may struggle`,
     quality_warn_many: (n, reason) => `${n} photos flagged (${reason}) — AI may struggle`,
     quality_blurry: "blurry",
@@ -598,6 +646,11 @@ const I18N = {
     edit_hse_label: "Loại vi phạm HSE",
     edit_loc_label: "Vị trí",
     edit_fine_label: "Phân loại chi tiết AECIS <span class='text-slate-400 font-normal'>(không bắt buộc)</span>",
+    fine_search_placeholder: "Tìm phân loại chi tiết…",
+    fine_search_placeholder_all: "Tìm trong TẤT CẢ 386+ phân loại…",
+    fine_scope_in_category: "trong danh mục",
+    fine_scope_all: "tất cả danh mục",
+    fine_no_results: "Không có kết quả",
     edit_note_ph: "ghi chú (không bắt buộc) cho nhật ký kiểm tra",
     edit_save: "Lưu chỉnh sửa",
     edit_cancel: "Hủy",
@@ -632,6 +685,17 @@ const I18N = {
     history_empty: "Ảnh này chưa có chỉnh sửa nào.",
     history_action_confirm: "Đã xác nhận",
     history_action_correct: "Đã sửa thành",
+    markup_link: "Đánh dấu vùng & nhận diện lại",
+    markup_title: "Đánh dấu vi phạm",
+    markup_help: "Kéo để vẽ hình chữ nhật quanh nguy cơ. AI sẽ phân loại lại chỉ vùng đó.",
+    markup_clear: "Xóa",
+    markup_submit: "Nhận diện lại vùng",
+    markup_status_drawing: "Đang vẽ…",
+    markup_status_drawn: (w, h) => `Vùng: ${Math.round(w)} × ${Math.round(h)} px`,
+    markup_status_running: "AI đang phân tích vùng…",
+    markup_done: (label) => `Nhận diện lại: ${label}`,
+    markup_failed: "Nhận diện lại thất bại",
+    markup_no_region: "Hãy vẽ hình chữ nhật trên ảnh trước",
     quality_warn_one: (reason) => `1 ảnh có vấn đề chất lượng (${reason}) — AI có thể khó nhận diện`,
     quality_warn_many: (n, reason) => `${n} ảnh có vấn đề chất lượng (${reason}) — AI có thể khó nhận diện`,
     quality_blurry: "mờ",
@@ -1016,6 +1080,246 @@ function escapeHtml(s) {
   if (x) x.addEventListener("click", closeHistoryModal);
 }
 
+// =================== Mark-region & re-detect modal ===================
+// Inspector draws a rectangle on the photo; we extract the cropped pixels
+// from the rendered <img> via a canvas, post them to
+// /api/photos/{id}/reclassify-region, get back a fresh classification.
+//
+// State is held on the modal element (data-photo-id) so callers don't
+// need to manage it.
+const MARKUP = {
+  rect: null,    // {x, y, w, h} in IMAGE pixels (not screen pixels)
+  drawing: false,
+  start: null,
+  imgRect: null, // bounds of <img> on screen
+  imgNatural: null, // {w, h} of image's natural dimensions
+};
+
+function _markupReset() {
+  MARKUP.rect = null;
+  MARKUP.drawing = false;
+  MARKUP.start = null;
+  const status = el("#markup-status");
+  if (status) status.textContent = "";
+  const btn = el("#markup-submit");
+  if (btn) btn.disabled = true;
+  _markupRedraw();
+}
+
+function _markupRedraw() {
+  const canvas = el("#markup-canvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!MARKUP.rect) return;
+  // Convert image-space rect back to canvas-space for drawing
+  const cw = canvas.width;
+  const ch = canvas.height;
+  const iw = MARKUP.imgNatural?.w || cw;
+  const ih = MARKUP.imgNatural?.h || ch;
+  const sx = MARKUP.rect.x * (cw / iw);
+  const sy = MARKUP.rect.y * (ch / ih);
+  const sw = MARKUP.rect.w * (cw / iw);
+  const sh = MARKUP.rect.h * (ch / ih);
+  // Dim everything outside the rect
+  ctx.fillStyle = "rgba(15,23,42,0.45)";
+  ctx.fillRect(0, 0, cw, sy);
+  ctx.fillRect(0, sy, sx, sh);
+  ctx.fillRect(sx + sw, sy, cw - (sx + sw), sh);
+  ctx.fillRect(0, sy + sh, cw, ch - (sy + sh));
+  // Bright border on the rect
+  ctx.strokeStyle = "rgb(16, 185, 129)";   // emerald-500
+  ctx.lineWidth = 3;
+  ctx.strokeRect(sx, sy, sw, sh);
+}
+
+function _markupSizeCanvas() {
+  const img = el("#markup-img");
+  const canvas = el("#markup-canvas");
+  if (!img || !canvas) return;
+  // Wait until the image is laid out
+  const rect = img.getBoundingClientRect();
+  // Skip if not visible yet
+  if (rect.width < 10 || rect.height < 10) return;
+  canvas.width = Math.round(rect.width);
+  canvas.height = Math.round(rect.height);
+  // Position the canvas exactly over the image (the wrapper uses
+  // place-items center so we calculate the offset).
+  const wrap = el("#markup-canvas-wrap").getBoundingClientRect();
+  canvas.style.width = rect.width + "px";
+  canvas.style.height = rect.height + "px";
+  canvas.style.left = (rect.left - wrap.left) + "px";
+  canvas.style.top = (rect.top - wrap.top) + "px";
+  canvas.style.right = "auto";
+  canvas.style.bottom = "auto";
+  MARKUP.imgRect = rect;
+  MARKUP.imgNatural = { w: img.naturalWidth, h: img.naturalHeight };
+  _markupRedraw();
+}
+
+function _markupCanvasToImagePoint(px, py) {
+  const canvas = el("#markup-canvas");
+  const cw = canvas.width;
+  const ch = canvas.height;
+  const iw = MARKUP.imgNatural?.w || cw;
+  const ih = MARKUP.imgNatural?.h || ch;
+  return {
+    x: Math.max(0, Math.min(iw, px * (iw / cw))),
+    y: Math.max(0, Math.min(ih, py * (ih / cw)) * (cw / ch) * (ch / cw)),
+  };
+}
+
+function openMarkupModal(card, photoId, thumbUrl) {
+  const modal = el("#markup-modal");
+  const img = el("#markup-img");
+  const canvas = el("#markup-canvas");
+  if (!modal || !img || !canvas) return;
+  modal.dataset.photoId = photoId;
+  modal.dataset.cardId = photoId;
+  _markupReset();
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  // Use the same R2 presigned URL the card already loaded; that's the
+  // full-resolution photo (or as close as R2 has it).
+  img.onload = () => _markupSizeCanvas();
+  img.src = thumbUrl || "";
+  if (img.complete && img.naturalWidth > 0) _markupSizeCanvas();
+}
+function closeMarkupModal() {
+  const modal = el("#markup-modal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+  _markupReset();
+  const img = el("#markup-img");
+  if (img) img.src = "";
+}
+
+// One-time wiring: drawing handlers + submit + close. Done at DOMContentLoaded
+// time so the canvas listens immediately, even before the modal is opened.
+{
+  const canvas = el("#markup-canvas");
+  if (canvas) {
+    const _start = (clientX, clientY) => {
+      const rect = canvas.getBoundingClientRect();
+      MARKUP.drawing = true;
+      MARKUP.start = { x: clientX - rect.left, y: clientY - rect.top };
+      MARKUP.rect = null;
+      const status = el("#markup-status");
+      if (status) status.textContent = t("markup_status_drawing");
+    };
+    const _move = (clientX, clientY) => {
+      if (!MARKUP.drawing || !MARKUP.start) return;
+      const rect = canvas.getBoundingClientRect();
+      const cx = clientX - rect.left;
+      const cy = clientY - rect.top;
+      const cw = canvas.width;
+      const ch = canvas.height;
+      const iw = MARKUP.imgNatural?.w || cw;
+      const ih = MARKUP.imgNatural?.h || ch;
+      // Convert canvas-space corners to image-space; preserve sign so
+      // dragging up-left-from-down-right works.
+      const x0 = Math.min(MARKUP.start.x, cx);
+      const y0 = Math.min(MARKUP.start.y, cy);
+      const x1 = Math.max(MARKUP.start.x, cx);
+      const y1 = Math.max(MARKUP.start.y, cy);
+      MARKUP.rect = {
+        x: x0 * (iw / cw),
+        y: y0 * (ih / ch),
+        w: (x1 - x0) * (iw / cw),
+        h: (y1 - y0) * (ih / ch),
+      };
+      _markupRedraw();
+    };
+    const _end = () => {
+      MARKUP.drawing = false;
+      const status = el("#markup-status");
+      const btn = el("#markup-submit");
+      if (MARKUP.rect && MARKUP.rect.w > 5 && MARKUP.rect.h > 5) {
+        if (status) status.textContent = t("markup_status_drawn")(MARKUP.rect.w, MARKUP.rect.h);
+        if (btn) btn.disabled = false;
+      } else {
+        MARKUP.rect = null;
+        _markupRedraw();
+        if (status) status.textContent = "";
+        if (btn) btn.disabled = true;
+      }
+    };
+    canvas.addEventListener("mousedown", e => _start(e.clientX, e.clientY));
+    canvas.addEventListener("mousemove", e => _move(e.clientX, e.clientY));
+    window.addEventListener("mouseup", _end);
+    canvas.addEventListener("touchstart", e => {
+      e.preventDefault();
+      const t = e.touches[0]; if (t) _start(t.clientX, t.clientY);
+    }, { passive: false });
+    canvas.addEventListener("touchmove", e => {
+      e.preventDefault();
+      const t = e.touches[0]; if (t) _move(t.clientX, t.clientY);
+    }, { passive: false });
+    canvas.addEventListener("touchend", e => { e.preventDefault(); _end(); }, { passive: false });
+  }
+  // Resize handler — keep canvas overlay sized to the image
+  window.addEventListener("resize", () => {
+    if (!el("#markup-modal").classList.contains("hidden")) _markupSizeCanvas();
+  });
+
+  const closeBtn = el("#markup-close");
+  if (closeBtn) closeBtn.addEventListener("click", closeMarkupModal);
+  const modal = el("#markup-modal");
+  if (modal) modal.addEventListener("click", e => {
+    if (e.target === modal) closeMarkupModal();
+  });
+  const clearBtn = el("#markup-clear");
+  if (clearBtn) clearBtn.addEventListener("click", () => {
+    _markupReset();
+  });
+
+  const submit = el("#markup-submit");
+  if (submit) submit.addEventListener("click", async () => {
+    const modal = el("#markup-modal");
+    const photoId = modal?.dataset.photoId;
+    if (!photoId) return;
+    if (!MARKUP.rect) {
+      showError(t("markup_no_region"));
+      return;
+    }
+    submit.disabled = true;
+    const status = el("#markup-status");
+    if (status) status.textContent = t("markup_status_running");
+    try {
+      // Extract the cropped region from the loaded <img> by drawing
+      // the bounded area onto an off-screen canvas at native resolution.
+      const img = el("#markup-img");
+      const r = MARKUP.rect;
+      const off = document.createElement("canvas");
+      off.width = Math.round(r.w);
+      off.height = Math.round(r.h);
+      const octx = off.getContext("2d");
+      octx.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, off.width, off.height);
+      const blob = await new Promise(res => off.toBlob(res, "image/jpeg", 0.9));
+      if (!blob) throw new Error("could not encode region");
+      const fd = new FormData();
+      fd.append("region", blob, "region.jpg");
+      const resp = await fetch(`/api/photos/${encodeURIComponent(photoId)}/reclassify-region`, {
+        method: "POST", body: fd,
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const label = data.fine_hse_type_label_en || data.hse_type_slug || "(unknown)";
+      if (status) status.textContent = t("markup_done")(label);
+      showToast(t("markup_done")(label));
+      // Trigger an immediate poll so the card refreshes with the new
+      // classification.
+      poll();
+      // Auto-close after a beat so the inspector sees the success message.
+      setTimeout(closeMarkupModal, 1200);
+    } catch (e) {
+      if (status) status.textContent = `${t("markup_failed")}: ${e.message}`;
+      submit.disabled = false;
+    }
+  });
+}
+
 // =================== Card DOM ===================
 function getOrCreateCard(photo) {
   let entry = photoCache.get(photo.id);
@@ -1060,6 +1364,17 @@ function getOrCreateCard(photo) {
     historyBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       openHistoryModal(photo.id);
+    });
+  }
+  // "Mark region & re-detect" — opens the markup modal with the photo's
+  // current thumbnail. Used when the AI's parent class is wrong because
+  // it got distracted by other features in the photo.
+  const markupBtn = el(".btn-markup", card);
+  if (markupBtn) {
+    markupBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const thumbSrc = el(".thumb", card)?.src;
+      openMarkupModal(card, photo.id, thumbSrc);
     });
   }
   el(".edit-form",   card).addEventListener("submit", (e) => { e.preventDefault(); correctCard(card); });
@@ -1290,15 +1605,14 @@ function updateCard(card, photo) {
   const locHidden = el(".loc-select-hidden", card);
   if (locHidden) locHidden.value = cls.location_slug || "Common_working_area";
   el(".hse-select", card).value = cls.hse_type_slug;
-  // Populate the fine-types dropdown for the AI's predicted parent and
-  // pre-select the AI's fine pick so the inspector can confirm with one
-  // click instead of having to hunt through the list.
+  // Populate the fine picker for the AI's predicted parent and pre-fill
+  // with the AI's fine pick so the inspector can confirm with one click
+  // instead of hunting through the searchable list.
   refreshFineSelect(card, cls.hse_type_slug);
-  const fineSel = el(".fine-select", card);
-  if (fineSel && cls.fine_hse_type_slug) {
-    if ([...fineSel.options].some(o => o.value === cls.fine_hse_type_slug)) {
-      fineSel.value = cls.fine_hse_type_slug;
-    }
+  if (cls.fine_hse_type_slug) {
+    _finePickerSetValue(card, cls.fine_hse_type_slug);
+  } else {
+    _finePickerSetValue(card, "");
   }
 
   const altSection = el(".alt-section", card);
@@ -1324,27 +1638,200 @@ function updateCard(card, photo) {
   applyFilter();
 }
 
-// Repopulate the fine-types dropdown for a given parent hse_type slug.
-// Adds a "— none —" first option so the inspector can leave it blank.
-function refreshFineSelect(card, parentSlug) {
-  const sel = el(".fine-select", card);
-  if (!sel) return;
-  const previous = sel.value;
-  sel.innerHTML = "";
-  const noneOpt = document.createElement("option");
-  noneOpt.value = "";
-  noneOpt.textContent = LANG === "vn" ? "— không chọn —" : "— none —";
-  sel.appendChild(noneOpt);
-  const items = FINE_TYPES_BY_PARENT[parentSlug] || [];
-  for (const it of items) {
-    const opt = document.createElement("option");
-    opt.value = it.slug;
-    const label = LANG === "vn" && it.label_vn ? it.label_vn : it.label_en;
-    opt.textContent = label;
-    sel.appendChild(opt);
+// =================== Fine-type searchable picker ===================
+// Custom searchable combobox for the AECIS fine sub-type. Replaces the
+// native <select> because (a) some parents have 30+ items, (b) when the
+// AI's parent is wrong the inspector wants to search across ALL ~386
+// fine types without first picking the right parent.
+//
+// State per card:
+//   .fine-picker-value   = hidden input, the canonical slug to POST
+//   .fine-picker-search  = visible text input, debounced filter
+//   .fine-picker-scope   = toggle button "in category" / "all categories"
+//   .fine-picker-list    = scrollable filtered list
+//   data-scope           = 'parent' | 'all'  (which set we filter against)
+//
+// Public API used by other code:
+//   refreshFineSelect(card, parentSlug)   — re-init when parent changes
+//   _finePickerGetValue(card)             — read the slug (used by correctCard)
+//   _finePickerSetValue(card, slug)       — write the slug (used by AI pre-fill)
+function _finePickerCandidates(card, parentSlug) {
+  const scope = card.dataset.fineScope || "parent";
+  if (scope === "all") {
+    const all = [];
+    for (const p in FINE_TYPES_BY_PARENT) {
+      for (const it of FINE_TYPES_BY_PARENT[p]) {
+        // Tag with parent so the dropdown can show the category subtitle
+        all.push({ ...it, _parent: p });
+      }
+    }
+    return all;
   }
-  // Preserve previous selection if it's still valid under the new parent
-  if ([...sel.options].some(o => o.value === previous)) sel.value = previous;
+  const items = FINE_TYPES_BY_PARENT[parentSlug] || [];
+  return items.map(it => ({ ...it, _parent: parentSlug }));
+}
+
+function _finePickerLabel(it) {
+  return LANG === "vn" && it.label_vn ? it.label_vn : it.label_en;
+}
+
+function _finePickerRender(card, parentSlug, query) {
+  const list = el(".fine-picker-list", card);
+  if (!list) return;
+  const candidates = _finePickerCandidates(card, parentSlug);
+  const q = (query || "").trim().toLowerCase();
+  // Match either label or slug. Slug match useful when inspector knows
+  // the AECIS slug but doesn't remember exact wording.
+  const filtered = !q ? candidates : candidates.filter(it => {
+    const lbl = _finePickerLabel(it).toLowerCase();
+    return lbl.includes(q) || it.slug.toLowerCase().includes(q);
+  });
+  list.innerHTML = "";
+  // First option: clear / none
+  const noneEl = document.createElement("button");
+  noneEl.type = "button";
+  noneEl.className = "block w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-50 italic border-b border-slate-100";
+  noneEl.textContent = LANG === "vn" ? "— không chọn —" : "— none —";
+  noneEl.addEventListener("click", () => {
+    _finePickerSetValue(card, "");
+    _finePickerHide(card);
+  });
+  list.appendChild(noneEl);
+  if (!filtered.length) {
+    const noResults = document.createElement("div");
+    noResults.className = "px-3 py-3 text-xs text-slate-400 text-center";
+    noResults.textContent = t("fine_no_results");
+    list.appendChild(noResults);
+    return;
+  }
+  // Cap at 50 results to keep DOM lean. The user can refine the search
+  // if they don't see what they want.
+  const capped = filtered.slice(0, 50);
+  for (const it of capped) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "block w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-50 border-b border-slate-100 last:border-0";
+    const label = _finePickerLabel(it);
+    const isAllScope = (card.dataset.fineScope || "parent") === "all";
+    if (isAllScope && it._parent) {
+      btn.innerHTML =
+        `<div class="text-slate-900">${escapeHtml(label)}</div>
+         <div class="text-[10px] text-slate-400">${escapeHtml(it._parent)}</div>`;
+    } else {
+      btn.textContent = label;
+    }
+    btn.addEventListener("click", () => {
+      _finePickerSetValue(card, it.slug);
+      // If inspector picked from "all categories" mode, also flip the
+      // visible parent select so the form's hse_type_slug stays
+      // consistent with the fine pick.
+      if (isAllScope && it._parent) {
+        const hseSel = el(".hse-select", card);
+        if (hseSel) hseSel.value = it._parent;
+      }
+      _finePickerHide(card);
+    });
+    list.appendChild(btn);
+  }
+  if (filtered.length > 50) {
+    const more = document.createElement("div");
+    more.className = "px-3 py-1.5 text-[10px] text-slate-400 text-center italic";
+    more.textContent = `(+${filtered.length - 50} more — refine your search)`;
+    list.appendChild(more);
+  }
+}
+
+function _finePickerShow(card) {
+  const list = el(".fine-picker-list", card);
+  if (list) list.classList.remove("hidden");
+}
+function _finePickerHide(card) {
+  const list = el(".fine-picker-list", card);
+  if (list) list.classList.add("hidden");
+}
+
+function _finePickerGetValue(card) {
+  return el(".fine-picker-value", card)?.value || "";
+}
+function _finePickerSetValue(card, slug) {
+  const hidden = el(".fine-picker-value", card);
+  const search = el(".fine-picker-search", card);
+  const clearBtn = el(".fine-picker-clear", card);
+  if (!hidden) return;
+  hidden.value = slug || "";
+  if (slug) {
+    const it = FINE_BY_SLUG[slug];
+    search.value = it ? _finePickerLabel(it) : slug;
+    if (clearBtn) clearBtn.classList.remove("hidden");
+  } else {
+    search.value = "";
+    if (clearBtn) clearBtn.classList.add("hidden");
+  }
+}
+
+// Re-init the picker for a given parent. Called from updateCard, from
+// the parent <select> change handler, and from confirmCard reset paths.
+function refreshFineSelect(card, parentSlug) {
+  const picker = el(".fine-picker", card);
+  if (!picker) return;
+  const search = el(".fine-picker-search", card);
+  const scopeBtn = el(".fine-picker-scope", card);
+  const clearBtn = el(".fine-picker-clear", card);
+  if (!search) return;
+
+  // Wire events once per card. data-fp-wired flag prevents re-binding
+  // when refreshFineSelect is called multiple times (e.g. on parent
+  // change, on AI fill).
+  if (!picker.dataset.fpWired) {
+    picker.dataset.fpWired = "1";
+    card.dataset.fineScope = card.dataset.fineScope || "parent";
+
+    search.addEventListener("focus", () => {
+      _finePickerRender(card, el(".hse-select", card).value, search.value);
+      _finePickerShow(card);
+    });
+    search.addEventListener("input", () => {
+      _finePickerRender(card, el(".hse-select", card).value, search.value);
+      _finePickerShow(card);
+    });
+    // Click-outside dismiss
+    document.addEventListener("click", (ev) => {
+      if (!picker.contains(ev.target)) _finePickerHide(card);
+    });
+    if (scopeBtn) scopeBtn.addEventListener("click", () => {
+      const next = (card.dataset.fineScope === "all") ? "parent" : "all";
+      card.dataset.fineScope = next;
+      const lbl = el(".fine-picker-scope-label", scopeBtn);
+      if (lbl) lbl.textContent = t(next === "all" ? "fine_scope_all" : "fine_scope_in_category");
+      search.placeholder = t(next === "all" ? "fine_search_placeholder_all" : "fine_search_placeholder");
+      _finePickerRender(card, el(".hse-select", card).value, search.value);
+      _finePickerShow(card);
+      search.focus();
+    });
+    if (clearBtn) clearBtn.addEventListener("click", () => {
+      _finePickerSetValue(card, "");
+      search.focus();
+    });
+  }
+
+  // Scope-toggle label localization
+  const lbl = el(".fine-picker-scope-label", picker);
+  const scope = card.dataset.fineScope || "parent";
+  if (lbl) lbl.textContent = t(scope === "all" ? "fine_scope_all" : "fine_scope_in_category");
+  search.placeholder = t(scope === "all" ? "fine_search_placeholder_all" : "fine_search_placeholder");
+
+  // If the current pick still belongs to the new parent, keep it.
+  // Otherwise clear (parent change invalidates the previous fine pick).
+  const cur = _finePickerGetValue(card);
+  if (cur) {
+    const parentItems = FINE_TYPES_BY_PARENT[parentSlug] || [];
+    const stillValid = parentItems.some(it => it.slug === cur);
+    if (!stillValid && scope !== "all") {
+      _finePickerSetValue(card, "");
+    }
+  }
+  // Render the dropdown content (still hidden until focus)
+  _finePickerRender(card, parentSlug, "");
 }
 
 // =================== Upload (chunked + progress + notifications) ===================
@@ -1591,7 +2078,7 @@ async function correctCard(card, override = null) {
   } else {
     fd.append("hse_type_slug", el(".hse-select", card).value);
     fd.append("location_slug", locValue);
-    fd.append("fine_hse_type_slug", el(".fine-select", card)?.value || "");
+    fd.append("fine_hse_type_slug", _finePickerGetValue(card));
     const note = el("input[name=note]", card).value;
     if (note) fd.append("note", note);
   }
