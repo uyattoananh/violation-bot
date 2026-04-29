@@ -1,4 +1,4 @@
-/* Violation AI — Service Worker
+/* HSE Detector — Service Worker
  *
  * Two cache strategies:
  *
@@ -29,7 +29,7 @@
 // cache name in `activate`. Phase 5 added the auth-pill markup
 // + JS — without this bump, returning users keep seeing the
 // pre-Phase-5 shell.
-const CACHE_VERSION = "v22-data-notice";
+const CACHE_VERSION = "v23-rebrand-paper";
 const SHELL_CACHE = `violation-ai-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `violation-ai-runtime-${CACHE_VERSION}`;
 

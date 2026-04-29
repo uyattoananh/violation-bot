@@ -1352,7 +1352,10 @@ def root(request: Request):
     bookmarks of / continue to work for signed-in inspectors without
     a round-trip.
     """
-    if not _is_authed(request):
+    # When AUTH_REQUIRED=0 (local dev), skip the landing page for anonymous
+    # visitors so the inspector-side UI is reachable without going through
+    # OAuth — useful for visual review of the in-app shell.
+    if _AUTH_REQUIRED and not _is_authed(request):
         return _render_landing_page(request)
 
     tax = app.state.taxonomy or load_taxonomy()
@@ -1395,9 +1398,17 @@ def _render_landing_page(request: Request) -> HTMLResponse:
         "Google hoặc Microsoft" if (google_on and azure_on) else
         ("Google" if google_on else ("Microsoft" if azure_on else "nhà cung cấp của bạn"))
     )
+    providers_blurb_es = "Inicia sesión con " + (
+        "Google o Microsoft" if (google_on and azure_on) else
+        ("Google" if google_on else ("Microsoft" if azure_on else "tu proveedor"))
+    )
+    providers_blurb_zh = "使用 " + (
+        "Google 或 Microsoft" if (google_on and azure_on) else
+        ("Google" if google_on else ("Microsoft" if azure_on else "你的账号提供商"))
+    ) + " 登录"
     html = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Violation AI — AECIS HSE inspection</title>
+<title>HSE Detector — AECIS</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f5f3eb">
 <meta name="description" content="AI-powered HSE violation detection for construction sites — built for AECIS inspectors. Sign in with Google or Microsoft to access the inspection workflow.">
@@ -1458,7 +1469,7 @@ header {{
   background: var(--paper);
 }}
 .brand .check svg {{ width: 14px; height: 14px; }}
-.brand .accent {{ color: var(--ink-faint); font-weight: 400; }}
+.brand .accent {{ color: var(--accent); font-weight: 600; }}
 
 .locale-toggle {{
   display: flex; gap: 0;
@@ -1658,12 +1669,13 @@ footer a:hover {{ border-color: var(--ink); }}
 <div class="shell">
 <header>
   <a class="brand" href="/">
-    <span class="check"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
-    <span>Violation <span class="accent">/ AI</span></span>
+    <span>HSE&nbsp;<span class="accent">Detector</span></span>
   </a>
   <div class="locale-toggle">
-    <button id="loc-en" type="button" class="active">EN</button>
-    <button id="loc-vn" type="button">VN</button>
+    <button id="loc-en" type="button" class="active" data-loc="en">EN</button>
+    <button id="loc-vn" type="button" data-loc="vn">VN</button>
+    <button id="loc-es" type="button" data-loc="es">ES</button>
+    <button id="loc-zh" type="button" data-loc="zh">ZH</button>
   </div>
 </header>
 
@@ -1677,23 +1689,33 @@ footer a:hover {{ border-color: var(--ink); }}
       <span class="dot"></span>
       <span data-locale="en">AECIS HSE inspection · powered by AI</span>
       <span data-locale="vn">Kiểm tra HSE AECIS · do AI hỗ trợ</span>
+      <span data-locale="es">Inspección HSE de AECIS · con tecnología de IA</span>
+      <span data-locale="zh">AECIS HSE 检查 · 由 AI 驱动</span>
     </span>
     <h1>
       <span data-locale="en">Spot construction-site safety violations <span class="em">in seconds.</span></span>
       <span data-locale="vn">Phát hiện vi phạm an toàn công trường <span class="em">trong vài giây.</span></span>
+      <span data-locale="es">Detecta infracciones de seguridad en obra <span class="em">en segundos.</span></span>
+      <span data-locale="zh">在<span class="em">几秒内</span>发现工地安全违规。</span>
     </h1>
     <p class="lead">
       <span data-locale="en">Upload site photos. The AI classifies them against the AECIS HSE taxonomy in English &amp; Vietnamese, ranks confidence, and lets you correct on the spot. Built for inspectors, exported as PDF / ZIP / CSV.</span>
       <span data-locale="vn">Tải ảnh hiện trường lên. AI phân loại theo bảng phân loại HSE AECIS bằng tiếng Anh &amp; tiếng Việt, xếp hạng độ tin cậy và cho phép bạn chỉnh tại chỗ. Xây dựng cho cán bộ kiểm tra, xuất PDF / ZIP / CSV.</span>
+      <span data-locale="es">Sube fotos del sitio. La IA las clasifica contra la taxonomía HSE de AECIS en inglés y vietnamita, ordena la confianza y te permite corregir al instante. Hecho para inspectores, exportable como PDF / ZIP / CSV.</span>
+      <span data-locale="zh">上传现场照片。AI 按 AECIS HSE 分类法（英文与越南文）进行分类，标注置信度，并允许你即时更正。为检查员而设计，可导出为 PDF / ZIP / CSV。</span>
     </p>
     <a class="cta" href="/auth/signin">
       <span data-locale="en">Sign in to continue</span>
       <span data-locale="vn">Đăng nhập để tiếp tục</span>
+      <span data-locale="es">Inicia sesión para continuar</span>
+      <span data-locale="zh">登录以继续</span>
       <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
     </a>
     <span class="providers-note">
       <span data-locale="en">{providers_blurb_en} · AECIS-internal &amp; partner accounts only</span>
       <span data-locale="vn">{providers_blurb_vn} · chỉ dành cho tài khoản nội bộ &amp; đối tác AECIS</span>
+      <span data-locale="es">{providers_blurb_es} · solo cuentas internas y de socios de AECIS</span>
+      <span data-locale="zh">{providers_blurb_zh} · 仅限 AECIS 内部及合作账号</span>
     </span>
     <!-- Install-as-PWA button. Hidden by default; revealed by JS only
          on mobile + when not already running standalone. iOS/Android
@@ -1704,6 +1726,8 @@ footer a:hover {{ border-color: var(--ink); }}
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v12m0 0l-4-4m4 4l4-4M4.5 19.5h15"/></svg>
         <span data-locale="en">Install app to home screen</span>
         <span data-locale="vn">Cài ứng dụng lên màn hình chính</span>
+        <span data-locale="es">Instalar app en pantalla de inicio</span>
+        <span data-locale="zh">将应用安装到主屏幕</span>
       </button>
     </div>
   </div>
@@ -1723,6 +1747,8 @@ footer a:hover {{ border-color: var(--ink); }}
     <button id="lp-modal-ok" type="button" class="cta cta-block">
       <span data-locale="en">Got it</span>
       <span data-locale="vn">Đã hiểu</span>
+      <span data-locale="es">Entendido</span>
+      <span data-locale="zh">知道了</span>
     </button>
   </div>
 </div>
@@ -1731,6 +1757,8 @@ footer a:hover {{ border-color: var(--ink); }}
   <span class="features-eyebrow">
     <span data-locale="en">What it does</span>
     <span data-locale="vn">Tính năng</span>
+    <span data-locale="es">Qué hace</span>
+    <span data-locale="zh">功能</span>
   </span>
   <div class="features">
     <div class="feature">
@@ -1738,10 +1766,14 @@ footer a:hover {{ border-color: var(--ink); }}
       <h3>
         <span data-locale="en">Upload &amp; classify</span>
         <span data-locale="vn">Tải lên &amp; phân loại</span>
+        <span data-locale="es">Subir y clasificar</span>
+        <span data-locale="zh">上传与分类</span>
       </h3>
       <p>
         <span data-locale="en">Drop site photos straight from your phone. The AI tags HSE violation type and fine-grained AECIS sub-type within seconds.</span>
         <span data-locale="vn">Thả ảnh từ điện thoại. AI gắn nhãn loại vi phạm HSE và loại con AECIS chi tiết trong vài giây.</span>
+        <span data-locale="es">Suelta fotos del sitio directamente desde tu móvil. La IA etiqueta el tipo de infracción HSE y el sub-tipo AECIS detallado en segundos.</span>
+        <span data-locale="zh">直接从手机拖入现场照片。AI 在数秒内标注 HSE 违规类型和细粒度的 AECIS 子类型。</span>
       </p>
     </div>
     <div class="feature">
@@ -1749,10 +1781,14 @@ footer a:hover {{ border-color: var(--ink); }}
       <h3>
         <span data-locale="en">Confirm or correct</span>
         <span data-locale="vn">Xác nhận hoặc chỉnh sửa</span>
+        <span data-locale="es">Confirmar o corregir</span>
+        <span data-locale="zh">确认或更正</span>
       </h3>
       <p>
         <span data-locale="en">Every confirmation trains the model. Wrong call? Re-mark the region or propose a new sub-type for admin review.</span>
         <span data-locale="vn">Mỗi xác nhận đều giúp AI học. Sai? Vẽ lại vùng hoặc đề xuất loại con mới để quản trị viên duyệt.</span>
+        <span data-locale="es">Cada confirmación entrena al modelo. ¿Predicción incorrecta? Vuelve a marcar la región o propón un nuevo sub-tipo para revisión del administrador.</span>
+        <span data-locale="zh">每次确认都会训练模型。判错了？重新标记区域，或提议一个新的子类型供管理员审核。</span>
       </p>
     </div>
     <div class="feature">
@@ -1760,10 +1796,14 @@ footer a:hover {{ border-color: var(--ink); }}
       <h3>
         <span data-locale="en">Export &amp; share</span>
         <span data-locale="vn">Xuất &amp; chia sẻ</span>
+        <span data-locale="es">Exportar y compartir</span>
+        <span data-locale="zh">导出与分享</span>
       </h3>
       <p>
         <span data-locale="en">PDF cover-sheet, renamed-photos ZIP, CSV, or JSON — emailed straight to the safety officer or downloaded.</span>
         <span data-locale="vn">PDF có trang bìa, ZIP ảnh đã đổi tên, CSV hoặc JSON — gửi email cho cán bộ an toàn hoặc tải về.</span>
+        <span data-locale="es">Portada PDF, ZIP de fotos renombradas, CSV o JSON — enviado por email al oficial de seguridad o descargado.</span>
+        <span data-locale="zh">PDF 封面、重命名照片 ZIP、CSV 或 JSON — 直接邮件发送给安全官，或下载。</span>
       </p>
     </div>
   </div>
@@ -1772,27 +1812,43 @@ footer a:hover {{ border-color: var(--ink); }}
 <footer>
   <span data-locale="en">© AECIS · HSE Inspection Tool · <a href="/auth/signin">Sign in</a></span>
   <span data-locale="vn">© AECIS · Công cụ kiểm tra HSE · <a href="/auth/signin">Đăng nhập</a></span>
+  <span data-locale="es">© AECIS · Herramienta de inspección HSE · <a href="/auth/signin">Iniciar sesión</a></span>
+  <span data-locale="zh">© AECIS · HSE 检查工具 · <a href="/auth/signin">登录</a></span>
 </footer>
 </div>
 
 <script>
-  // Locale toggle. Same as the standalone chooser page; persists in
-  // localStorage so the language preference survives across visits.
+  // Locale toggle. Persists in localStorage; survives across visits.
+  // Supports 4 languages: en (default), vn, es, zh. Strings without
+  // an explicit translation fall back to EN via the helper below.
   (function () {{
-    const saved = localStorage.getItem("vai-lang") || "en";
-    const enBtn = document.getElementById("loc-en");
-    const vnBtn = document.getElementById("loc-vn");
+    const langCode = (l) => ({{ vn: "vi", es: "es", zh: "zh-CN", en: "en" }}[l] || "en");
+    const allBtns = Array.from(document.querySelectorAll(".locale-toggle button"));
+    const knownLangs = new Set(allBtns.map(b => b.dataset.loc).filter(Boolean));
+    let saved = localStorage.getItem("vai-lang") || "en";
+    if (!knownLangs.has(saved)) saved = "en";
+
     function apply(loc) {{
+      // For elements with siblings of the same key, hide all and
+      // reveal the active one. If no element exists for this locale
+      // (older HTML predates ES/ZH), fall back to EN so nothing
+      // disappears.
+      const groups = new Map();
       document.querySelectorAll("[data-locale]").forEach(el => {{
-        el.classList.toggle("show", el.dataset.locale === loc);
+        const parent = el.parentNode;
+        if (!groups.has(parent)) groups.set(parent, []);
+        groups.get(parent).push(el);
       }});
-      enBtn.classList.toggle("active", loc === "en");
-      vnBtn.classList.toggle("active", loc === "vn");
+      groups.forEach((els) => {{
+        const has = els.some(e => e.dataset.locale === loc);
+        const target = has ? loc : "en";
+        els.forEach(e => e.classList.toggle("show", e.dataset.locale === target));
+      }});
+      allBtns.forEach(b => b.classList.toggle("active", b.dataset.loc === loc));
       localStorage.setItem("vai-lang", loc);
-      document.documentElement.lang = loc === "vn" ? "vi" : "en";
+      document.documentElement.lang = langCode(loc);
     }}
-    enBtn.addEventListener("click", () => apply("en"));
-    vnBtn.addEventListener("click", () => apply("vn"));
+    allBtns.forEach(b => b.addEventListener("click", () => apply(b.dataset.loc)));
     apply(saved);
   }})();
 
@@ -4277,7 +4333,7 @@ def auth_signin(request: Request, next: str = "/"):
             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
           </svg>
-          <span data-locale="en">Continue with Google</span><span data-locale="vn">Tiếp tục với Google</span>
+          <span data-locale="en">Continue with Google</span><span data-locale="vn">Tiếp tục với Google</span><span data-locale="es">Continuar con Google</span><span data-locale="zh">使用 Google 继续</span>
         </a>"""
     azure_btn = ""
     if _azure_oauth_enabled():
@@ -4289,7 +4345,7 @@ def auth_signin(request: Request, next: str = "/"):
             <rect x="2"  y="13" width="9" height="9" fill="#00A4EF"/>
             <rect x="13" y="13" width="9" height="9" fill="#FFB900"/>
           </svg>
-          <span data-locale="en">Continue with Microsoft</span><span data-locale="vn">Tiếp tục với Microsoft</span>
+          <span data-locale="en">Continue with Microsoft</span><span data-locale="vn">Tiếp tục với Microsoft</span><span data-locale="es">Continuar con Microsoft</span><span data-locale="zh">使用 Microsoft 继续</span>
         </a>"""
 
     none_msg = ""
@@ -4303,7 +4359,7 @@ def auth_signin(request: Request, next: str = "/"):
 
     html = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Sign in · Violation AI</title>
+<title>Sign in · HSE Detector</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f5f3eb">
 <link rel="manifest" href="/static/manifest.json">
@@ -4411,10 +4467,12 @@ h1 {{ font-size: 24px; margin: 14px 0 8px; font-weight: 600; letter-spacing: -0.
 }}
 [data-locale]:not(.show) {{ display: none; }}
 </style></head><body>
-<a class="back-link" href="/">← <span data-locale="en">Back</span><span data-locale="vn">Quay lại</span></a>
+<a class="back-link" href="/">← <span data-locale="en">Back</span><span data-locale="vn">Quay lại</span><span data-locale="es">Atrás</span><span data-locale="zh">返回</span></a>
 <div class="locale-toggle">
-  <button id="loc-en" class="active" type="button">EN</button>
-  <button id="loc-vn" type="button">VN</button>
+  <button id="loc-en" class="active" type="button" data-loc="en">EN</button>
+  <button id="loc-vn" type="button" data-loc="vn">VN</button>
+  <button id="loc-es" type="button" data-loc="es">ES</button>
+  <button id="loc-zh" type="button" data-loc="zh">ZH</button>
 </div>
 <div class="card">
   <span class="corner tl"></span>
@@ -4422,13 +4480,14 @@ h1 {{ font-size: 24px; margin: 14px 0 8px; font-weight: 600; letter-spacing: -0.
   <span class="corner bl"></span>
   <span class="corner br"></span>
   <div class="brand">
-    <span class="check"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
-    <span>Violation <span class="accent">/ AI</span></span>
+    <span>HSE&nbsp;<span class="accent">Detector</span></span>
   </div>
-  <h1><span data-locale="en">Sign in to continue</span><span data-locale="vn">Đăng nhập để tiếp tục</span></h1>
+  <h1><span data-locale="en">Sign in to continue</span><span data-locale="vn">Đăng nhập để tiếp tục</span><span data-locale="es">Inicia sesión para continuar</span><span data-locale="zh">登录以继续</span></h1>
   <p class="sub">
     <span data-locale="en">AECIS HSE inspection tool. Pick your provider.</span>
     <span data-locale="vn">Công cụ kiểm tra HSE của AECIS. Chọn nhà cung cấp.</span>
+    <span data-locale="es">Herramienta de inspección HSE de AECIS. Elige tu proveedor.</span>
+    <span data-locale="zh">AECIS HSE 检查工具。选择登录方式。</span>
   </p>
   <div class="providers">
     {google_btn}
@@ -4438,25 +4497,35 @@ h1 {{ font-size: 24px; margin: 14px 0 8px; font-weight: 600; letter-spacing: -0.
   <p class="foot">
     <span data-locale="en">By signing in, you agree to use this tool for AECIS HSE inspection only.</span>
     <span data-locale="vn">Bằng cách đăng nhập, bạn đồng ý chỉ sử dụng công cụ này cho việc kiểm tra HSE của AECIS.</span>
+    <span data-locale="es">Al iniciar sesión, aceptas usar esta herramienta solo para inspección HSE de AECIS.</span>
+    <span data-locale="zh">登录即表示你同意此工具仅用于 AECIS HSE 检查。</span>
   </p>
 </div>
 <script>
-  // Lightweight EN/VN locale toggle. Persists in localStorage so the
-  // sign-in page remembers the user's preference between visits.
+  // 4-language locale toggle (en/vn/es/zh). Persists in localStorage
+  // so the sign-in page remembers the user's preference between visits.
+  // Strings without a translation for the chosen locale fall back to EN.
   (function () {{
-    const saved = localStorage.getItem("vai-lang") || "en";
-    const enBtn = document.getElementById("loc-en");
-    const vnBtn = document.getElementById("loc-vn");
+    const allBtns = Array.from(document.querySelectorAll(".locale-toggle button"));
+    const known = new Set(allBtns.map(b => b.dataset.loc).filter(Boolean));
+    let saved = localStorage.getItem("vai-lang") || "en";
+    if (!known.has(saved)) saved = "en";
     function apply(loc) {{
+      const groups = new Map();
       document.querySelectorAll("[data-locale]").forEach(el => {{
-        el.classList.toggle("show", el.dataset.locale === loc);
+        const parent = el.parentNode;
+        if (!groups.has(parent)) groups.set(parent, []);
+        groups.get(parent).push(el);
       }});
-      enBtn.classList.toggle("active", loc === "en");
-      vnBtn.classList.toggle("active", loc === "vn");
+      groups.forEach((els) => {{
+        const has = els.some(e => e.dataset.locale === loc);
+        const target = has ? loc : "en";
+        els.forEach(e => e.classList.toggle("show", e.dataset.locale === target));
+      }});
+      allBtns.forEach(b => b.classList.toggle("active", b.dataset.loc === loc));
       localStorage.setItem("vai-lang", loc);
     }}
-    enBtn.addEventListener("click", () => apply("en"));
-    vnBtn.addEventListener("click", () => apply("vn"));
+    allBtns.forEach(b => b.addEventListener("click", () => apply(b.dataset.loc)));
     apply(saved);
   }})();
 </script>
@@ -4552,7 +4621,7 @@ def admin_panel(request: Request, days: int = 30, status: str = "pending"):
 
     html = f"""<!doctype html>
 <html><head><meta charset=utf-8>
-<title>Admin · Violation AI</title>
+<title>Admin · HSE Detector</title>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <style>
 :root {{ --emerald: #10b981; --emerald-dark: #059669; --slate-900: #0f172a;

@@ -1,13 +1,13 @@
 {
-  "name": "Violation AI — AECIS HSE",
-  "short_name": "Violation AI",
+  "name": "HSE Detector — AECIS",
+  "short_name": "HSE Detector",
   "description": "AI-assisted construction safety violation classifier for AECIS HSE inspectors. Drop site photos, get AECIS-canonical violation labels, hand to safety officers.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f8fafc",
-  "theme_color": "#10b981",
+  "background_color": "#f5f3eb",
+  "theme_color": "#f5f3eb",
   "lang": "en",
   "icons": [
     {

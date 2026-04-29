@@ -1,5 +1,5 @@
 {% extends "_base.html" %}
-{% block title %}Violation AI · upload{% endblock %}
+{% block title %}HSE Detector · upload{% endblock %}
 {% block body %}
 
 <!-- =================== BATCHES LIST VIEW =================== -->
@@ -108,6 +108,44 @@
         <div id="upload-progress-bar" class="h-full bg-emerald-500 transition-all" style="width: 0%"></div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- Camera burst staging tray. Hidden until the first camera shot
+     is taken; once visible, the inspector can keep tapping "Take
+     another" to accumulate shots and finally "Upload N" to push the
+     whole set through the same uploadFiles() pipeline. Thumbnails are
+     generated client-side via createObjectURL so we don't need a
+     round-trip to render the preview. -->
+<section id="cam-burst-tray"
+         class="hidden mt-3 rounded-2xl bg-white border border-slate-200 px-4 py-3">
+  <div class="flex items-center justify-between gap-2 mb-2">
+    <div class="text-xs font-medium text-slate-700">
+      <span data-i18n="cam_burst_staged_label">Photos ready to upload</span>
+      <span id="cam-burst-count" class="ml-1 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold">0</span>
+    </div>
+    <button id="cam-burst-clear" type="button"
+            class="text-xs text-slate-500 hover:text-rose-600 underline-offset-2 hover:underline transition-colors"
+            data-i18n="cam_burst_clear">Clear all</button>
+  </div>
+  <!-- Horizontally scrollable thumbnail strip. Thumbs are square,
+       each shows an X to remove just that shot. -->
+  <div id="cam-burst-thumbs" class="flex gap-2 overflow-x-auto pb-2"></div>
+  <div class="mt-1 flex items-center gap-2">
+    <button id="cam-burst-add" type="button"
+            class="flex-1 inline-flex items-center justify-center gap-1.5 bg-white text-emerald-700 border border-emerald-300 hover:bg-emerald-50 text-sm font-medium rounded-full px-4 py-2 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+      </svg>
+      <span data-i18n="cam_burst_add">Take another</span>
+    </button>
+    <button id="cam-burst-upload" type="button"
+            class="flex-1 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-full px-4 py-2 shadow-sm transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-9 0V3m0 0L7.5 7.5M12 3l4.5 4.5"/>
+      </svg>
+      <span id="cam-burst-upload-label" data-i18n="cam_burst_upload">Upload</span>
+    </button>
   </div>
 </section>
 
@@ -654,6 +692,10 @@ const I18N = {
     cam_take: "Take photo",
     cam_gallery: "Gallery",
     cam_or: "or",
+    cam_burst_staged_label: "Photos ready to upload",
+    cam_burst_clear: "Clear all",
+    cam_burst_add: "Take another",
+    cam_burst_upload: "Upload",
     pwa_ios_title: "Install on iPhone / iPad",
     pwa_ios_step1: "Tap the Share button",
     pwa_ios_step1_loc: "at the bottom of Safari",
@@ -733,7 +775,7 @@ const I18N = {
     kbd_close: "Close dialog",
     notif_done_title: "Batch complete",
     notif_done_body: (n) => `${n} photos finished classifying. Open the tab to review.`,
-    tab_progress: (done, total) => `(${done}/${total}) Violation AI`,
+    tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
   },
   vn: {
     drop_main: "Thả ảnh hiện trường vào đây, hoặc <span class='text-emerald-600 underline'>bấm để chọn</span>",
@@ -835,6 +877,10 @@ const I18N = {
     cam_take: "Chụp ảnh",
     cam_gallery: "Thư viện",
     cam_or: "hoặc",
+    cam_burst_staged_label: "Ảnh sẵn sàng tải lên",
+    cam_burst_clear: "Xóa tất cả",
+    cam_burst_add: "Chụp thêm",
+    cam_burst_upload: "Tải lên",
     pwa_ios_title: "Cài đặt trên iPhone / iPad",
     pwa_ios_step1: "Bấm nút Chia sẻ",
     pwa_ios_step1_loc: "ở dưới cùng Safari",
@@ -914,11 +960,387 @@ const I18N = {
     kbd_close: "Đóng hộp thoại",
     notif_done_title: "Hoàn tất lô ảnh",
     notif_done_body: (n) => `${n} ảnh đã phân loại xong. Mở tab để xét duyệt.`,
-    tab_progress: (done, total) => `(${done}/${total}) Violation AI`,
+    tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
+  },
+  es: {
+    drop_main: "Suelta aquí las fotos del sitio, o <span class='text-emerald-600 underline'>haz clic para seleccionar</span>",
+    drop_sub: "JPG · PNG · HEIC · suelta cientos a la vez. Cada confirmación enriquece la biblioteca de la IA.",
+    upload_resizing: "Optimizando antes de subir…",
+    upload_uploading: "Subiendo…",
+    upload_classifying: "Fotos subidas — clasificando en segundo plano",
+    upload_done_notif: "Lote terminado de clasificar",
+    upload_failed: "Falló la subida",
+    quota_reached: (limit, reset) => `Se alcanzó el límite diario de ${limit} fotos. Se restablece a las ${reset}.`,
+    quota_partial_cutoff: (n, limit) => `${n} foto${n === 1 ? "" : "s"} omitida${n === 1 ? "" : "s"} — se alcanzó el límite diario de ${limit}.`,
+    state_analyzing: "Analizando foto…",
+    ai_suggests: "La IA sugiere",
+    btn_confirm: "Confirmar",
+    btn_edit: "Editar",
+    alt_label: "Alternativa rápida",
+    edit_hse_label: "Tipo HSE",
+    edit_loc_label: "Ubicación",
+    edit_fine_label: "Sub-tipo AECIS <span class='text-slate-400 font-normal'>(opcional)</span>",
+    fine_search_placeholder: "Buscar sub-tipos…",
+    fine_search_placeholder_all: "Buscar en TODOS los 386+ sub-tipos…",
+    fine_scope_in_category: "en la categoría",
+    fine_scope_all: "todas las categorías",
+    fine_no_results: "Sin resultados",
+    edit_note_ph: "nota opcional para el registro de auditoría",
+    edit_save: "Guardar corrección",
+    edit_cancel: "Cancelar",
+    reviewed_confirmed: "Confirmada",
+    reviewed_corrected: "Corregida",
+    confirm_toast: "Confirmada — añadida al conjunto de entrenamiento",
+    correct_toast: "Corrección guardada — añadida al conjunto de entrenamiento",
+    delete_toast: "Foto eliminada",
+    batch_label_prefix: "Lote:",
+    batch_new: "Nuevo lote",
+    batch_new_full: "Iniciar nuevo lote",
+    batch_new_toast: "Nuevo lote iniciado — suelta fotos para empezar",
+    batch_new_confirm: "¿Iniciar un nuevo lote? Las fotos actuales permanecen en el servidor pero desaparecerán de esta vista.",
+    batch_reset: "Restablecer revisiones",
+    reset_nothing: "Nada que restablecer — no hay revisiones en este lote",
+    reset_confirm: "¿Borrar todas tus confirmaciones y correcciones de este lote? Las fotos y predicciones de la IA permanecen; solo se eliminan tus revisiones.",
+    reset_done: "Revisiones borradas",
+    list_title: "Tus lotes",
+    list_empty_title: "Aún no hay lotes.",
+    list_empty_sub: "Inicia un nuevo lote para subir y etiquetar tus primeras fotos.",
+    back_to_list: "Todos los lotes",
+    batch_delete: "Eliminar lote",
+    batch_delete_confirm: (n) =>
+      `¿Eliminar este lote y sus ${n} foto${n === 1 ? "" : "s"}? Esta acción no se puede deshacer.`,
+    batch_delete_done: (n) => `Lote eliminado (${n} foto${n === 1 ? "" : "s"})`,
+    batch_delete_failed: "Error al eliminar",
+    state_failed: "Falló la clasificación",
+    state_retry: "Reintentar clasificación",
+    retry_toast: "Re-encolada para clasificación",
+    history_link: "historial",
+    history_title: "Historial de correcciones",
+    history_empty: "Aún no hay correcciones para esta foto.",
+    history_action_confirm: "Confirmada",
+    history_action_correct: "Corregida a",
+    markup_link: "Marcar región y volver a detectar",
+    markup_title: "Marca la infracción",
+    markup_help: "Arrastra para dibujar un rectángulo alrededor del peligro. La IA volverá a clasificar solo esa región.",
+    markup_clear: "Limpiar",
+    markup_submit: "Re-detectar en la región",
+    markup_status_drawing: "Dibujando…",
+    markup_status_drawn: (w, h) => `Región: ${Math.round(w)} × ${Math.round(h)} px`,
+    markup_status_running: "Ejecutando IA en la región…",
+    markup_done: (label) => `Re-detectada: ${label}`,
+    markup_failed: "Falló la re-detección",
+    markup_no_region: "Primero arrastra un rectángulo en la foto",
+    propose_link: "¿Ninguna encaja? Propón un sub-tipo nuevo",
+    propose_title: "Proponer sub-tipo nuevo",
+    propose_help: "¿Ningún sub-tipo encaja? Propón uno nuevo. Un administrador revisa cada propuesta; al aprobarse se añade a la taxonomía y rellenamos retroactivamente las fotos que etiquetaste con esta propuesta.",
+    propose_parent: "Bajo la categoría",
+    propose_label_en: "Nombre (Inglés)",
+    propose_label_vn: "Nombre (Vietnamita)",
+    propose_description: "¿Por qué se necesita?",
+    propose_send: "Enviar para revisión",
+    propose_no_parent: "Elige primero una categoría.",
+    propose_need_both: "Se requieren los nombres en inglés y vietnamita.",
+    propose_sending: "Enviando…",
+    propose_submitted: "Propuesta enviada para revisión.",
+    propose_failed: "Error al enviar",
+    propose_already_exists: "Ya existe un sub-tipo con este nombre.",
+    propose_daily_limit: (limit) => `Límite diario de propuestas (${limit}) alcanzado. Inténtalo mañana.`,
+    propose_quota: (used, lim) => `${used} de ${lim} propuestas usadas hoy.`,
+    decision_approved: (label) => `Tu sub-tipo propuesto "${label}" fue aprobado.`,
+    decision_rejected: (label, note) => `Tu sub-tipo propuesto "${label}" fue rechazado${note ? ": " + note : "."}`,
+    decision_duplicate: (label, target) => `Tu sub-tipo propuesto "${label}" se marcó como duplicado de ${target}.`,
+    auth_signin: "Iniciar sesión",
+    auth_signout: "Cerrar sesión",
+    auth_admin_link: "Panel de administración",
+    notice_title: "Tu trabajo entrena a la IA",
+    notice_subtitle: "Bienvenido — un aviso rápido antes de empezar.",
+    notice_body_1: "Cada foto que subes, cada confirmación que haces y cada corrección que añades se convierte en datos de entrenamiento para la IA. El modelo mejora la clasificación HSE con el tiempo a medida que tú y tus colegas lo usan.",
+    notice_body_2: "Tus fotos y ediciones permanecen dentro de AECIS — no se comparten con terceros más allá de los proveedores de IA que usamos para clasificarlas.",
+    notice_body_tagline: "Las confirmaciones precisas ayudan a la IA más que el uso pasivo. Si una predicción es incorrecta, tómate un momento para corregirla.",
+    notice_ack: "Entendido",
+    pwa_install: "Instalar app",
+    cam_take: "Tomar foto",
+    cam_gallery: "Galería",
+    cam_or: "o",
+    cam_burst_staged_label: "Fotos listas para subir",
+    cam_burst_clear: "Borrar todas",
+    cam_burst_add: "Tomar otra",
+    cam_burst_upload: "Subir",
+    pwa_ios_title: "Instalar en iPhone / iPad",
+    pwa_ios_step1: "Toca el botón Compartir",
+    pwa_ios_step1_loc: "en la parte inferior de Safari",
+    pwa_ios_step2: "Desplázate y toca",
+    pwa_ios_step2_label: "Añadir a pantalla de inicio",
+    pwa_ios_step3: 'Toca <span class="font-medium text-slate-900">"Añadir"</span> en la esquina superior derecha.',
+    pwa_ios_note: "Debe abrirse en Safari — la opción \"Añadir a pantalla de inicio\" no aparece en Chrome para iOS.",
+    pwa_ios_ok: "Entendido",
+    quality_warn_one: (reason) => `1 foto marcada como ${reason} — la IA puede tener dificultades`,
+    quality_warn_many: (n, reason) => `${n} fotos marcadas (${reason}) — la IA puede tener dificultades`,
+    quality_blurry: "borrosa",
+    quality_dark: "demasiado oscura",
+    quality_tiny: "demasiado pequeña",
+    quality_low_conf: "Baja confianza — verifica por favor",
+    undo: "Deshacer",
+    undo_local: "Acción deshecha — solo localmente (vuelve a confirmar para guardar)",
+    bulk_confirming: "Confirmando fotos de alta confianza…",
+    bulk_done: "confirmadas",
+    filter_all: "Todas",
+    filter_pending: "Pendientes",
+    filter_reviewed: "Revisadas",
+    sort_label: "Ordenar:",
+    sort_newest: "Más recientes",
+    sort_low_first: "Baja confianza primero",
+    sort_high_first: "Alta confianza primero",
+    bulk_confirm_high: "Confirmar todas de alta confianza",
+    export_btn: "Descargar",
+    email_btn_title: "Enviar por email",
+    email_btn_desc: "Envía la exportación a un destinatario. Los archivos >20 MB reciben un enlace de descarga válido por 7 días.",
+    email_title: "Enviar este lote por email",
+    email_format: "Formato",
+    email_to: "Email del destinatario",
+    email_advanced: "Asunto / mensaje personalizado (opcional)",
+    email_send: "Enviar",
+    email_sending: "Generando exportación y enviando…",
+    email_invalid_to: "Introduce una dirección de email válida.",
+    email_not_configured: "El envío por email aún no está habilitado en este servidor.",
+    email_rate_limited: (limit) => `Límite diario de emails (${limit}) alcanzado. Inténtalo mañana.`,
+    email_done_attached: (to, kb) => `Enviado a ${to} (${kb} KB adjuntos).`,
+    email_done_link: (to, kb) => `Enviado a ${to} — archivo demasiado grande (${kb} KB), enlace de descarga de 7 días en el email.`,
+    email_failed: "Falló el envío",
+    export_pdf_title: "Informe imprimible (PDF)",
+    export_pdf_desc: "Portada + una foto por página con clasificación. Para entregar a oficiales de seguridad / clientes.",
+    export_zip_title: "ZIP de fotos renombradas",
+    export_zip_desc: "Fotos renombradas por clase, más manifest.csv. Arrástralas directamente a carpetas.",
+    export_csv_title: "CSV (hoja de cálculo)",
+    export_csv_desc: "Todas las fotos + predicción de la IA + etiqueta final. Ábrelo en Excel.",
+    export_json_title: "JSON (programático)",
+    export_json_desc: "Datos estructurados completos para canalizaciones posteriores.",
+    summary_title: "Resumen del lote",
+    summary_top_hse: "Tipos HSE principales",
+    summary_top_loc: "Ubicaciones principales",
+    summary_stats: "Estadísticas",
+    summary_total: "Total",
+    summary_reviewed: "Revisadas",
+    summary_pending: "Pendientes",
+    summary_avg_conf: "Confianza media",
+    summary_headline: (n, r) => `${n} fotos · ${r} revisadas`,
+    pill_high: "Probablemente correcta",
+    pill_medium: "Verificación rápida",
+    pill_low: "Necesita revisión",
+    empty_title: "Aún no hay fotos.",
+    empty_sub: "Suelta algunas arriba para empezar — las predicciones aparecerán en unos segundos.",
+    footer_training_set: "Conjunto de entrenamiento:",
+    footer_session: "Sesión:",
+    footer_uploaded: "subidas",
+    footer_confirmed: "confirmadas",
+    footer_corrected: "corregidas",
+    footer_tagline: "cada confirmación entrena a la IA",
+    footer_today: "hoy:",
+    kbd_title: "Atajos de teclado",
+    kbd_confirm: "Confirmar tarjeta enfocada",
+    kbd_edit: "Editar tarjeta enfocada",
+    kbd_lightbox: "Abrir foto a tamaño completo",
+    kbd_move: "Mover foco siguiente/anterior",
+    kbd_upload: "Subir (abrir selector de archivos)",
+    kbd_close: "Cerrar diálogo",
+    notif_done_title: "Lote completado",
+    notif_done_body: (n) => `${n} fotos terminaron de clasificarse. Abre la pestaña para revisar.`,
+    tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
+  },
+  zh: {
+    drop_main: "将现场照片拖放到此处，或<span class='text-emerald-600 underline'>点击选择</span>",
+    drop_sub: "JPG · PNG · HEIC · 一次可拖入数百张。每次确认都会扩充 AI 的参考库。",
+    upload_resizing: "上传前优化中…",
+    upload_uploading: "上传中…",
+    upload_classifying: "已上传 — 正在后台分类",
+    upload_done_notif: "批次分类完成",
+    upload_failed: "上传失败",
+    quota_reached: (limit, reset) => `已达每日 ${limit} 张照片上限。${reset} 重置。`,
+    quota_partial_cutoff: (n, limit) => `已跳过 ${n} 张照片 — 已达每日上限 ${limit}。`,
+    state_analyzing: "正在分析照片…",
+    ai_suggests: "AI 建议",
+    btn_confirm: "确认",
+    btn_edit: "编辑",
+    alt_label: "一键备选",
+    edit_hse_label: "HSE 类型",
+    edit_loc_label: "位置",
+    edit_fine_label: "AECIS 子类型 <span class='text-slate-400 font-normal'>（可选）</span>",
+    fine_search_placeholder: "搜索子类型…",
+    fine_search_placeholder_all: "搜索全部 386+ 子类型…",
+    fine_scope_in_category: "在该类别中",
+    fine_scope_all: "所有类别",
+    fine_no_results: "无匹配结果",
+    edit_note_ph: "审计日志的可选备注",
+    edit_save: "保存更正",
+    edit_cancel: "取消",
+    reviewed_confirmed: "已确认",
+    reviewed_corrected: "已更正",
+    confirm_toast: "已确认 — 加入训练集",
+    correct_toast: "更正已保存 — 加入训练集",
+    delete_toast: "照片已删除",
+    batch_label_prefix: "批次：",
+    batch_new: "新批次",
+    batch_new_full: "开始新批次",
+    batch_new_toast: "已开始新批次 — 拖入照片开始",
+    batch_new_confirm: "开始新批次？当前照片仍在服务器上，但会从此视图中消失。",
+    batch_reset: "重置审核",
+    reset_nothing: "无可重置 — 此批次尚无审核",
+    reset_confirm: "清除你在此批次中所有的确认和更正？照片和 AI 预测保留；仅删除你的审核。",
+    reset_done: "审核已清除",
+    list_title: "你的批次",
+    list_empty_title: "尚无批次。",
+    list_empty_sub: "开始一个新批次以上传并标注你的第一组照片。",
+    back_to_list: "所有批次",
+    batch_delete: "删除批次",
+    batch_delete_confirm: (n) =>
+      `删除此批次及其全部 ${n} 张照片？此操作无法撤销。`,
+    batch_delete_done: (n) => `批次已删除（${n} 张照片）`,
+    batch_delete_failed: "删除失败",
+    state_failed: "分类失败",
+    state_retry: "重试分类",
+    retry_toast: "已重新加入分类队列",
+    history_link: "历史",
+    history_title: "更正历史",
+    history_empty: "此照片暂无更正记录。",
+    history_action_confirm: "已确认",
+    history_action_correct: "更正为",
+    markup_link: "标记区域并重新检测",
+    markup_title: "标记违规",
+    markup_help: "拖动以围绕危险绘制矩形。AI 将仅在该区域重新分类。",
+    markup_clear: "清除",
+    markup_submit: "在区域内重新检测",
+    markup_status_drawing: "绘制中…",
+    markup_status_drawn: (w, h) => `区域：${Math.round(w)} × ${Math.round(h)} 像素`,
+    markup_status_running: "AI 正在分析该区域…",
+    markup_done: (label) => `重新检测：${label}`,
+    markup_failed: "重新检测失败",
+    markup_no_region: "请先在照片上拖动一个矩形",
+    propose_link: "都不合适？提议新的子类型",
+    propose_title: "提议新子类型",
+    propose_help: "现有子类型都不合适？提议一个新的。管理员会审核每条提议；批准后将加入正式分类，并自动回填你用此提议标注的照片。",
+    propose_parent: "所属类别",
+    propose_label_en: "名称（英文）",
+    propose_label_vn: "名称（越南文）",
+    propose_description: "为何需要？",
+    propose_send: "提交审核",
+    propose_no_parent: "请先选择类别。",
+    propose_need_both: "需要英文和越南文名称。",
+    propose_sending: "提交中…",
+    propose_submitted: "提议已提交审核。",
+    propose_failed: "提交失败",
+    propose_already_exists: "已存在同名子类型。",
+    propose_daily_limit: (limit) => `已达每日提议上限（${limit}）。请明天再试。`,
+    propose_quota: (used, lim) => `今日已用 ${used} / ${lim} 个提议。`,
+    decision_approved: (label) => `你提议的子类型 "${label}" 已获批准。`,
+    decision_rejected: (label, note) => `你提议的子类型 "${label}" 被拒绝${note ? "：" + note : "。"}`,
+    decision_duplicate: (label, target) => `你提议的子类型 "${label}" 被标记为 ${target} 的重复。`,
+    auth_signin: "登录",
+    auth_signout: "退出登录",
+    auth_admin_link: "管理面板",
+    notice_title: "你的工作训练 AI",
+    notice_subtitle: "欢迎 — 开始之前的小提示。",
+    notice_body_1: "你上传的每一张照片、每一次确认和每一次更正，都会成为 AI 的训练数据。随着你和同事的使用，模型在 HSE 分类上会逐步变得更准确。",
+    notice_body_2: "你的照片和编辑保留在 AECIS 内 — 除我们用于分类的 AI 提供方外，不与第三方共享。",
+    notice_body_tagline: "准确的确认比被动使用对 AI 更有帮助。如果预测错误，请花点时间更正。",
+    notice_ack: "我了解",
+    pwa_install: "安装应用",
+    cam_take: "拍照",
+    cam_gallery: "相册",
+    cam_or: "或",
+    cam_burst_staged_label: "待上传的照片",
+    cam_burst_clear: "全部清除",
+    cam_burst_add: "再拍一张",
+    cam_burst_upload: "上传",
+    pwa_ios_title: "在 iPhone / iPad 上安装",
+    pwa_ios_step1: "点击分享按钮",
+    pwa_ios_step1_loc: "Safari 底部",
+    pwa_ios_step2: "向下滚动并点击",
+    pwa_ios_step2_label: "添加到主屏幕",
+    pwa_ios_step3: '点击右上角 <span class="font-medium text-slate-900">"添加"</span>。',
+    pwa_ios_note: "必须使用 Safari 打开 — iOS 版 Chrome 的分享菜单中不会出现\"添加到主屏幕\"。",
+    pwa_ios_ok: "知道了",
+    quality_warn_one: (reason) => `1 张照片被标记为${reason} — AI 可能难以识别`,
+    quality_warn_many: (n, reason) => `${n} 张照片被标记（${reason}）— AI 可能难以识别`,
+    quality_blurry: "模糊",
+    quality_dark: "过暗",
+    quality_tiny: "过小",
+    quality_low_conf: "置信度低 — 请核实",
+    undo: "撤销",
+    undo_local: "已撤销 — 仅在本地（重新确认才能保存）",
+    bulk_confirming: "正在批量确认高置信度照片…",
+    bulk_done: "已确认",
+    filter_all: "全部",
+    filter_pending: "待处理",
+    filter_reviewed: "已审核",
+    sort_label: "排序：",
+    sort_newest: "最新",
+    sort_low_first: "低置信度优先",
+    sort_high_first: "高置信度优先",
+    bulk_confirm_high: "确认所有高置信度",
+    export_btn: "下载",
+    email_btn_title: "发送邮件",
+    email_btn_desc: "将导出发送给收件人。文件 >20 MB 会改为 7 天有效的下载链接。",
+    email_title: "通过邮件发送此批次",
+    email_format: "格式",
+    email_to: "收件人邮箱",
+    email_advanced: "自定义主题 / 内容（可选）",
+    email_send: "发送",
+    email_sending: "正在生成导出并发送…",
+    email_invalid_to: "请输入有效的邮箱地址。",
+    email_not_configured: "此服务器尚未启用邮件导出。",
+    email_rate_limited: (limit) => `已达每日邮件上限（${limit}）。请明天再试。`,
+    email_done_attached: (to, kb) => `已发送至 ${to}（附件 ${kb} KB）。`,
+    email_done_link: (to, kb) => `已发送至 ${to} — 文件过大（${kb} KB），邮件中包含 7 天下载链接。`,
+    email_failed: "发送失败",
+    export_pdf_title: "可打印报告（PDF）",
+    export_pdf_desc: "封面页 + 每张照片一页含分类。可交给安全官 / 客户。",
+    export_zip_title: "重命名照片 ZIP",
+    export_zip_desc: "按类别重命名的照片，附 manifest.csv。可直接拖入文件夹。",
+    export_csv_title: "CSV（电子表格）",
+    export_csv_desc: "全部照片 + AI 预测 + 最终标签。用 Excel 打开。",
+    export_json_title: "JSON（程序化）",
+    export_json_desc: "供下游流程使用的完整结构化数据。",
+    summary_title: "批次摘要",
+    summary_top_hse: "主要 HSE 类型",
+    summary_top_loc: "主要位置",
+    summary_stats: "统计",
+    summary_total: "总数",
+    summary_reviewed: "已审核",
+    summary_pending: "待处理",
+    summary_avg_conf: "平均置信度",
+    summary_headline: (n, r) => `${n} 张照片 · 已审核 ${r} 张`,
+    pill_high: "可能正确",
+    pill_medium: "快速核查",
+    pill_low: "需要审核",
+    empty_title: "暂无照片。",
+    empty_sub: "在上方拖入照片开始 — 几秒后将显示预测结果。",
+    footer_training_set: "训练集：",
+    footer_session: "会话：",
+    footer_uploaded: "已上传",
+    footer_confirmed: "已确认",
+    footer_corrected: "已更正",
+    footer_tagline: "每次确认都训练 AI",
+    footer_today: "今日：",
+    kbd_title: "键盘快捷键",
+    kbd_confirm: "确认聚焦的卡片",
+    kbd_edit: "编辑聚焦的卡片",
+    kbd_lightbox: "打开照片大图",
+    kbd_move: "上一张/下一张",
+    kbd_upload: "上传（打开文件选择器）",
+    kbd_close: "关闭对话框",
+    notif_done_title: "批次完成",
+    notif_done_body: (n) => `${n} 张照片分类完成。打开标签页审核。`,
+    tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
   },
 };
 
+// English is the default for first-time visitors. Returning users
+// keep whatever they previously selected; if their saved language
+// isn't one of our 4 known packs (corrupt cookie, retired locale)
+// fall back to English to avoid a missing-keys cascade.
+const KNOWN_LANGS = new Set(Object.keys(I18N));   // en, vn, es, zh
 let LANG = localStorage.getItem("violation-ai-lang") || "en";
+if (!KNOWN_LANGS.has(LANG)) LANG = "en";
 function t(key) {
   return (I18N[LANG] && I18N[LANG][key]) || (I18N.en && I18N.en[key]) || key;
 }
@@ -935,16 +1357,9 @@ function applyLang() {
   document.querySelectorAll(".edit-note").forEach(i => {
     i.placeholder = t("edit_note_ph");
   });
-  // Header lang button states
-  document.querySelectorAll(".lang-btn").forEach(b => {
-    if (b.dataset.lang === LANG) {
-      b.classList.add("bg-white", "text-slate-900", "shadow-sm");
-      b.classList.remove("text-slate-500");
-    } else {
-      b.classList.remove("bg-white", "text-slate-900", "shadow-sm");
-      b.classList.add("text-slate-500");
-    }
-  });
+  // Sync the language <select> dropdown in the header
+  const langSelect = document.getElementById("lang-select");
+  if (langSelect && langSelect.value !== LANG) langSelect.value = LANG;
   // Re-render labels on existing cards
   els(".card", cardsEl).forEach(c => {
     const cached = photoCache.get(c.dataset.photoId);
@@ -959,13 +1374,17 @@ function applyLang() {
   }
 }
 
-document.querySelectorAll(".lang-btn").forEach(b => {
-  b.addEventListener("click", () => {
-    LANG = b.dataset.lang;
+// 4-language selector: en / vn / es / zh. The select itself lives in
+// _base.html so admin and main pages share the same chooser.
+const _langSelect = document.getElementById("lang-select");
+if (_langSelect) {
+  _langSelect.value = LANG;   // initial value
+  _langSelect.addEventListener("change", () => {
+    LANG = _langSelect.value;
     localStorage.setItem("violation-ai-lang", LANG);
     applyLang();
   });
-});
+}
 
 // =================== Constants ===================
 const TAXONOMY = {{ taxonomy | tojson }};
@@ -2557,14 +2976,113 @@ fileInput.addEventListener("change", (e) => {
 const cameraInput = document.getElementById("camera-input");
 const btnCamera   = document.getElementById("btn-camera");
 const btnGallery  = document.getElementById("btn-gallery");
+// =====================================================================
+// Camera burst — accumulate multiple photos before submitting.
+//
+// Without this, every camera shot fires uploadFiles() immediately, which
+// means an inspector walking a site has to open the camera, take ONE
+// photo, wait for upload, open the camera again, etc. Burst mode lets
+// them snap many in a row, review the strip, drop ones that didn't
+// turn out, and submit the whole batch in a single upload run.
+//
+// State lives in _camBurst array of File objects + an objectURL list
+// for thumbnail preview cleanup. Re-uses the existing uploadFiles()
+// pipeline so client-side resize, dedup, quota all still apply.
+// =====================================================================
+const _camBurst = {
+  files: [],          // list of File objects
+  urls: [],           // list of object URLs to revoke when discarded
+};
+const camBurstTray    = document.getElementById("cam-burst-tray");
+const camBurstThumbs  = document.getElementById("cam-burst-thumbs");
+const camBurstCount   = document.getElementById("cam-burst-count");
+const camBurstAddBtn  = document.getElementById("cam-burst-add");
+const camBurstUpBtn   = document.getElementById("cam-burst-upload");
+const camBurstUpLbl   = document.getElementById("cam-burst-upload-label");
+const camBurstClrBtn  = document.getElementById("cam-burst-clear");
+
+function _renderCamBurst() {
+  if (!camBurstThumbs) return;
+  camBurstThumbs.innerHTML = "";
+  _camBurst.files.forEach((f, idx) => {
+    const url = _camBurst.urls[idx];
+    const wrap = document.createElement("div");
+    wrap.className = "relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-50";
+    wrap.innerHTML = `
+      <img src="${url}" alt="" class="w-full h-full object-cover">
+      <button type="button" data-rm="${idx}"
+              class="absolute top-0.5 right-0.5 w-5 h-5 grid place-items-center rounded-full bg-slate-900/70 hover:bg-rose-600 text-white text-xs font-bold leading-none">×</button>`;
+    camBurstThumbs.appendChild(wrap);
+  });
+  // Wire per-thumb remove buttons.
+  camBurstThumbs.querySelectorAll("button[data-rm]").forEach(b => {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const i = Number(b.dataset.rm);
+      try { URL.revokeObjectURL(_camBurst.urls[i]); } catch (_) {}
+      _camBurst.files.splice(i, 1);
+      _camBurst.urls.splice(i, 1);
+      _renderCamBurst();
+    });
+  });
+  if (camBurstCount) camBurstCount.textContent = String(_camBurst.files.length);
+  if (camBurstUpLbl) camBurstUpLbl.textContent =
+    _camBurst.files.length > 1
+      ? `${(typeof t === "function" ? t("cam_burst_upload") : "Upload")} ${_camBurst.files.length}`
+      : (typeof t === "function" ? t("cam_burst_upload") : "Upload");
+  // Show / hide the tray based on whether anything is staged.
+  if (camBurstTray) {
+    if (_camBurst.files.length > 0) {
+      camBurstTray.classList.remove("hidden");
+    } else {
+      camBurstTray.classList.add("hidden");
+    }
+  }
+}
+function _clearCamBurst() {
+  _camBurst.urls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
+  _camBurst.files.length = 0;
+  _camBurst.urls.length  = 0;
+  _renderCamBurst();
+}
+
 if (btnCamera && cameraInput) {
   btnCamera.addEventListener("click", (e) => {
     e.stopPropagation();          // don't bubble to the dropzone click
     cameraInput.click();
   });
   cameraInput.addEventListener("change", (e) => {
-    uploadFiles(Array.from(e.target.files || []));
+    const newFiles = Array.from(e.target.files || []);
     cameraInput.value = "";       // allow taking the same photo twice
+    if (!newFiles.length) return;
+    // Stage instead of uploading immediately. The user can take more
+    // shots and submit the whole burst when they're ready.
+    newFiles.forEach(f => {
+      _camBurst.files.push(f);
+      _camBurst.urls.push(URL.createObjectURL(f));
+    });
+    _renderCamBurst();
+  });
+}
+if (camBurstAddBtn && cameraInput) {
+  camBurstAddBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    cameraInput.click();
+  });
+}
+if (camBurstUpBtn) {
+  camBurstUpBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!_camBurst.files.length) return;
+    const batch = _camBurst.files.slice();
+    _clearCamBurst();             // hide tray + revoke URLs before upload starts
+    uploadFiles(batch);
+  });
+}
+if (camBurstClrBtn) {
+  camBurstClrBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    _clearCamBurst();
   });
 }
 if (btnGallery) {
@@ -2604,7 +3122,7 @@ function updateTabTitle() {
   if (tabPendingTotal > 0 && tabPendingDone < tabPendingTotal) {
     document.title = t("tab_progress")(tabPendingDone, tabPendingTotal);
   } else {
-    document.title = "Violation AI";
+    document.title = "HSE Detector";
   }
 }
 
@@ -3075,7 +3593,7 @@ function switchView(v) {
   localStorage.setItem("violation-ai-view", v);
   viewListEl.classList.toggle("hidden", v !== VIEW_LIST);
   viewDetailEl.classList.toggle("hidden", v !== VIEW_DETAIL);
-  document.title = v === VIEW_LIST ? "Violation AI · batches" : "Violation AI · upload";
+  document.title = v === VIEW_LIST ? "HSE Detector · batches" : "HSE Detector · upload";
   if (v === VIEW_LIST) {
     refreshBatchesList();
   } else {
