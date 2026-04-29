@@ -58,29 +58,44 @@ EFFORT
 
 
 =============================================================
-2.  OAUTH + AZURE AD LOGIN
+2.  OAUTH + LOGIN (Google primary, Azure AD as alternative)
 =============================================================
 
 WHAT
   Replace the current "no auth, single tenant" model with proper
-  OAuth via Azure AD (Microsoft Entra ID). Implemented LAST in the
-  feature sequence — every other feature below assumes auth exists.
+  OAuth. Implemented LAST in the feature sequence — every other
+  feature below assumes auth exists.
+
+  Provider chosen: Google OAuth (project gen-lang-client-0891682097,
+  client "violation-bot"). Credentials staged at:
+    ~/Desktop/violation-bot/secrets/client_secret_*.googleusercontent.com.json
+  Azure AD remains a viable alternative path if AECIS prefers SSO
+  through their M365 tenant later — same FastAPI plumbing, different
+  authlib provider config.
 
 WHY
-  - AECIS clients already use Microsoft 365. Azure AD = SSO they
-    already have, no separate password management.
+  - Inspectors don't all have Microsoft accounts; Google works for
+    everyone with a Gmail / Workspace login.
   - Per-user attribution makes the daily-quota, statistics-collection,
     and 14-day-verification features actually function.
   - Tenant separation moves from "manual env var" to "claim from
     JWT" — multi-customer use unlocks.
 
+REDIRECT URI — UPDATE BEFORE IMPLEMENTING
+  The Google client's "Authorized redirect URIs" currently points at
+  the bare origin (https://hse.aecis.ca). Change to:
+    https://hse.aecis.ca/auth/callback
+  in Google Cloud Console → APIs & Services → Credentials before
+  implementing the route. JS origins can stay as the bare origin.
+
 IMPLEMENTATION SKETCH
-  1. Register the app in Azure AD; get client_id, tenant_id,
-     client_secret. Configure redirect URI to https://hse.aecis.ca/auth/callback.
+  1. Read client_id + client_secret from .env (loaded at boot from
+     the staged JSON). DO NOT commit the JSON to git — it lives in
+     ~/Desktop/violation-bot/secrets/, outside the repo.
   2. Use authlib (Python) — mature OAuth client lib, integrates
      cleanly with FastAPI.
   3. Routes:
-       GET  /auth/login    -> redirects to Azure AD authorize URL
+       GET  /auth/login    -> redirects to Google authorize URL
        GET  /auth/callback -> exchanges code for tokens, fetches
                               user profile (email, oid, name), creates
                               or upserts a `users` row, sets a session
@@ -90,12 +105,15 @@ IMPLEMENTATION SKETCH
   4. Schema:
        users (
          id UUID PRIMARY KEY,
-         azure_oid TEXT UNIQUE,    -- Azure AD object id (stable)
+         provider TEXT,            -- 'google' (or 'azure_ad' if added)
+         provider_user_id TEXT,    -- Google's `sub` claim, or Azure oid
          email TEXT,
          display_name TEXT,
+         picture_url TEXT,         -- Google's profile picture URL
          tenant_id UUID,           -- which AECIS tenant this user belongs to
          created_at TIMESTAMPTZ,
-         last_login_at TIMESTAMPTZ
+         last_login_at TIMESTAMPTZ,
+         UNIQUE(provider, provider_user_id)
        )
   5. FastAPI dependency: get_current_user(request: Request) -> User
      Reads cookie, verifies JWT, returns User row (or 401).
@@ -251,7 +269,10 @@ IMPLEMENTATION SKETCH
        - AWS SES — cheap if AECIS already has AWS
        - Microsoft Graph (since they're on M365) — best integration
          with Azure AD account
-       Recommendation: Graph API, since Azure AD is already in.
+       Recommendation: Gmail API via the same Google OAuth project
+       that handles login, since the credential is already in. Falls
+       back to SendGrid if delivery to non-Google addresses gets
+       throttled.
   2. Schema:
        email_jobs (
          id UUID, user_id UUID, batch_id UUID,
@@ -452,7 +473,7 @@ Realistic phasing:
   PHASE 2 (~3 days):   Quota + stats (cookie-keyed)
   PHASE 3 (~3 days):   Email export
   PHASE 4 (~5 days):   User-submitted classes
-  PHASE 5 (~3 days):   Auth — Azure AD OAuth + retro-attribution
+  PHASE 5 (~3 days):   Auth — Google OAuth + retro-attribution
                        migration of pre-auth rows
   PHASE 6 (~2 days):   14-day verification (lights up after auth)
 
