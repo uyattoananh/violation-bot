@@ -29,7 +29,7 @@
 // cache name in `activate`. Phase 5 added the auth-pill markup
 // + JS — without this bump, returning users keep seeing the
 // pre-Phase-5 shell.
-const CACHE_VERSION = "v4-landing";
+const CACHE_VERSION = "v5-network-first-root";
 const SHELL_CACHE = `violation-ai-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `violation-ai-runtime-${CACHE_VERSION}`;
 
@@ -119,11 +119,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // App shell + static assets — cache-first
-  if (isSameOrigin && (
-    url.pathname === "/" ||
-    url.pathname.startsWith("/static/")
-  )) {
+  // The bare `/` is auth-dependent: it renders the landing page for
+  // anonymous visitors and the app shell for authenticated ones.
+  // Cache-first would freeze whichever copy was cached first, so a
+  // user who signed out and refreshed would still see the app shell
+  // (or vice versa). Network-first means each load asks the server
+  // which page to render and the cache is only an offline fallback.
+  if (isSameOrigin && url.pathname === "/") {
+    event.respondWith(_networkFirst(req));
+    return;
+  }
+
+  // Static assets — cache-first (they're versioned + immutable in
+  // intent; SW evicts old caches on activate when CACHE_VERSION bumps).
+  if (isSameOrigin && url.pathname.startsWith("/static/")) {
     event.respondWith(_cacheFirst(req));
     return;
   }
