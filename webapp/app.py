@@ -2676,7 +2676,7 @@ def admin_login(request: Request, password: str = Form(...)):
         raise HTTPException(503, "admin disabled (set ADMIN_PASSWORD env)")
     if password != _ADMIN_PASSWORD:
         raise HTTPException(401, "wrong password")
-    resp = RedirectResponse("/admin/stats", status_code=303)
+    resp = RedirectResponse("/admin", status_code=303)
     resp.set_cookie(
         _ADMIN_COOKIE_NAME,
         value=_ADMIN_PASSWORD,
@@ -2693,7 +2693,7 @@ def admin_login_form(request: Request):
     """Tiny HTML form for the admin password. Inline, no template
     needed — admin UX is intentionally sparse."""
     if _admin_authed(request):
-        return RedirectResponse("/admin/stats", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
     if not _ADMIN_PASSWORD:
         return HTMLResponse(
             "<h1>admin disabled</h1><p>Set <code>ADMIN_PASSWORD</code> env "
@@ -2714,21 +2714,146 @@ button{background:#0f172a;color:#fff;border:0;padding:8px 16px;border-radius:6px
 </body></html>""")
 
 
-@app.get("/admin/stats", response_class=HTMLResponse)
-def admin_stats(request: Request, days: int = 30):
-    """Admin dashboard: daily usage roll-up across all users.
-    Lazy roll-up — recomputed from the raw tables on each request
-    rather than maintained in daily_user_stats. At our scale (a few
-    thousand rows/day max), the lazy path is fine; the daily_user_stats
-    table is reserved for when scale demands a cron-fed materialized
-    view.
+@app.get("/admin", response_class=HTMLResponse)
+def admin_panel(request: Request, days: int = 30, status: str = "pending"):
+    """Unified admin control panel — stats + HSE-class proposal review
+    on a single page. Replaces the old /admin/stats and /admin/proposals
+    pages (both still 303 here for backwards compat).
 
-    Renders inline HTML — no template, no charts library. The data
-    fits cleanly in tables; charts are nice-to-have later.
+    Layout: stats section first (compact), proposals queue below with
+    the same status-filter tabs that /admin/proposals had. The proposals
+    POST handlers (approve/reject/duplicate) redirect back here with
+    the #proposals anchor so the admin lands on the queue, not the top.
     """
     if not _admin_authed(request):
         return RedirectResponse("/admin/login", status_code=303)
 
+    # Both sections compute independently — proposals failure shouldn't
+    # blank out stats. _build_proposals_inner already degrades gracefully
+    # to its own error block when the table is missing.
+    try:
+        stats_html = _build_stats_inner(days)
+    except Exception as e:  # noqa: BLE001
+        log.warning("admin stats render failed: %s", e)
+        stats_html = (
+            "<section id='stats' class='adm-section'>"
+            "<h2>Activity overview</h2>"
+            f"<div class='adm-error'>Stats render failed: {e}</div></section>"
+        )
+
+    try:
+        proposals_html = _build_proposals_inner(status)
+    except Exception as e:  # noqa: BLE001
+        log.warning("admin proposals render failed: %s", e)
+        proposals_html = (
+            "<section id='proposals' class='adm-section'>"
+            "<h2>HSE class proposals</h2>"
+            f"<div class='adm-error'>Proposals render failed: {e}</div></section>"
+        )
+
+    html = f"""<!doctype html>
+<html><head><meta charset=utf-8>
+<title>Admin · Violation AI</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<style>
+:root {{ --emerald: #10b981; --emerald-dark: #059669; --slate-900: #0f172a;
+         --slate-700: #334155; --slate-500: #64748b; --slate-200: #e2e8f0;
+         --slate-100: #f1f5f9; --slate-50: #f8fafc; --slate-400: #94a3b8;
+         --rose: #ef4444; --indigo: #6366f1; --amber: #f59e0b; }}
+* {{ box-sizing: border-box; }}
+body {{ font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+       margin: 0; padding: 0; background: var(--slate-50); color: var(--slate-900); }}
+.adm-shell {{ max-width: 1200px; margin: 0 auto; padding: 0 16px 32px; }}
+.adm-header {{ display: flex; align-items: center; justify-content: space-between;
+              padding: 14px 16px; background: #fff; border-bottom: 1px solid var(--slate-200);
+              position: sticky; top: 0; z-index: 5; }}
+.adm-header h1 {{ font-size: 18px; margin: 0; font-weight: 600; }}
+.adm-header h1 .accent {{ color: var(--emerald); }}
+.adm-header-nav {{ display: flex; gap: 4px; }}
+.adm-header-nav a {{ font-size: 12px; color: var(--slate-500); text-decoration: none;
+                    padding: 4px 10px; border-radius: 6px; }}
+.adm-header-nav a:hover {{ color: var(--slate-900); background: var(--slate-100); }}
+.adm-jump {{ display: flex; gap: 4px; padding: 12px 16px; background: #fff;
+            border-bottom: 1px solid var(--slate-200); margin: 0 0 16px; position: sticky;
+            top: 47px; z-index: 4; max-width: 1200px; margin-left: auto; margin-right: auto; }}
+.adm-jump a {{ font-size: 12px; color: var(--slate-500); text-decoration: none;
+              padding: 6px 12px; border-radius: 999px; background: var(--slate-100); }}
+.adm-jump a:hover {{ color: var(--slate-900); background: var(--slate-200); }}
+.adm-section {{ background: #fff; border: 1px solid var(--slate-200); border-radius: 12px;
+               padding: 18px 20px; margin: 16px 0; scroll-margin-top: 100px; }}
+.adm-section-head {{ display: flex; align-items: baseline; gap: 12px; margin: 0 0 14px;
+                    border-bottom: 1px solid var(--slate-100); padding-bottom: 10px; }}
+.adm-section h2 {{ font-size: 15px; margin: 0; font-weight: 600; }}
+.adm-section h3 {{ font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+                  color: var(--slate-500); margin: 22px 0 8px; font-weight: 600; }}
+.adm-window {{ font-size: 12px; color: var(--slate-400); }}
+.adm-error {{ padding: 12px; border-radius: 8px; background: #fef2f2; color: #991b1b;
+             border: 1px solid #fecaca; font-size: 12px; }}
+.adm-empty {{ text-align: center; color: var(--slate-400); padding: 12px; }}
+
+.stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }}
+.stat {{ background: var(--slate-50); border: 1px solid var(--slate-100); border-radius: 8px; padding: 12px; }}
+.k {{ font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--slate-500); }}
+.v {{ font-size: 18px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }}
+
+.adm-table-wrap {{ overflow-x: auto; }}
+.stats-tbl, .props-tbl {{ border-collapse: collapse; width: 100%; }}
+.stats-tbl th, .stats-tbl td {{ text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--slate-100);
+                                font-variant-numeric: tabular-nums; font-size: 12px; }}
+.props-tbl th, .props-tbl td {{ text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--slate-100);
+                                vertical-align: top; font-size: 12px; }}
+.stats-tbl th, .props-tbl th {{ background: var(--slate-50); color: var(--slate-700);
+                                font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }}
+.stats-tbl tr:last-child td, .props-tbl tr:last-child td {{ border-bottom: 0; }}
+.mono {{ font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--slate-700); }}
+
+.adm-tabs {{ display: flex; gap: 4px; margin: 0 0 12px; border-bottom: 1px solid var(--slate-200); flex-wrap: wrap; }}
+.adm-tabs .tab {{ padding: 8px 14px; color: var(--slate-500); text-decoration: none;
+                 border-bottom: 2px solid transparent; font-size: 13px; text-transform: capitalize; }}
+.adm-tabs .tab.active {{ color: var(--slate-900); border-bottom-color: var(--emerald); font-weight: 600; }}
+.adm-tabs .tab:hover {{ color: var(--slate-900); }}
+
+.btn {{ border: 0; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }}
+.btn.approve {{ background: var(--emerald); color: #fff; }}
+.btn.approve:hover {{ background: var(--emerald-dark); }}
+.btn.reject {{ background: #fff; color: var(--rose); border: 1px solid var(--rose); }}
+.btn.reject:hover {{ background: #fef2f2; }}
+.btn.dup {{ background: #fff; color: var(--indigo); border: 1px solid var(--indigo); }}
+.btn.dup:hover {{ background: #eef2ff; }}
+code {{ font-family: ui-monospace, Menlo, monospace; background: var(--slate-100);
+       padding: 1px 6px; border-radius: 4px; font-size: 11px; }}
+
+@media (max-width: 640px) {{
+  .adm-header h1 {{ font-size: 15px; }}
+  .adm-section {{ padding: 14px; }}
+}}
+</style></head><body>
+<header class="adm-header">
+  <h1>Violation <span class="accent">AI</span> · Admin</h1>
+  <nav class="adm-header-nav">
+    <a href="/">← App</a>
+    <a href="/api/usage/today" target="_blank" rel="noopener">Cost JSON</a>
+  </nav>
+</header>
+<nav class="adm-jump">
+  <a href="#stats">Activity</a>
+  <a href="#proposals">Proposals</a>
+</nav>
+<div class="adm-shell">
+{stats_html}
+{proposals_html}
+</div>
+</body></html>"""
+    return HTMLResponse(html)
+
+
+def _build_stats_inner(days: int) -> str:
+    """Compute the stats section's inner HTML for the unified /admin
+    panel. Returns just the body content — the page shell + styles
+    live in admin_panel. Same lazy roll-up as before — at our scale
+    (a few thousand rows/day) the daily_user_stats materialized view
+    is reserved for when scale actually demands it.
+    """
     from datetime import datetime, timezone, timedelta
     db = get_db()
     end = datetime.now(timezone.utc).date()
@@ -2839,31 +2964,31 @@ def admin_stats(request: Request, days: int = 30):
         for uk, u in user_rows
     )
 
-    html = f"""<!doctype html><html><head><meta charset=utf-8><title>Admin stats</title>
-<style>
-body{{font:13px/1.5 system-ui;max-width:1100px;margin:24px auto;padding:0 16px;background:#f8fafc;color:#0f172a}}
-h1{{font-size:20px;margin:0 0 16px}}
-h2{{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin:32px 0 8px;font-weight:600}}
-.stats{{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}}
-.stat{{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px}}
-.k{{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#64748b}}
-.v{{font-size:18px;font-weight:600;margin-top:4px;font-variant-numeric:tabular-nums}}
-table{{border-collapse:collapse;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}}
-th,td{{text-align:left;padding:6px 10px;border-bottom:1px solid #f1f5f9;font-variant-numeric:tabular-nums}}
-th{{background:#f1f5f9;color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.04em}}
-tr:last-child td{{border-bottom:0}}
-.mono{{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#475569}}
-</style></head><body>
-<h1>Admin stats <span style=color:#94a3b8;font-weight:400>· last {days} days</span></h1>
-<div class=stats>{head_html}</div>
-<h2>Daily activity</h2>
-<table><thead><tr><th>Day</th><th>Users</th><th>Uploaded</th><th>Reviewed</th><th>Confirms</th><th>Corrections</th></tr></thead>
-<tbody>{daily_html or '<tr><td colspan=6 style=text-align:center;color:#94a3b8>(no data)</td></tr>'}</tbody></table>
-<h2>Top users · last {days} days</h2>
-<table><thead><tr><th>User key</th><th>Uploaded</th><th>Reviewed</th><th>Confirms</th><th>Corrections</th><th>First seen</th><th>Last seen</th></tr></thead>
-<tbody>{user_html or '<tr><td colspan=7 style=text-align:center;color:#94a3b8>(no data)</td></tr>'}</tbody></table>
-</body></html>"""
-    return HTMLResponse(html)
+    return f"""
+<section id="stats" class="adm-section">
+  <div class="adm-section-head">
+    <h2>Activity overview</h2>
+    <span class="adm-window">last {days} days</span>
+  </div>
+  <div class="stats-grid">{head_html}</div>
+  <h3>Daily activity</h3>
+  <div class="adm-table-wrap"><table class="stats-tbl">
+    <thead><tr><th>Day</th><th>Users</th><th>Uploaded</th><th>Reviewed</th><th>Confirms</th><th>Corrections</th></tr></thead>
+    <tbody>{daily_html or '<tr><td colspan=6 class=adm-empty>(no data)</td></tr>'}</tbody>
+  </table></div>
+  <h3>Top users · last {days} days</h3>
+  <div class="adm-table-wrap"><table class="stats-tbl">
+    <thead><tr><th>User key</th><th>Uploaded</th><th>Reviewed</th><th>Confirms</th><th>Corrections</th><th>First seen</th><th>Last seen</th></tr></thead>
+    <tbody>{user_html or '<tr><td colspan=7 class=adm-empty>(no data)</td></tr>'}</tbody>
+  </table></div>
+</section>"""
+
+
+@app.get("/admin/stats", include_in_schema=False)
+def admin_stats(request: Request, days: int = 30):
+    """Backwards-compat redirect — old bookmarks still work, just
+    forward to the unified /admin panel."""
+    return RedirectResponse(f"/admin?days={days}#stats", status_code=303)
 
 
 # ---------- phase 4: hse-class proposals (admin side) ----------
@@ -2925,18 +3050,12 @@ def _retro_patch_corrections(old_slug: str, new_slug: str) -> int:
         return 0
 
 
-@app.get("/admin/proposals", response_class=HTMLResponse)
-def admin_proposals(request: Request, status: str = "pending"):
-    """Admin review queue. Default filter is `pending`; pass
-    ?status=approved|rejected|duplicate|all to see decided items.
-
-    Inline HTML — same minimalist style as /admin/stats. Each row has
-    Approve / Reject / Duplicate buttons that POST to the per-id
-    endpoints below. The page reloads after each action.
+def _build_proposals_inner(status: str) -> str:
+    """Compute the proposals queue's inner HTML for the unified /admin
+    panel. Default filter is `pending`; valid statuses also include
+    approved | rejected | duplicate | all. Returns body content only;
+    page shell + styles live in admin_panel.
     """
-    if not _admin_authed(request):
-        return RedirectResponse("/admin/login", status_code=303)
-
     db = get_db()
     valid = {"pending", "approved", "rejected", "duplicate", "all"}
     if status not in valid:
@@ -3069,41 +3188,28 @@ def admin_proposals(request: Request, status: str = "pending"):
     for s in ("pending", "approved", "rejected", "duplicate", "all"):
         cnt = "" if s == "all" else f" ({counts.get(s, 0)})"
         tabs.append(
-            f"<a href='/admin/proposals?status={s}' "
+            f"<a href='/admin?status={s}#proposals' "
             f"class='tab{' active' if s == status else ''}'>{s}{cnt}</a>"
         )
 
-    html = f"""<!doctype html><html><head><meta charset=utf-8><title>Admin proposals</title>
-<style>
-body{{font:13px/1.5 system-ui;max-width:1200px;margin:24px auto;padding:0 16px;background:#f8fafc;color:#0f172a}}
-h1{{font-size:20px;margin:0 0 16px}}
-.tabs{{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid #e2e8f0}}
-.tab{{padding:8px 14px;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;font-size:13px;text-transform:capitalize}}
-.tab.active{{color:#0f172a;border-bottom-color:#10b981;font-weight:600}}
-.tab:hover{{color:#0f172a}}
-table{{border-collapse:collapse;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}}
-th,td{{text-align:left;padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top}}
-th{{background:#f1f5f9;color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.04em}}
-tr:last-child td{{border-bottom:0}}
-.btn{{border:0;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600}}
-.btn.approve{{background:#10b981;color:#fff}}
-.btn.approve:hover{{background:#059669}}
-.btn.reject{{background:#fff;color:#ef4444;border:1px solid #ef4444}}
-.btn.reject:hover{{background:#fef2f2}}
-.btn.dup{{background:#fff;color:#6366f1;border:1px solid #6366f1}}
-.btn.dup:hover{{background:#eef2ff}}
-code{{font-family:ui-monospace,Menlo,monospace;background:#f1f5f9;padding:1px 6px;border-radius:4px}}
-.nav{{margin-bottom:8px}}
-.nav a{{color:#64748b;text-decoration:none;font-size:12px;margin-right:12px}}
-.nav a:hover{{color:#0f172a}}
-</style></head><body>
-<div class=nav><a href='/admin/stats'>← Stats</a> <a href='/'>← App</a></div>
-<h1>HSE class proposals</h1>
-<div class=tabs>{''.join(tabs)}</div>
-<table><thead><tr><th>Photo</th><th>Proposal</th><th>Status</th><th>Action</th></tr></thead>
-<tbody>{rows_html}</tbody></table>
-</body></html>"""
-    return HTMLResponse(html)
+    return f"""
+<section id="proposals" class="adm-section">
+  <div class="adm-section-head">
+    <h2>HSE class proposals</h2>
+    <span class="adm-window">{counts.get('pending', 0)} pending · {len(rows)} shown</span>
+  </div>
+  <div class="adm-tabs">{''.join(tabs)}</div>
+  <div class="adm-table-wrap"><table class="props-tbl">
+    <thead><tr><th>Photo</th><th>Proposal</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody>{rows_html}</tbody>
+  </table></div>
+</section>"""
+
+
+@app.get("/admin/proposals", include_in_schema=False)
+def admin_proposals(request: Request, status: str = "pending"):
+    """Backwards-compat redirect — old bookmarks still work."""
+    return RedirectResponse(f"/admin?status={status}#proposals", status_code=303)
 
 
 @app.post("/admin/proposals/{proposal_id}/approve")
@@ -3123,7 +3229,7 @@ def admin_proposal_approve(proposal_id: str, request: Request):
         raise HTTPException(404, "proposal not found")
     p = rows[0]
     if p["status"] != "pending":
-        return RedirectResponse("/admin/proposals", status_code=303)
+        return RedirectResponse("/admin#proposals", status_code=303)
 
     pending_slug = p["proposed_slug"]   # e.g. "pending:Worker_no_harness"
     final_slug = pending_slug.split(":", 1)[1] if ":" in pending_slug else pending_slug
@@ -3171,7 +3277,7 @@ def admin_proposal_approve(proposal_id: str, request: Request):
         ),
     }).eq("id", proposal_id).execute()
 
-    return RedirectResponse("/admin/proposals", status_code=303)
+    return RedirectResponse("/admin#proposals", status_code=303)
 
 
 @app.post("/admin/proposals/{proposal_id}/reject")
@@ -3190,7 +3296,7 @@ def admin_proposal_reject(
     if not rows:
         raise HTTPException(404, "proposal not found")
     if rows[0]["status"] != "pending":
-        return RedirectResponse("/admin/proposals", status_code=303)
+        return RedirectResponse("/admin#proposals", status_code=303)
 
     from datetime import datetime, timezone
     db.table("hse_class_proposals").update({
@@ -3199,7 +3305,7 @@ def admin_proposal_reject(
         "reviewed_at": datetime.now(timezone.utc).isoformat(),
         "reviewed_by": "admin",
     }).eq("id", proposal_id).execute()
-    return RedirectResponse("/admin/proposals", status_code=303)
+    return RedirectResponse("/admin#proposals", status_code=303)
 
 
 @app.post("/admin/proposals/{proposal_id}/duplicate")
@@ -3223,7 +3329,7 @@ def admin_proposal_duplicate(
     if not rows:
         raise HTTPException(404, "proposal not found")
     if rows[0]["status"] != "pending":
-        return RedirectResponse("/admin/proposals", status_code=303)
+        return RedirectResponse("/admin#proposals", status_code=303)
 
     # Retro-patch corrections that used the pending slug to the canonical
     # one — same intent as approve, just routing to an existing taxonomy
@@ -3241,7 +3347,7 @@ def admin_proposal_duplicate(
         "reviewed_at": datetime.now(timezone.utc).isoformat(),
         "reviewed_by": "admin",
     }).eq("id", proposal_id).execute()
-    return RedirectResponse("/admin/proposals", status_code=303)
+    return RedirectResponse("/admin#proposals", status_code=303)
 
 
 @app.get("/api/export/summary")
