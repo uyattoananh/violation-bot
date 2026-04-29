@@ -318,6 +318,54 @@ for method, path, expected_code in [
 
 
 # -----------------------------------------------------------------
+section("11.4 DELETE endpoints — UUID + ownership gate")
+
+# DELETE /api/photos/{id} should reject:
+#   - non-UUID -> 400
+#   - non-existent UUID -> 404
+#   - existing UUID owned by someone else -> 403 (can't test without
+#     real DB rows; we settle for the not-found path here)
+for bad, expected in [
+    ("abc", 400),
+    ("../../etc", 404),
+    ("00000000-0000-0000-0000-000000000000", 503),  # valid uuid; stub DB
+                                                     # unreachable -> 503
+    ("z" * 100, 400),
+    ("<script>alert(1)</script>", 404),
+]:
+    r = client.delete(f"/api/photos/{bad}",
+                      headers={"Cookie": "vai_uid=qa_test_delete"})
+    expect(f"DELETE photo {bad[:30]:<30} -> {r.status_code} (expected {expected})",
+           r.status_code == expected)
+
+# DELETE /api/batches/{id} same shape.
+for bad, expected in [
+    ("abc", 400),
+    ("00000000-0000-0000-0000-000000000000", 500),  # valid uuid; tenant
+                                                     # config check fires
+                                                     # before ownership in
+                                                     # stub env
+    ("../../etc", 404),
+]:
+    r = client.delete(f"/api/batches/{bad}",
+                      headers={"Cookie": "vai_uid=qa_test_delete"})
+    expect(f"DELETE batch {bad[:30]:<30} -> {r.status_code} (expected {expected})",
+           r.status_code == expected)
+
+# clear-reviews same.
+for bad, expected in [
+    ("abc", 400),
+    ("../../etc", 404),
+    ("00000000-0000-0000-0000-000000000000", 500),  # stub-DB unreachable
+                                                     # surfaces as 500
+]:
+    r = client.post(f"/api/batches/{bad}/clear-reviews",
+                    headers={"Cookie": "vai_uid=qa_test_clear"})
+    expect(f"clear-reviews {bad[:30]:<30} -> {r.status_code} (expected {expected})",
+           r.status_code == expected)
+
+
+# -----------------------------------------------------------------
 section("11.5 Upload guard rails (size + count caps)")
 
 # Build a fake file that's too many in count. The handler should

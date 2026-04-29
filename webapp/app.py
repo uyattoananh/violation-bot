@@ -892,6 +892,38 @@ def _is_uuid(s: str | None) -> bool:
         return False
 
 
+def _request_owns_row(request: Request, row: dict) -> bool:
+    """True if the requester is allowed to modify/delete `row`. Owner
+    semantics:
+
+      - Admin (env-password OR users.is_admin = TRUE) -> always allowed
+      - Authenticated user whose users.id matches row.user_id
+      - Authenticated user whose pre-auth cookie value matches
+        row.user_key (covers rows uploaded BEFORE the user signed in
+        and got retro-attributed)
+
+    Used to gate destructive endpoints (DELETE photo, DELETE batch,
+    clear-reviews) so an inspector can wipe their own work but not
+    someone else's. In single-tenant deployment the inspectors are
+    one team but accidental cross-edits should still be blocked.
+    """
+    if _admin_authed(request):
+        return True
+    user = _get_session_user(request)
+    if user:
+        uid = user.get("id")
+        if uid and row.get("user_id") == uid:
+            return True
+    # Pre-auth fallback: row's user_key matches the cookie value the
+    # requester is currently sending. Matters during the Phase-5 grace
+    # period where some rows are still keyed only by the cookie.
+    cookie_key = request.cookies.get(_USER_COOKIE_NAME)
+    row_key = row.get("user_key")
+    if cookie_key and row_key and cookie_key == row_key:
+        return True
+    return False
+
+
 # ---------- phase 4: hse-class proposal helpers ----------
 
 _SLUG_NON_ALNUM = re.compile(r"[^a-zA-Z0-9]+")
@@ -1978,12 +2010,27 @@ def api_batches(limit: int = 100):
 
 
 @app.post("/api/batches/{batch_id}/clear-reviews")
-def clear_batch_reviews(batch_id: str):
+def clear_batch_reviews(batch_id: str, request: Request):
     """Delete every correction (confirm + correct) the user made in this
     batch, so they can re-review from scratch. Photos remain, AI predictions
     remain, only the inspector's choices are wiped — for the current batch
-    only."""
+    only.
+
+    Authorization: only the batch's uploader (or admin) can clear.
+    Probes the FIRST photo in the batch — in practice all photos in a
+    batch share an uploader, so one check is enough.
+    """
+    if not _is_uuid(batch_id):
+        raise HTTPException(400, "invalid batch id")
     db = get_db()
+    sample = (
+        db.table("photos").select("user_id, user_key")
+          .eq("batch_id", batch_id).limit(1).execute().data or []
+    )
+    if not sample:
+        raise HTTPException(404, "batch not found")
+    if not _request_owns_row(request, sample[0]):
+        raise HTTPException(403, "not your batch")
     try:
         db.table("corrections").delete().eq("batch_id", batch_id).execute()
     except Exception as e:  # noqa: BLE001
@@ -1994,11 +2041,13 @@ def clear_batch_reviews(batch_id: str):
 
 
 @app.delete("/api/batches/{batch_id}")
-def delete_batch(batch_id: str):
+def delete_batch(batch_id: str, request: Request):
     """Hard-delete every photo in the batch — DB rows + R2 objects + the
     classify_jobs / classifications / corrections cascade. Surfaced from
     the batch-list view so the inspector can wipe a finished or abandoned
     job in one click instead of deleting photos one at a time.
+
+    Authorization: only the batch's uploader (or admin) can delete.
 
     Cascade order matches /api/photos/{id} delete: classify_jobs ->
     corrections -> classifications -> photo_embeddings (only if no other
@@ -2007,16 +2056,20 @@ def delete_batch(batch_id: str):
     Returns count of photos deleted, plus any individual failures so the
     caller can surface partial-success.
     """
+    if not _is_uuid(batch_id):
+        raise HTTPException(400, "invalid batch id")
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "Server has no default tenant configured")
     db = get_db()
     r2 = get_r2()
 
     # Fetch every photo in the batch up-front — we need the storage_keys
-    # for R2 cleanup and the sha256s to know which embeddings are safe to drop.
+    # for R2 cleanup and the sha256s to know which embeddings are safe
+    # to drop. Also pull user_id + user_key for the ownership check
+    # before we touch anything destructive.
     try:
         photos = (
-            db.table("photos").select("id, storage_key, sha256")
+            db.table("photos").select("id, storage_key, sha256, user_id, user_key")
               .eq("tenant_id", DEFAULT_TENANT_ID)
               .eq("batch_id", batch_id)
               .limit(10000).execute().data or []
@@ -2025,6 +2078,12 @@ def delete_batch(batch_id: str):
         if "batch_id" in str(e):
             raise HTTPException(500, "batch_id column not yet migrated")
         raise
+
+    # Ownership: any photo in the batch must belong to the requester
+    # (or they must be admin). One check on the first photo is enough
+    # — uploads always share an uploader within a batch.
+    if photos and not _request_owns_row(request, photos[0]):
+        raise HTTPException(403, "not your batch")
     if not photos:
         # Idempotent: empty batch = nothing to do, not an error.
         return {"ok": True, "batch_id": batch_id, "deleted": 0}
@@ -2543,9 +2602,13 @@ def correct(
 
 
 @app.delete("/api/photos/{photo_id}")
-def delete_photo(photo_id: str):
+def delete_photo(photo_id: str, request: Request):
     """Hard-delete a photo plus all its child rows and the R2 object.
     Allowed in any state — pending classification, predicted, or reviewed.
+
+    Authorization: only the photo's uploader (or an admin) can delete.
+    In single-tenant deployment the inspectors share visibility but
+    must NOT be able to wipe each other's work by accident or malice.
 
     Cascade order matters because of FK constraints in some Supabase setups:
        classify_jobs → corrections → classifications → photo_embeddings
@@ -2555,11 +2618,19 @@ def delete_photo(photo_id: str):
     in the same tenant happens to share the sha (literal duplicate bytes),
     the embedding stays — it's the AI's training signal, still useful.
     """
+    if not _is_uuid(photo_id):
+        raise HTTPException(400, "invalid photo id")
     db = get_db()
-    rows = db.table("photos").select("*").eq("id", photo_id).execute().data or []
+    try:
+        rows = db.table("photos").select("*").eq("id", photo_id).execute().data or []
+    except Exception as e:  # noqa: BLE001
+        log.warning("delete_photo lookup failed: %s", e)
+        raise HTTPException(503, "photo lookup unavailable, please retry")
     if not rows:
         raise HTTPException(404, "photo not found")
     p = rows[0]
+    if not _request_owns_row(request, p):
+        raise HTTPException(403, "not your photo")
 
     # Cascade child rows first.
     for tbl in ("classify_jobs", "corrections", "classifications"):
