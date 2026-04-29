@@ -265,6 +265,24 @@ _SESSION_MAX_AGE_SECONDS = int(os.environ.get("SESSION_MAX_AGE_DAYS", "30")) * 8
 # must work pre-auth (the sign-in flow itself, static assets, the SW).
 _AUTH_REQUIRED = os.environ.get("AUTH_REQUIRED", "1") not in ("0", "false", "no")
 
+# Upload guard rails — defend against accidental + malicious DoS:
+#   - per-file size cap (a phone photo is typically 2–6 MB; anything
+#     above 25 MB is either a screenshot of a 4K video or an attack)
+#   - max file count per request (one batch of >50 photos is unusual
+#     and lets a single POST tie up the worker for minutes)
+#   - Pillow MAX_IMAGE_PIXELS — a 20×20K JPEG is ~50KB on disk but
+#     unpacks to ~1.5 GB in memory; cap at 50 megapixels.
+_MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
+_MAX_FILES_PER_REQUEST = int(os.environ.get("MAX_FILES_PER_REQUEST", "50"))
+try:
+    from PIL import Image as _PILImage
+    # 50 megapixels covers a 50 MP iPhone photo + headroom for actual
+    # cameras, but blocks 100M+ pixel decompression bombs that crash
+    # the worker by exhausting RAM.
+    _PILImage.MAX_IMAGE_PIXELS = 50_000_000
+except Exception:  # noqa: BLE001
+    pass
+
 
 def _get_or_set_user_key(request: Request, response_headers: dict | None = None) -> str:
     """Read the user-key cookie; mint a fresh UUID if missing.
@@ -320,7 +338,17 @@ def _quota_increment(user_key: str, n: int) -> None:
     """Add n classifications to the user's today bucket. Upsert: row
     is created on first photo; subsequent photos atomic-add. Best-effort
     — failures are logged, not raised, so a quota table outage doesn't
-    block uploads."""
+    block uploads.
+
+    Known limit: select-then-upsert has a race window. A user firing N
+    parallel uploads at the exact same millisecond can clobber each
+    other's increments and end up at +1 instead of +N. The cap is
+    "approximate by design" — at our scale (single-user batches of
+    1-30 photos), the bypass is at most a few extra photos per quota
+    cycle. If abuse appears, replace with a Postgres RPC that does
+    `INSERT ... ON CONFLICT DO UPDATE SET photos_classified =
+    photos_classified + EXCLUDED.photos_classified RETURNING ...`
+    in one atomic statement."""
     if not user_key or n <= 0:
         return
     from datetime import datetime, timezone
@@ -1438,7 +1466,7 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
 </header>
 
 <section class="hero">
-  <canvas id="waves" class="hero-canvas"></canvas>
+  <canvas id="waves" class="hero-canvas" aria-hidden="true" role="presentation"></canvas>
   <div class="hero-fade top"></div>
   <div class="hero-fade bottom"></div>
   <div class="hero-hairline top"></div>
@@ -1685,12 +1713,23 @@ void main() {{
       gl.uniform2f(uRes, w, h);
     }}
 
+    // Honour prefers-reduced-motion. Users who set this OS preference
+    // expect motion to stop — we freeze the shader on the first frame
+    // and skip the animation loop entirely. The mesh-gradient still
+    // renders as a static visual, just no drift.
+    const reduceMotion = (() => {{
+      try {{ return window.matchMedia("(prefers-reduced-motion: reduce)").matches; }}
+      catch {{ return false; }}
+    }})();
+
     let t0 = performance.now();
     let raf = 0;
     function frame(now) {{
       gl.uniform1f(uTime, (now - t0) / 1000);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
-      raf = requestAnimationFrame(frame);
+      if (!reduceMotion) {{
+        raf = requestAnimationFrame(frame);
+      }}
     }}
 
     document.addEventListener("visibilitychange", () => {{
@@ -1750,6 +1789,22 @@ async def upload(
     upload session and passes it as `batch_id`; all photos in the same
     session share that ID. Downstream queries (pending / export) filter
     by batch so users only see / download the current job's photos."""
+    # Cap the number of files per POST FIRST — cheapest possible check.
+    # A normal inspection batch is 1-30 photos; anything beyond
+    # _MAX_FILES_PER_REQUEST is either a phone selecting their entire
+    # camera roll by accident, or an attacker tying up the worker.
+    # Reject before any infra checks so probes can't tell whether the
+    # tenant is configured.
+    if len(files) > _MAX_FILES_PER_REQUEST:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "error": "too_many_files",
+                "limit": _MAX_FILES_PER_REQUEST,
+                "received": len(files),
+            },
+        )
+
     tenant_id = tenant_id or DEFAULT_TENANT_ID
     project_id = project_id or DEFAULT_PROJECT_ID
     if not (tenant_id and project_id):
@@ -1807,6 +1862,18 @@ async def upload(
         # classifier can't process them — bad UX.
         if not raw or len(raw) < 100:   # any real photo > 100 bytes
             rejected.append({"filename": f.filename, "reason": "empty_or_too_small"})
+            continue
+        # Per-file size cap. Phone photos are typically 2-6 MB; the cap
+        # accommodates 4K screenshots and dSLR JPEGs while rejecting
+        # 100 MB attacks designed to OOM the server. _MAX_UPLOAD_BYTES
+        # is configurable via env.
+        if len(raw) > _MAX_UPLOAD_BYTES:
+            rejected.append({
+                "filename": f.filename,
+                "reason": "too_large",
+                "size_bytes": len(raw),
+                "limit_bytes": _MAX_UPLOAD_BYTES,
+            })
             continue
         if not _looks_like_supported_image(raw):
             rejected.append({"filename": f.filename, "reason": "not_an_image"})
@@ -2197,6 +2264,8 @@ async def reclassify_region(request: Request, photo_id: str,
     raw = await region.read()
     if not raw or len(raw) < 100:
         raise HTTPException(400, "region payload empty or truncated")
+    if len(raw) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "region image too large")
     if not _looks_like_supported_image(raw):
         raise HTTPException(400, "region not a supported image")
 
