@@ -19,6 +19,14 @@ Pillow>=10.3
 # and Anthropic's API doesn't accept that format
 pillow-heif>=0.18
 
+# PDF export — pure-Python, no system deps. Used by webapp.pdf_export
+# to render the printable client report (one-photo-per-page format).
+reportlab>=4.0
+
+# Rate limiting — per-IP token bucket on /api/upload + /api/photos/.../retry.
+# Optional at runtime: app.py degrades gracefully if not installed.
+slowapi>=0.1.9
+
 # Config
 python-dotenv>=1.0
 

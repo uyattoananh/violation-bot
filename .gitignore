@@ -33,7 +33,11 @@ Thumbs.db
 logs_*.log
 logs_*
 eval_*.log
+ai_audit_*.log
 *.bak
+*.audit.html
+*.aijudge.json
+_test_*.pdf
 scripts/.title_mapping_cache.json
 scripts/.visual_seed_cache.json
 evaluation_rag_*.json

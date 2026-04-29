@@ -53,7 +53,7 @@ from fastapi import (
 )
 from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse,
-    StreamingResponse, PlainTextResponse,
+    StreamingResponse, PlainTextResponse, Response,
 )
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -191,6 +191,36 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Construction Violation Classifier", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+# ---------- rate limiting ----------
+# slowapi: per-IP token bucket on the most-abusable endpoints. We DON'T
+# rate-limit reads (api_pending, api_batches) — those are cheap and
+# repeated polling is normal user behavior. We DO limit writes that
+# either cost money (uploads -> classifications) or amplify load
+# (retry button hammered).
+#
+# Defaults are generous enough that no real human bumps them; tight
+# enough that a script gone rogue is contained. Override via env:
+#   RATE_LIMIT_UPLOAD = "30/minute"   # default
+#   RATE_LIMIT_RETRY  = "20/minute"
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    _RATE_LIMIT_UPLOAD = os.environ.get("RATE_LIMIT_UPLOAD", "30/minute")
+    _RATE_LIMIT_RETRY  = os.environ.get("RATE_LIMIT_RETRY",  "20/minute")
+    _RATE_LIMITING_ENABLED = True
+    log.info("rate limiting enabled: upload=%s retry=%s",
+             _RATE_LIMIT_UPLOAD, _RATE_LIMIT_RETRY)
+except ImportError:
+    # slowapi missing in this environment — degrade gracefully so the
+    # webapp still boots. Production should always have it.
+    _RATE_LIMITING_ENABLED = False
+    log.warning("slowapi not installed — rate limiting disabled")
+
 
 # ---------- helpers ----------
 
@@ -275,6 +305,53 @@ def _image_quality_check(body: bytes) -> dict | None:
         log.debug("image quality check failed: %s", e)
         return None
     return None
+
+
+def _extract_gps(body: bytes) -> tuple[float, float] | None:
+    """Pull (lat, lon) decimal-degrees from the photo's EXIF if present.
+    Used so map views and geo-filters can land on real on-site coordinates
+    without the inspector typing them in. Cell phones with location
+    services on tag every photo with this; DSLRs and screenshots don't.
+    Returns None on any error (missing tags, broken EXIF, etc.) — never
+    raises, since this is a best-effort enrichment, not a gate."""
+    try:
+        from PIL import Image
+        from PIL.ExifTags import GPSTAGS, TAGS
+        import io as _io
+        with Image.open(_io.BytesIO(body)) as img:
+            exif = img._getexif() or {}
+        # Find the GPSInfo sub-IFD via its EXIF tag id
+        gps_ifd_id = next((k for k, v in TAGS.items() if v == "GPSInfo"), None)
+        if gps_ifd_id is None or gps_ifd_id not in exif:
+            return None
+        gps_raw = exif[gps_ifd_id]
+        # Translate sub-tag ids to names, e.g. {1: "N", 2: (deg, min, sec), ...}
+        gps = {GPSTAGS.get(k, k): v for k, v in gps_raw.items()}
+
+        def _to_deg(dms) -> float:
+            d, m, s = (float(x) for x in dms)
+            return d + m / 60 + s / 3600
+
+        if "GPSLatitude" not in gps or "GPSLongitude" not in gps:
+            return None
+        lat = _to_deg(gps["GPSLatitude"])
+        lon = _to_deg(gps["GPSLongitude"])
+        if gps.get("GPSLatitudeRef") in ("S", b"S"):
+            lat = -lat
+        if gps.get("GPSLongitudeRef") in ("W", b"W"):
+            lon = -lon
+        # Sanity bounds — catch corrupted EXIF tagging photos as (0, 0)
+        # which Apple sometimes emits when GPS is enabled but no fix was
+        # acquired. (0, 0) is a real point in the Atlantic, so skipping
+        # exact zeros loses 0.0001% of legitimate uses for high signal.
+        if lat == 0 and lon == 0:
+            return None
+        if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+            return None
+        return (round(lat, 6), round(lon, 6))
+    except Exception as e:  # noqa: BLE001
+        log.debug("EXIF GPS extract failed: %s", e)
+        return None
 
 
 def _normalize_image(body: bytes, original_filename: str | None) -> tuple[bytes, str, str]:
@@ -448,8 +525,22 @@ def _review_redirect():
     return RedirectResponse("/", status_code=308)
 
 
+def _maybe_limit(rate_attr: str):
+    """Wrap an endpoint with the slowapi rate limiter if it's enabled.
+    Returns a no-op decorator when slowapi isn't installed (so the rest
+    of the app still works in dev/test environments without it)."""
+    def decorator(fn):
+        if not _RATE_LIMITING_ENABLED:
+            return fn
+        rate = globals()[rate_attr]
+        return limiter.limit(rate)(fn)
+    return decorator
+
+
 @app.post("/api/upload")
+@_maybe_limit("_RATE_LIMIT_UPLOAD")
 async def upload(
+    request: Request,
     files: list[UploadFile] = File(...),
     tenant_id: str | None = Form(None),
     project_id: str | None = Form(None),
@@ -491,6 +582,12 @@ async def upload(
         if not _looks_like_supported_image(raw):
             rejected.append({"filename": f.filename, "reason": "not_an_image"})
             continue
+        # Read EXIF GPS off the ORIGINAL bytes (before normalization, since
+        # converting HEIC->JPEG strips most metadata). Best-effort; phones
+        # with location services on tag every photo, DSLRs and screenshots
+        # usually don't.
+        gps = _extract_gps(raw)
+
         # Normalize first — convert HEIC/BMP/TIFF/etc → JPEG so the rest of
         # the pipeline (R2 thumbnail in browser + Anthropic API call) doesn't
         # need to care about the source format. sha is hashed on the FINAL
@@ -541,17 +638,30 @@ async def upload(
             "batch_id": batch_id,
             "batch_label": batch_label,
         }
-        try:
-            photo_row = db.table("photos").insert(photo_payload).execute().data[0]
-        except Exception as e:  # noqa: BLE001
-            # Fallback if the batch columns haven't been ALTER-TABLE'd yet.
-            if "batch_id" in str(e) or "batch_label" in str(e):
-                photo_payload.pop("batch_id", None)
-                photo_payload.pop("batch_label", None)
-                photo_row = db.table("photos").insert(photo_payload).execute().data[0]
-                log.warning("photos.batch_id column missing — degraded upload path used")
-            else:
+        if gps:
+            photo_payload["exif_lat"] = gps[0]
+            photo_payload["exif_lon"] = gps[1]
+
+        def _insert_with_fallback(payload):
+            """Try the full payload; on schema-error, strip the missing
+            optional columns and retry once. Lets the webapp keep working
+            in the window between code-deploy and SQL-migration."""
+            try:
+                return db.table("photos").insert(payload).execute().data[0]
+            except Exception as exc:  # noqa: BLE001
+                msg = str(exc)
+                stripped = False
+                for col in ("batch_id", "batch_label", "exif_lat", "exif_lon"):
+                    if col in msg and col in payload:
+                        payload.pop(col, None)
+                        stripped = True
+                if stripped:
+                    log.warning("photos schema column missing — degraded insert: %s",
+                                msg.split('\n', 1)[0][:120])
+                    return db.table("photos").insert(payload).execute().data[0]
                 raise
+
+        photo_row = _insert_with_fallback(photo_payload)
         db.table("classify_jobs").insert({"photo_id": photo_row["id"]}).execute()
         created.append({"id": photo_row["id"], "dedup": False})
         if quality:
@@ -761,8 +871,59 @@ def delete_batch(batch_id: str):
     }
 
 
+@app.get("/api/photos/{photo_id}/history")
+def photo_history(photo_id: str):
+    """Audit trail for one photo: every correction the inspector ever
+    submitted, oldest first. Used by the per-card "history" panel so an
+    AECIS QA reviewer can see exactly who changed what when.
+
+    Includes both confirm and correct actions. Returns slug + label
+    (resolved against the current taxonomy), the inspector note, the
+    timestamp, and the batch_id (so reviewers can navigate back to the
+    batch context the correction was made in)."""
+    db = get_db()
+    try:
+        rows = (
+            db.table("corrections")
+              .select("id, action, location_slug, hse_type_slug, "
+                      "fine_hse_type_slug, note, created_at, batch_id")
+              .eq("photo_id", photo_id)
+              .order("created_at", desc=False)
+              .limit(200).execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("photo_history failed: %s", e)
+        return {"photo_id": photo_id, "history": [], "error": str(e)[:200]}
+
+    # Resolve labels via the current taxonomy. We don't store labels on
+    # corrections rows, just slugs — keeps the table small and lets us
+    # rename labels without rewriting history.
+    tax = app.state.taxonomy or load_taxonomy()
+    hse_lookup = {h["slug"]: h for h in tax.get("hse_types", [])}
+    loc_lookup = {l["slug"]: l for l in tax.get("locations", [])}
+    out = []
+    for r in rows:
+        hse = hse_lookup.get(r.get("hse_type_slug") or "", {})
+        loc = loc_lookup.get(r.get("location_slug") or "", {})
+        out.append({
+            "id": r["id"],
+            "action": r.get("action") or "",
+            "hse_type_slug": r.get("hse_type_slug") or "",
+            "hse_type_label_en": hse.get("label_en", r.get("hse_type_slug") or ""),
+            "hse_type_label_vn": hse.get("label_vn", ""),
+            "location_slug": r.get("location_slug") or "",
+            "location_label_en": loc.get("label_en", r.get("location_slug") or ""),
+            "fine_hse_type_slug": r.get("fine_hse_type_slug") or "",
+            "note": r.get("note") or "",
+            "created_at": r.get("created_at"),
+            "batch_id": r.get("batch_id"),
+        })
+    return {"photo_id": photo_id, "history": out}
+
+
 @app.post("/api/photos/{photo_id}/retry")
-def retry_classify(photo_id: str):
+@_maybe_limit("_RATE_LIMIT_RETRY")
+def retry_classify(request: Request, photo_id: str):
     """Reset a failed (or stuck) classify_jobs row back to 'pending' so the
     worker picks it up again. Surfaced from the UI when an /api/pending
     response shows classify_status='error'."""
@@ -871,10 +1032,16 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
         cls = cls_by_photo.get(p["id"])
         alts_hse: list[dict] = []
         alts_loc: list[dict] = []
+        alts_fine: list[dict] = []
         if cls:
             raw = cls.get("raw_response") or {}
             alts_hse = raw.get("hse_type_alternatives") or []
             alts_loc = raw.get("location_alternatives") or []
+            # Fine-grained alternatives from Stage 2 of the two-stage classifier.
+            # raw stores them under 'fine_hse_type_alternatives' as the canonical
+            # list; UI uses them so the inspector can one-click swap to a
+            # close-runner-up specific item.
+            alts_fine = raw.get("fine_hse_type_alternatives") or []
         corr = latest_correction.get(p["id"]) or {}
         job = job_status_by_photo.get(p["id"]) or {}
         out.append({
@@ -898,6 +1065,12 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
                     "rationale": cls.get("rationale", ""),
                     "hse_type_alternatives": alts_hse,
                     "location_alternatives": alts_loc,
+                    # Stage-2 fine sub-type fields. May be missing on
+                    # pre-migration classifications rows or when Stage 2
+                    # confidence was below threshold and emitted null.
+                    "fine_hse_type_slug": cls.get("fine_hse_type_slug"),
+                    "fine_hse_type_confidence": cls.get("fine_hse_type_confidence") or 0,
+                    "fine_hse_type_alternatives": alts_fine,
                     "model": cls.get("model"),
                 } if cls else None
             ),
@@ -908,9 +1081,12 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
             # reviewed cards so the user sees their own choice, not the AI's.
             "final_hse_type_slug": corr.get("hse_type_slug") or (cls.get("hse_type_slug") if cls else None),
             "final_location_slug": corr.get("location_slug") or (cls.get("location_slug") if cls else None),
-            # Fine-grained AECIS sub-type the inspector picked (optional;
-            # null when the inspector skipped the refinement step).
-            "final_fine_hse_type_slug": corr.get("fine_hse_type_slug"),
+            # Fine-grained AECIS sub-type. Inspector's pick wins when
+            # they made a correction; otherwise the AI's Stage 2 pick.
+            "final_fine_hse_type_slug": (
+                corr.get("fine_hse_type_slug")
+                or (cls.get("fine_hse_type_slug") if cls else None)
+            ),
         })
     return {
         "photos": out,
@@ -1226,21 +1402,29 @@ def export_csv(limit: int = 5000, batch_id: str | None = None):
     import csv
     import io
     buf = io.StringIO()
+    # Column order: the user-facing "violation" comes first as the FINE
+    # sub-type (specific AECIS item), then the parent category, then the
+    # AI's predictions and inspector metadata. Spreadsheet jocks read
+    # left-to-right; the most actionable column belongs leftmost.
     cols = [
-        "original_filename", "uploaded_at", "sha256",
+        "original_filename", "uploaded_at",
+        # Fine sub-type — the headline "Violation" column. Empty when
+        # Stage 2 didn't commit (inspector skipped refinement OR AI's
+        # Stage 2 confidence was below threshold).
+        "final_fine_hse_type_slug",
+        "final_fine_hse_type_label_en",
+        "final_fine_hse_type_label_vn",
+        # Parent / category.
+        "final_hse_type_slug", "final_hse_type_label_en", "final_hse_type_label_vn",
+        "final_location_slug", "final_location_label_en", "final_location_label_vn",
+        "reviewed", "review_action", "review_note", "reviewed_at",
+        # AI prediction columns (for traceability / training pipelines).
         "ai_hse_type_slug", "ai_hse_type_label_en", "ai_hse_type_label_vn",
         "ai_hse_confidence",
         "ai_location_slug", "ai_location_label_en", "ai_location_label_vn",
         "ai_location_confidence",
         "ai_rationale", "ai_model",
-        "reviewed", "review_action", "review_note", "reviewed_at",
-        "final_hse_type_slug", "final_hse_type_label_en", "final_hse_type_label_vn",
-        # Fine-grained AECIS canonical sub-type, optional. Empty when the
-        # inspector skipped refinement.
-        "final_fine_hse_type_slug",
-        "final_fine_hse_type_label_en",
-        "final_fine_hse_type_label_vn",
-        "final_location_slug", "final_location_label_en", "final_location_label_vn",
+        "sha256",
     ]
     w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
     w.writeheader()
@@ -1277,6 +1461,53 @@ def export_json(limit: int = 5000, batch_id: str | None = None):
             "photos": rows,
         },
         headers={"Content-Disposition": f'attachment; filename="violations_{stamp}.json"'},
+    )
+
+
+@app.get("/api/export/pdf")
+def export_pdf(limit: int = 5000, batch_id: str | None = None):
+    """Render a printable PDF report — cover page + one photo per page
+    with the violation type, location, AI vs final label, and inspector
+    note. Format AECIS HSE clients expect to hand to safety officers /
+    project managers / regulators.
+
+    Photos are downscaled to 1200px wide before embedding so the PDF
+    stays a reasonable size even on a 200-photo batch (~30-40MB).
+    """
+    if not DEFAULT_TENANT_ID:
+        raise HTTPException(500, "tenant not configured")
+    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit, batch_id=batch_id)
+    if not rows:
+        raise HTTPException(404, "no photos to export")
+    tax = app.state.taxonomy or load_taxonomy()
+    _enrich_with_labels(rows, tax)
+
+    # Resolve a friendly batch label for the cover page (latest non-empty
+    # wins, mirroring /api/batches behavior). If unset, the builder shows
+    # "(unlabeled batch)".
+    batch_label = ""
+    for r in rows:
+        if r.get("batch_label"):
+            batch_label = r["batch_label"]
+            break
+
+    from webapp.pdf_export import build_violation_pdf
+    pdf_bytes = build_violation_pdf(
+        rows,
+        batch_label=batch_label,
+        batch_id=batch_id,
+        r2_client=get_r2(),
+        r2_bucket=R2_BUCKET,
+        project_label="AECIS HSE",
+    )
+
+    from datetime import datetime, timezone
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+    filename = f"violations_{stamp}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -1356,6 +1587,96 @@ def export_zip(limit: int = 5000, batch_id: str | None = None):
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="violations_{stamp}.zip"'},
     )
+
+
+# Public OpenRouter list pricing (USD per 1M tokens). Mirrors
+# scripts/evaluate_models.py — keep in sync if rates change. Used by
+# the cost ticker to estimate spend; the OpenRouter dashboard is always
+# authoritative for billing.
+_MODEL_PRICING: dict[str, tuple[float, float]] = {
+    "anthropic/claude-sonnet-4.5":   (3.0, 15.0),
+    "anthropic/claude-opus-4.5":     (15.0, 75.0),
+    "anthropic/claude-haiku-4.5":    (1.0, 5.0),
+    "google/gemini-2.5-flash":       (0.30, 2.50),
+    "google/gemini-2.5-pro":         (1.25, 5.0),
+    "openai/gpt-4o":                 (2.5, 10.0),
+    "openai/gpt-4o-mini":            (0.15, 0.60),
+}
+
+
+def _price_for_model(model_id: str | None) -> tuple[float, float]:
+    """Return (in_rate, out_rate) per 1M tokens. Defaults to Sonnet
+    pricing if the model isn't in the table — that's the conservative
+    over-estimate, so the ticker errs on the side of "we're spending
+    more than we think" rather than the inverse."""
+    if not model_id:
+        return (3.0, 15.0)
+    # classifications.model is stored as "openrouter:google/gemini-2.5-flash"
+    # — strip the provider prefix to match _MODEL_PRICING keys.
+    bare = model_id.split(":", 1)[-1] if ":" in model_id else model_id
+    return _MODEL_PRICING.get(bare, (3.0, 15.0))
+
+
+@app.get("/api/usage/today")
+def api_usage_today():
+    """Estimate today's OpenRouter spend by summing tokens × public list
+    rate per model from the classifications table (UTC day boundary).
+
+    Cheap enough to call on every page load — the query is bounded by
+    today's row count, typically <500 rows. Returns a single dict so the
+    footer can render without parsing.
+    """
+    if not DEFAULT_TENANT_ID:
+        return {"date": "", "calls": 0, "input_tokens": 0,
+                "output_tokens": 0, "estimated_cost_usd": 0.0,
+                "by_model": {}}
+    db = get_db()
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).date()
+    start_iso = f"{today.isoformat()}T00:00:00Z"
+
+    try:
+        rows = (
+            db.table("classifications")
+              .select("model, input_tokens, output_tokens")
+              .gte("created_at", start_iso)
+              .limit(10000)
+              .execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("usage query failed: %s", e)
+        return {"date": today.isoformat(), "calls": 0, "input_tokens": 0,
+                "output_tokens": 0, "estimated_cost_usd": 0.0,
+                "by_model": {}, "error": str(e)[:120]}
+
+    total_in = 0
+    total_out = 0
+    cost = 0.0
+    by_model: dict[str, dict] = {}
+    for r in rows:
+        in_tok = int(r.get("input_tokens") or 0)
+        out_tok = int(r.get("output_tokens") or 0)
+        m = r.get("model") or "unknown"
+        in_rate, out_rate = _price_for_model(m)
+        c = (in_tok / 1e6) * in_rate + (out_tok / 1e6) * out_rate
+        total_in += in_tok
+        total_out += out_tok
+        cost += c
+        bm = by_model.setdefault(m, {"calls": 0, "in": 0, "out": 0, "cost": 0.0})
+        bm["calls"] += 1
+        bm["in"] += in_tok
+        bm["out"] += out_tok
+        bm["cost"] += c
+    for bm in by_model.values():
+        bm["cost"] = round(bm["cost"], 4)
+    return {
+        "date": today.isoformat(),
+        "calls": len(rows),
+        "input_tokens": total_in,
+        "output_tokens": total_out,
+        "estimated_cost_usd": round(cost, 4),
+        "by_model": by_model,
+    }
 
 
 @app.get("/api/export/summary")

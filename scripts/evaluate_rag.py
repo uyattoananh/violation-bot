@@ -310,7 +310,14 @@ def _restore(db, row: dict | None) -> None:
         log.warning("leak-guard restore failed for %s: %s", row.get("sha256"), e)
 
 
-def evaluate(sample: list[dict[str, Any]], use_rag: bool) -> dict[str, Any]:
+def evaluate(
+    sample: list[dict[str, Any]],
+    use_rag: bool,
+    *,
+    samples: int = 1,
+    ensemble_models: list[str] | None = None,
+    fine_grained: bool = False,
+) -> dict[str, Any]:
     tax = load_taxonomy()
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
@@ -331,7 +338,12 @@ def evaluate(sample: list[dict[str, Any]], use_rag: bool) -> dict[str, Any]:
         # Leak-guard: hide this photo's own embedding from retrieval
         original = _temporarily_hide(db, s["sha256"]) if db else None
         try:
-            cls = classify_image(s["image_path"], taxonomy=tax, rag_neighbours=k)
+            cls = classify_image(
+                s["image_path"], taxonomy=tax, rag_neighbours=k,
+                samples=samples,
+                ensemble_models=ensemble_models,
+                fine_grained=fine_grained,
+            )
         except Exception as e:  # noqa: BLE001
             log.exception("classify failed for %s", s["image_path"])
             results.append({**{k2: v for k2, v in s.items() if k2 != "image_path"},
@@ -346,24 +358,45 @@ def evaluate(sample: list[dict[str, Any]], use_rag: bool) -> dict[str, Any]:
         loc_alt_slugs = [a.slug for a in (cls.location_alternatives or [])]
         hse_top3 = {cls.hse_type.slug, *hse_alt_slugs}
         loc_top3 = {cls.location.slug, *loc_alt_slugs}
+        # Fine-grained Stage 2 result. None when fine_grained=False, or when
+        # Stage 2 returned low confidence (model said "no specific match").
+        pred_fine = cls.fine_hse_type.slug if cls.fine_hse_type else None
+        fine_conf = cls.fine_hse_type.confidence if cls.fine_hse_type else 0.0
+        fine_alt_slugs = [a.slug for a in (cls.fine_hse_type_alternatives or [])]
+        # Ground truth at fine level = the original AECIS source slug. The
+        # dataset folder name IS the canonical fine sub-type that AECIS
+        # humans authored, before consolidation merged it into a parent.
+        # That makes fine-level GT MORE accurate than parent-level GT
+        # (which goes through the noisy merges mapping).
+        gt_fine = s.get("src_hse") or ""
         results.append({
             "image": str(s["image_path"].relative_to(DEFAULT_ROOT)).replace("\\", "/"),
             "issue_id": s["issue_id"],
             "project_code": s["project_code"],
             "gt_hse": s["gt_hse"],
             "gt_loc": s["gt_loc"],
+            "gt_fine": gt_fine,
             "src_hse": s["src_hse"],
             "src_loc": s["src_loc"],
             "pred_hse": cls.hse_type.slug,
             "pred_loc": cls.location.slug,
+            "pred_fine": pred_fine,
             "pred_hse_alternatives": hse_alt_slugs,
             "pred_loc_alternatives": loc_alt_slugs,
+            "pred_fine_alternatives": fine_alt_slugs,
             "hse_conf": cls.hse_type.confidence,
             "loc_conf": cls.location.confidence,
+            "fine_conf": fine_conf,
             "hse_match": cls.hse_type.slug == s["gt_hse"],
             "loc_match": cls.location.slug == s["gt_loc"],
             "hse_top3_match": s["gt_hse"] in hse_top3,
             "loc_top3_match": s["gt_loc"] in loc_top3,
+            # Fine match: True only when the model emitted a fine slug AND
+            # it matches GT exactly. Photos where GT is unmappable to a
+            # canonical fine slug are excluded from fine accuracy below.
+            "fine_match": bool(pred_fine and pred_fine == gt_fine),
+            "fine_top3_match": bool(gt_fine and gt_fine in {pred_fine, *fine_alt_slugs}),
+            "fine_emitted": pred_fine is not None,
             "rationale": cls.rationale,
             "input_tokens": cls.input_tokens,
             "output_tokens": cls.output_tokens,
@@ -431,6 +464,22 @@ def evaluate(sample: list[dict[str, Any]], use_rag: bool) -> dict[str, Any]:
     in_rate, out_rate = PRICING.get(model_id, (3.0, 15.0))   # default = sonnet
     est_cost_usd = (total_in_tok / 1e6) * in_rate + (total_out_tok / 1e6) * out_rate
 
+    # ---- fine-grained metrics (only meaningful when fine_grained=True) ----
+    # Two flavours of "fine accuracy":
+    #   (a) over photos where Stage 2 emitted a slug — measures Stage 2's
+    #       precision when it commits
+    #   (b) over the full sample — measures end-to-end usefulness (an
+    #       emitted-but-wrong slug is bad; a null slug is neutral; a
+    #       correct slug is good)
+    fine_emitted = [r for r in ok if r.get("fine_emitted")]
+    fine_correct = sum(1 for r in ok if r.get("fine_match"))
+    fine_top3 = sum(1 for r in ok if r.get("fine_top3_match"))
+    fine_emit_rate = len(fine_emitted) / max(n_ok, 1)
+    fine_acc_when_emitted = (
+        sum(1 for r in fine_emitted if r["fine_match"]) / max(len(fine_emitted), 1)
+    )
+    fine_acc_overall = fine_correct / max(n_ok, 1)
+
     summary = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "sample_size": n_ok,
@@ -447,6 +496,12 @@ def evaluate(sample: list[dict[str, Any]], use_rag: bool) -> dict[str, Any]:
         "location_top3_accuracy": round(loc_top3_correct / max(n_ok, 1), 3),
         "mean_conf_when_correct": round(mean_hse_conf_correct, 3),
         "mean_conf_when_wrong": round(mean_hse_conf_wrong, 3),
+        # Fine-grained Stage 2 metrics. Zero across the board when
+        # fine_grained=False (the eval ran the single-stage classifier).
+        "fine_emit_rate": round(fine_emit_rate, 3),
+        "fine_accuracy_overall": round(fine_acc_overall, 3),
+        "fine_accuracy_when_emitted": round(fine_acc_when_emitted, 3),
+        "fine_top3_accuracy": round(fine_top3 / max(n_ok, 1), 3),
         "per_class": per_class,
         "top_confusions": [
             {"gt": gt, "pred": pred, "count": n}
@@ -471,6 +526,14 @@ def print_summary(s: dict[str, Any]) -> None:
           f"(top-3: {s.get('hse_top3_accuracy', 0)*100:.1f}%)")
     print(f"Location accuracy:      {s['location_accuracy']*100:.1f}%  "
           f"(top-3: {s.get('location_top3_accuracy', 0)*100:.1f}%)")
+    if s.get("fine_emit_rate", 0) > 0 or s.get("fine_accuracy_overall", 0) > 0:
+        print()
+        print("Fine sub-type (Stage 2):")
+        print(f"  emit rate:            {s['fine_emit_rate']*100:.1f}%  "
+              f"(share of photos where Stage 2 committed)")
+        print(f"  accuracy when emitted: {s['fine_accuracy_when_emitted']*100:.1f}%")
+        print(f"  accuracy overall:      {s['fine_accuracy_overall']*100:.1f}%  "
+              f"(top-3: {s['fine_top3_accuracy']*100:.1f}%)")
     print(f"Mean confidence — correct: {s['mean_conf_when_correct']:.2f}")
     print(f"Mean confidence — wrong:   {s['mean_conf_when_wrong']:.2f}")
     print()
@@ -493,6 +556,18 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--no-rag", action="store_true",
                     help="Disable retrieval (compare against pure zero-shot)")
+    ap.add_argument("--samples", type=int, default=1,
+                    help="Self-consistency: run the primary model N times at "
+                         "temperature 0.3 and majority-vote. 1 = current "
+                         "behaviour. 5 is a reasonable accuracy-vs-cost spot.")
+    ap.add_argument("--ensemble", type=str, default="",
+                    help="Comma-separated extra models to also query once each "
+                         "(votes pool with the primary's). e.g. "
+                         "'anthropic/claude-sonnet-4.5,google/gemini-2.5-pro'")
+    ap.add_argument("--fine", action="store_true",
+                    help="Run the two-stage classifier (Stage 1 parent + Stage 2 "
+                         "fine sub-type). Adds ~1 model call per photo. "
+                         "Reports fine-level accuracy in addition to parent-level.")
     ap.add_argument("--project", action="append", default=None,
                     help="Limit eval pool to this project_code (repeatable). "
                          "E.g. --project H9. If unset, all projects are eligible.")
@@ -516,8 +591,20 @@ def main() -> int:
                      include_projects=include_set, exclude_projects=exclude_set)
     log.info("Sampled %d photos for evaluation", len(sample))
 
-    s = evaluate(sample, use_rag=not args.no_rag)
+    ensemble_models = [m.strip() for m in args.ensemble.split(",") if m.strip()]
+    s = evaluate(
+        sample, use_rag=not args.no_rag,
+        samples=args.samples,
+        ensemble_models=ensemble_models,
+        fine_grained=args.fine,
+    )
+    s["samples"] = args.samples
+    s["ensemble_models"] = ensemble_models
+    s["fine_grained"] = args.fine
     print_summary(s)
+    if args.samples > 1 or ensemble_models or args.fine:
+        n_calls_per_photo = args.samples + len(ensemble_models) + (1 if args.fine else 0)
+        print(f"\n(this run made ~{n_calls_per_photo} model calls per photo)")
 
     mode_tag = "nofag" if args.no_rag else "rag"
     out = Path(args.out).expanduser().resolve() if args.out else (

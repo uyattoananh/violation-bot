@@ -199,6 +199,18 @@
     </button>
     <div id="export-menu"
          class="hidden absolute right-0 mt-1 w-72 bg-white border border-slate-200 rounded-lg shadow-lg p-1 z-20">
+      <!-- PDF first — most polished, what AECIS clients want for handoff. -->
+      <a href="/api/export/pdf" download
+         class="flex items-start gap-3 px-3 py-2 hover:bg-slate-50 rounded-md group">
+        <svg class="w-5 h-5 mt-0.5 text-rose-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 13.5h6M9 16.5h4"/>
+        </svg>
+        <div>
+          <div class="font-medium text-slate-900 text-sm" data-i18n="export_pdf_title">Printable report (PDF)</div>
+          <div class="text-xs text-slate-500" data-i18n="export_pdf_desc">Cover page + one photo per page with classification. Hand to safety officers / clients.</div>
+        </div>
+      </a>
       <a href="/api/export/zip" download
          class="flex items-start gap-3 px-3 py-2 hover:bg-slate-50 rounded-md group">
         <svg class="w-5 h-5 mt-0.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
@@ -310,9 +322,13 @@
 
       <div class="state-predicted hidden">
         <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5" data-i18n="ai_suggests">AI suggests</div>
-        <div class="space-y-1">
+        <div class="space-y-0.5">
+          <!-- Fine sub-type is the primary user-visible label when Stage 2
+               picked one. When fine is null, the parent (.primary-hse) is
+               displayed prominently instead — handled in updateCard JS. -->
+          <div class="primary-fine hidden text-sm font-semibold text-slate-900 leading-tight"></div>
           <div class="text-sm">
-            <span class="primary-hse font-semibold text-slate-900 leading-tight"></span>
+            <span class="primary-hse font-medium text-slate-700 leading-tight"></span>
           </div>
         </div>
         <div class="rationale text-[11px] text-slate-500 italic mt-2 line-clamp-2"></div>
@@ -388,6 +404,10 @@
             <path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clip-rule="evenodd"/>
           </svg>
           <span class="reviewed-label"></span>
+          <button type="button" class="btn-history ml-auto text-[11px] text-slate-400 hover:text-emerald-700 underline-offset-2 hover:underline transition-colors"
+                  title="View history">
+            <span data-i18n="history_link">history</span>
+          </button>
         </div>
         <div class="reviewed-detail text-xs text-slate-500 mt-1.5"></div>
       </div>
@@ -499,6 +519,11 @@ const I18N = {
     state_failed: "Classification failed",
     state_retry: "Retry classification",
     retry_toast: "Re-queued for classification",
+    history_link: "history",
+    history_title: "Correction history",
+    history_empty: "No corrections recorded for this photo yet.",
+    history_action_confirm: "Confirmed",
+    history_action_correct: "Corrected to",
     quality_warn_one: (reason) => `1 photo flagged as ${reason} — AI may struggle`,
     quality_warn_many: (n, reason) => `${n} photos flagged (${reason}) — AI may struggle`,
     quality_blurry: "blurry",
@@ -518,6 +543,8 @@ const I18N = {
     sort_high_first: "High confidence first",
     bulk_confirm_high: "Confirm all high-confidence",
     export_btn: "Download",
+    export_pdf_title: "Printable report (PDF)",
+    export_pdf_desc: "Cover page + one photo per page with classification. Hand to safety officers / clients.",
     export_zip_title: "Renamed photos ZIP",
     export_zip_desc: "Photos renamed by class, plus manifest.csv. Drag straight into folders.",
     export_csv_title: "CSV (spreadsheet)",
@@ -544,6 +571,7 @@ const I18N = {
     footer_confirmed: "confirmed",
     footer_corrected: "corrected",
     footer_tagline: "every confirmation trains the AI",
+    footer_today: "today:",
     kbd_title: "Keyboard shortcuts",
     kbd_confirm: "Confirm focused card",
     kbd_edit: "Edit focused card",
@@ -599,6 +627,11 @@ const I18N = {
     state_failed: "Phân loại thất bại",
     state_retry: "Thử phân loại lại",
     retry_toast: "Đã đưa vào hàng đợi phân loại lại",
+    history_link: "lịch sử",
+    history_title: "Lịch sử chỉnh sửa",
+    history_empty: "Ảnh này chưa có chỉnh sửa nào.",
+    history_action_confirm: "Đã xác nhận",
+    history_action_correct: "Đã sửa thành",
     quality_warn_one: (reason) => `1 ảnh có vấn đề chất lượng (${reason}) — AI có thể khó nhận diện`,
     quality_warn_many: (n, reason) => `${n} ảnh có vấn đề chất lượng (${reason}) — AI có thể khó nhận diện`,
     quality_blurry: "mờ",
@@ -618,6 +651,8 @@ const I18N = {
     sort_high_first: "Độ tin cậy cao trước",
     bulk_confirm_high: "Xác nhận hết ảnh tin cậy cao",
     export_btn: "Tải về",
+    export_pdf_title: "Báo cáo in (PDF)",
+    export_pdf_desc: "Trang bìa + mỗi ảnh một trang kèm phân loại. Gửi cho cán bộ an toàn / khách hàng.",
     export_zip_title: "ZIP ảnh đã đổi tên",
     export_zip_desc: "Ảnh đổi tên theo lớp, kèm manifest.csv. Kéo thẳng vào thư mục.",
     export_csv_title: "CSV (bảng tính)",
@@ -644,6 +679,7 @@ const I18N = {
     footer_confirmed: "đã xác nhận",
     footer_corrected: "đã sửa",
     footer_tagline: "mỗi lần xác nhận giúp AI học",
+    footer_today: "hôm nay:",
     kbd_title: "Phím tắt",
     kbd_confirm: "Xác nhận thẻ đang chọn",
     kbd_edit: "Sửa thẻ đang chọn",
@@ -732,7 +768,11 @@ const els = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 // =================== State ===================
 const SESSION = { uploaded: 0, confirmed: 0, corrected: 0 };
 let activeFilter = localStorage.getItem("violation-ai-filter") || "all";
-let activeSort   = localStorage.getItem("violation-ai-sort") || "newest";
+// Default to low-confidence-first sort. Active-learning principle: inspector
+// time should go to where their judgment matters most. Low-conf photos are
+// where the AI is uncertain, so reviewing those first maximizes labeling
+// throughput AND yields the highest-value training corrections.
+let activeSort   = localStorage.getItem("violation-ai-sort") || "confidence-low";
 const photoCache = new Map();
 // Quality flags from /api/upload — photo_id -> reason ("blurry"/"dark"/"tiny").
 // Surfaced as a yellow chip on the card so the user knows the AI prediction
@@ -826,6 +866,37 @@ function renderTrainingSetSize(n) {
   }
 }
 
+// Cost ticker — pulls today's estimated AI spend from /api/usage/today
+// and renders it in the footer. Polls every 60s; cheap enough that the
+// frequency could be tighter, but a minute is fine for a sanity-check
+// number that doesn't need to be live.
+async function refreshCostTicker() {
+  const t = el("#cost-ticker");
+  if (!t) return;
+  try {
+    const r = await fetch("/api/usage/today");
+    if (!r.ok) return;
+    const d = await r.json();
+    const cost = Number(d.estimated_cost_usd ?? 0);
+    // Format: $0.0083  (sub-cent for new days), $1.42 (normal), $124 (busy)
+    let s;
+    if (cost >= 100)      s = "$" + cost.toFixed(0);
+    else if (cost >= 1)   s = "$" + cost.toFixed(2);
+    else if (cost >= 0.01) s = "$" + cost.toFixed(2);
+    else                  s = "$" + cost.toFixed(4);
+    if (t.textContent !== s) t.textContent = s;
+    // Tooltip: per-model breakdown so the user can see e.g. "Flash: 42 calls / $0.08"
+    const wrap = el("#cost-ticker-wrap");
+    if (wrap && d.by_model) {
+      const parts = Object.entries(d.by_model).map(([m, v]) => {
+        const bare = (m || "").split(":").pop();
+        return `${bare}: ${v.calls} calls · $${v.cost.toFixed(4)}`;
+      });
+      wrap.title = `Today (${d.date} UTC):\n${d.calls} classifications · ${d.input_tokens.toLocaleString()} in / ${d.output_tokens.toLocaleString()} out tokens\n\n${parts.join("\n")}`;
+    }
+  } catch (e) { /* silent — ticker is non-critical */ }
+}
+
 function displayLabel(lookup, slug) {
   const item = lookup[slug];
   if (!item) return slug || "?";
@@ -880,6 +951,71 @@ function closeLightbox() {
 }
 lightbox.addEventListener("click", closeLightbox);
 
+// =================== Per-photo history modal ===================
+// Opens the audit trail for one photo: every correction, oldest first,
+// with action + label + note + timestamp + batch link. Used by AECIS
+// QA reviewers to see who changed what when.
+async function openHistoryModal(photoId) {
+  const modal = el("#history-modal");
+  const body = el("#history-body");
+  if (!modal || !body) return;
+  body.innerHTML = '<div class="text-slate-400 italic py-4 text-center">…</div>';
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  try {
+    const r = await fetch(`/api/photos/${encodeURIComponent(photoId)}/history`);
+    const data = await r.json();
+    const items = data.history || [];
+    if (!items.length) {
+      body.innerHTML = `<div class="text-slate-500 italic py-4 text-center">${t("history_empty")}</div>`;
+      return;
+    }
+    const rows = items.map(h => {
+      const when = h.created_at ? new Date(h.created_at).toLocaleString() : "";
+      const action = h.action === "confirm"
+        ? `<span class="text-emerald-700 font-medium">${t("history_action_confirm")}</span>`
+        : `<span class="text-sky-700 font-medium">${t("history_action_correct")}</span>`;
+      const label = h.hse_type_label_en || h.hse_type_slug || "—";
+      const fine = h.fine_hse_type_slug ? ` <span class="text-slate-400">/ ${h.fine_hse_type_slug}</span>` : "";
+      const noteHtml = h.note
+        ? `<div class="text-xs text-slate-500 mt-1 italic">"${escapeHtml(h.note)}"</div>`
+        : "";
+      const batchHint = h.batch_id ? `<div class="text-[10px] text-slate-400 mt-0.5 font-mono">batch ${h.batch_id.slice(0,8)}</div>` : "";
+      return `
+        <li class="py-2.5 border-b border-slate-100 last:border-0">
+          <div class="flex items-baseline justify-between gap-3">
+            <div>${action}: <span class="text-slate-900">${escapeHtml(label)}</span>${fine}</div>
+            <div class="text-xs text-slate-400 whitespace-nowrap">${when}</div>
+          </div>
+          ${noteHtml}
+          ${batchHint}
+        </li>`;
+    }).join("");
+    body.innerHTML = `<ul class="divide-y divide-slate-100">${rows}</ul>`;
+  } catch (e) {
+    body.innerHTML = `<div class="text-rose-600 py-4 text-center">Error: ${escapeHtml(e.message)}</div>`;
+  }
+}
+function closeHistoryModal() {
+  const modal = el("#history-modal");
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+// Click-outside closes; same UX as kbd-help modal.
+{
+  const m = el("#history-modal");
+  if (m) {
+    m.addEventListener("click", (e) => {
+      if (e.target === m) closeHistoryModal();
+    });
+  }
+  const x = el("#history-close");
+  if (x) x.addEventListener("click", closeHistoryModal);
+}
+
 // =================== Card DOM ===================
 function getOrCreateCard(photo) {
   let entry = photoCache.get(photo.id);
@@ -917,6 +1053,15 @@ function getOrCreateCard(photo) {
     e.stopPropagation();
     retryClassify(card);
   });
+  // History link — only meaningful after the photo has at least one
+  // correction, so we just reveal it via the .state-reviewed parent.
+  const historyBtn = el(".btn-history", card);
+  if (historyBtn) {
+    historyBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openHistoryModal(photo.id);
+    });
+  }
   el(".edit-form",   card).addEventListener("submit", (e) => { e.preventDefault(); correctCard(card); });
   el(".thumb-btn",   card).addEventListener("click", (e) => {
     e.preventDefault();
@@ -1116,14 +1261,45 @@ function updateCard(card, photo) {
   setConfidenceRing(card, conf, band);
 
   el(".primary-hse", card).textContent = displayLabel(HSE_BY_SLUG, cls.hse_type_slug);
+  // Fine-grained label (Stage 2 of the two-stage classifier). When the
+  // model's Stage 2 picked a specific item with confidence above floor,
+  // we surface it as the headline label and demote the parent to a
+  // subtitle. When fine is null (Stage 2 said "no specific match" or
+  // pre-migration row), only the parent is shown and the .primary-fine
+  // element stays hidden.
+  const primaryFineEl = el(".primary-fine", card);
+  const primaryHseEl = el(".primary-hse", card);
+  if (cls.fine_hse_type_slug) {
+    const fineMeta = FINE_BY_SLUG[cls.fine_hse_type_slug];
+    const fineLabel = fineMeta
+      ? (LANG === "vn" && fineMeta.label_vn ? fineMeta.label_vn : fineMeta.label_en)
+      : cls.fine_hse_type_slug;
+    primaryFineEl.textContent = fineLabel;
+    primaryFineEl.classList.remove("hidden");
+    // Demote the parent line: smaller, lighter, non-bold so the fine
+    // label is visually dominant.
+    primaryHseEl.className = "primary-hse text-xs text-slate-500 leading-tight";
+  } else {
+    primaryFineEl.classList.add("hidden");
+    primaryFineEl.textContent = "";
+    primaryHseEl.className = "primary-hse font-semibold text-slate-900 leading-tight";
+  }
   el(".rationale", card).textContent = cls.rationale || "";
   // Location is no longer displayed but is preserved as a hidden form
   // field so the corrections insert still has a valid location_slug.
   const locHidden = el(".loc-select-hidden", card);
   if (locHidden) locHidden.value = cls.location_slug || "Common_working_area";
   el(".hse-select", card).value = cls.hse_type_slug;
-  // Populate the fine-types dropdown for the AI's predicted parent.
+  // Populate the fine-types dropdown for the AI's predicted parent and
+  // pre-select the AI's fine pick so the inspector can confirm with one
+  // click instead of having to hunt through the list.
   refreshFineSelect(card, cls.hse_type_slug);
+  const fineSel = el(".fine-select", card);
+  if (fineSel && cls.fine_hse_type_slug) {
+    if ([...fineSel.options].some(o => o.value === cls.fine_hse_type_slug)) {
+      fineSel.value = cls.fine_hse_type_slug;
+    }
+  }
 
   const altSection = el(".alt-section", card);
   const hseRow = el(".alt-row-hse", card);
@@ -1905,6 +2081,9 @@ updateStats();
 if (!localStorage.getItem("violation-ai-batch-id")) currentView = VIEW_LIST;
 switchView(currentView);
 setInterval(poll, 4000);
+// Cost ticker — refresh on load + every 60s
+refreshCostTicker();
+setInterval(refreshCostTicker, 60_000);
 
 });  // end DOMContentLoaded
 </script>

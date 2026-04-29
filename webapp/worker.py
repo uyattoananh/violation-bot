@@ -78,6 +78,45 @@ def _fetch_photo_bytes(storage_key: str) -> bytes:
     return resp["Body"].read()
 
 
+# How many recent corrections to inject into each classify prompt as
+# in-session learning examples. Tuned by trade-off:
+#   - too low: model can't pick up patterns
+#   - too high: prompt token cost balloons + later corrections drown the rules
+# 8 is a reasonable middle. Override via RECENT_CORRECTIONS_K env var.
+_RECENT_CORRECTIONS_K = int(os.environ.get("RECENT_CORRECTIONS_K", "8"))
+
+
+def _fetch_recent_corrections(db, batch_id: str | None, limit: int) -> list[dict]:
+    """Return the most recent inspector corrections in this batch, newest
+    first. Used to inject in-context examples into the classify prompt so
+    the model adapts to systematic patterns within a session.
+
+    Empty list when batch_id is None (e.g. legacy NULL-batch photos), or
+    on any DB error — this is best-effort enrichment, not a gate."""
+    if not batch_id or limit <= 0:
+        return []
+    try:
+        rows = (
+            db.table("corrections")
+              .select("hse_type_slug, fine_hse_type_slug, note, created_at")
+              .eq("batch_id", batch_id)
+              .order("created_at", desc=True)
+              .limit(limit)
+              .execute().data or []
+        )
+        # Filter to only confirm/correct rows that have a slug (stale rows
+        # from older schema can have None).
+        return [r for r in rows if r.get("hse_type_slug")]
+    except Exception as e:  # noqa: BLE001
+        msg = str(e)
+        # If batch_id column was never migrated, the query fails; degrade
+        # silently rather than failing the whole classify job.
+        if "batch_id" in msg:
+            return []
+        log.warning("corrections fetch for in-session learning failed: %s", msg[:120])
+        return []
+
+
 def process_job(job: dict) -> None:
     db = get_db()
     photo_id = job["photo_id"]
@@ -91,18 +130,36 @@ def process_job(job: dict) -> None:
         return
     photo = photo[0]
 
+    # In-session learning: pull the last K inspector corrections in the
+    # SAME batch so the model has those as in-context priors. The first
+    # photo of a session has no corrections yet, so this is a no-op then;
+    # by photo 5-10 it's usually carrying useful signal.
+    recent_corrections = _fetch_recent_corrections(
+        db, photo.get("batch_id"), _RECENT_CORRECTIONS_K,
+    )
+
+    # Two-stage classification by default. Stage 2 picks a specific
+    # AECIS fine sub-type (e.g. "Two people on same ladder") instead of
+    # leaving the prediction at the broad parent class. Set TWO_STAGE=0
+    # in env to disable, e.g. for A/B comparison runs.
+    fine_grained = os.environ.get("TWO_STAGE", "1") not in ("0", "false", "no", "")
+
     body = _fetch_photo_bytes(photo["storage_key"])
     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tf:
         tf.write(body)
         tmp_path = Path(tf.name)
     try:
-        cls = classify_image(tmp_path)
+        cls = classify_image(
+            tmp_path,
+            recent_corrections=recent_corrections,
+            fine_grained=fine_grained,
+        )
     finally:
         tmp_path.unlink(missing_ok=True)
 
     # Clear previous current
     db.table("classifications").update({"is_current": False}).eq("photo_id", photo_id).execute()
-    db.table("classifications").insert({
+    insert_payload = {
         "photo_id": photo_id,
         "location_slug": cls.location.slug,
         "hse_type_slug": cls.hse_type.slug,
@@ -115,7 +172,24 @@ def process_job(job: dict) -> None:
         "output_tokens": cls.output_tokens,
         "raw_response": cls.raw_response,
         "is_current": True,
-    }).execute()
+    }
+    # Optional fine columns. Strip + retry on schema-error so the worker
+    # keeps running before the migration is applied (same pattern as
+    # webapp/app.py upload).
+    if cls.fine_hse_type:
+        insert_payload["fine_hse_type_slug"] = cls.fine_hse_type.slug
+        insert_payload["fine_hse_type_confidence"] = cls.fine_hse_type.confidence
+    try:
+        db.table("classifications").insert(insert_payload).execute()
+    except Exception as e:  # noqa: BLE001
+        msg = str(e)
+        if "fine_hse_type" in msg:
+            insert_payload.pop("fine_hse_type_slug", None)
+            insert_payload.pop("fine_hse_type_confidence", None)
+            db.table("classifications").insert(insert_payload).execute()
+            log.warning("classifications.fine_hse_type_* missing — degraded insert")
+        else:
+            raise
 
     db.table("classify_jobs").update(
         {"status": "done", "updated_at": _now()}
