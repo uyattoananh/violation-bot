@@ -484,12 +484,16 @@ Realistic phasing:
                        /admin/proposals, hot-reload of taxonomy on
                        approval, retro-patch of pending: corrections,
                        one-time decision toast on user's next visit
-  PHASE 5 (~3 days):   Auth — Google OAuth + retro-attribution
-                       migration of pre-auth rows
+  PHASE 5 (~3 days):   [DONE] Auth — Google OAuth + retro-attribution
+                       migration of pre-auth rows. Header user-pill,
+                       /auth/me JSON, /admin promotes via is_admin.
   PHASE 6 (~2 days):   14-day verification (lights up after auth)
-  PHASE 7 (~1 day):    Add Azure Entra ID as second OAuth provider
-                       (credentials staged in
-                        ~/Desktop/violation-bot/secrets/azure_entra_id.txt)
+  PHASE 7 (~1 day):    [DONE] Azure Entra ID as second OAuth provider
+                       + AUTH_REQUIRED gate forcing every visitor to
+                       sign in via the /auth/signin chooser before
+                       reaching any other route. Whitelist: OAuth flow,
+                       static assets, service worker, env-password
+                       admin login.
 
 Total: ~3 weeks of focused work.
 

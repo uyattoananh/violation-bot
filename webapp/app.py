@@ -249,9 +249,21 @@ _GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 _GOOGLE_REDIRECT_URI = os.environ.get(
     "GOOGLE_REDIRECT_URI", "https://hse.aecis.ca/auth/callback/google"
 )
+# Phase 7 — Azure Entra ID OAuth. Multitenant by default ('common'
+# tenant in the auth URL); override AZURE_TENANT_ID for single-tenant.
+_AZURE_CLIENT_ID = os.environ.get("AZURE_CLIENT_ID")
+_AZURE_CLIENT_SECRET = os.environ.get("AZURE_CLIENT_SECRET")
+_AZURE_TENANT_ID = os.environ.get("AZURE_TENANT_ID", "common")
+_AZURE_REDIRECT_URI = os.environ.get(
+    "AZURE_REDIRECT_URI", "https://hse.aecis.ca/auth/callback/azure"
+)
 _SESSION_COOKIE_NAME = "vai_session"
 _OAUTH_STATE_COOKIE_NAME = "vai_oauth_state"
 _SESSION_MAX_AGE_SECONDS = int(os.environ.get("SESSION_MAX_AGE_DAYS", "30")) * 86400
+# Phase 7 — sign-in is REQUIRED to use the webapp. Set AUTH_REQUIRED=0
+# in dev to disable the gate. Whitelist below covers the routes that
+# must work pre-auth (the sign-in flow itself, static assets, the SW).
+_AUTH_REQUIRED = os.environ.get("AUTH_REQUIRED", "1") not in ("0", "false", "no")
 
 
 def _get_or_set_user_key(request: Request, response_headers: dict | None = None) -> str:
@@ -584,6 +596,168 @@ def _retro_attribute_user(user_id: str, user_key: str | None) -> dict[str, int]:
             log.warning("retro-attribute %s failed: %s", tbl, e)
             counts[tbl] = 0
     return counts
+
+
+# ---------- phase 7: azure entra id oauth helpers ----------
+
+def _azure_oauth_enabled() -> bool:
+    """Azure OAuth is opt-in alongside Google. Both can be enabled at
+    once — the sign-in chooser shows whichever providers are configured."""
+    return bool(_AZURE_CLIENT_ID and _AZURE_CLIENT_SECRET)
+
+
+def _azure_authorize_url(state: str) -> str:
+    """Build the Azure Entra ID authorize URL (v2.0 endpoint).
+
+    For multitenant apps (AZURE_TENANT_ID=common) any work/school
+    Microsoft account in any tenant can sign in. Single-tenant deployments
+    set AZURE_TENANT_ID to the tenant GUID and only members of that
+    tenant can authenticate.
+
+    Scopes: openid + profile + email + User.Read (Microsoft Graph).
+    User.Read lets us call /me to fetch displayName, mail, oid; the
+    other three are the standard OIDC claims subset.
+    """
+    from urllib.parse import urlencode
+    qs = urlencode({
+        "client_id": _AZURE_CLIENT_ID,
+        "redirect_uri": _AZURE_REDIRECT_URI,
+        "response_type": "code",
+        "response_mode": "query",
+        "scope": "openid email profile User.Read",
+        "state": state,
+        "prompt": "select_account",
+    })
+    return (
+        f"https://login.microsoftonline.com/{_AZURE_TENANT_ID}/oauth2/v2.0/authorize?{qs}"
+    )
+
+
+async def _azure_exchange_code(code: str) -> dict:
+    """POST the auth code to Microsoft's v2.0 token endpoint and return
+    the parsed JSON. Raises HTTPException on any non-200."""
+    import httpx
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.post(
+            f"https://login.microsoftonline.com/{_AZURE_TENANT_ID}/oauth2/v2.0/token",
+            data={
+                "code": code,
+                "client_id": _AZURE_CLIENT_ID,
+                "client_secret": _AZURE_CLIENT_SECRET,
+                "redirect_uri": _AZURE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+                "scope": "openid email profile User.Read",
+            },
+        )
+    if r.status_code != 200:
+        log.warning("azure token exchange failed: %s %s", r.status_code, r.text[:300])
+        raise HTTPException(401, "azure token exchange failed")
+    return r.json()
+
+
+async def _azure_fetch_userinfo(access_token: str) -> dict:
+    """Fetch the signed-in user's profile from Microsoft Graph /me.
+
+    Maps the Graph response into the same shape used by Google so
+    _upsert_user can stay provider-agnostic:
+      sub      -> 'id' (Graph object id; identical to the JWT 'oid' claim)
+      email    -> mail | userPrincipalName  (mail can be null for
+                  personal MSAs; userPrincipalName is always present)
+      name     -> displayName
+      picture  -> not exposed; left None. Graph /me/photo/$value returns
+                  binary, which would need a separate proxy route.
+    """
+    import httpx
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(
+            "https://graph.microsoft.com/v1.0/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if r.status_code != 200:
+        log.warning("azure /me failed: %s %s", r.status_code, r.text[:300])
+        raise HTTPException(401, "azure userinfo failed")
+    me = r.json()
+    return {
+        "sub": me.get("id"),
+        "email": me.get("mail") or me.get("userPrincipalName"),
+        "name": me.get("displayName"),
+        "picture": None,
+    }
+
+
+# ---------- phase 7: auth gate (sign-in required) ----------
+
+# Path prefixes that bypass the gate. Anything matching one of these
+# can be reached without a session — keep this list narrow.
+_AUTH_GATE_WHITELIST_PREFIXES = (
+    "/auth/",            # OAuth flow itself + signin chooser + /auth/me
+    "/static/",          # Tailwind CDN, app CSS, manifest, icons
+    "/admin/login",      # Env-password admin fallback (still works pre-auth)
+    "/service-worker.js",  # SW MUST load pre-auth or PWA breaks
+    "/manifest.json",    # Some browsers fetch this without cookies
+    "/favicon",          # /favicon.ico, /favicon.png
+    "/healthz",          # Future health endpoint, not currently used
+    "/metrics",          # Existing metrics endpoint — keep open for now
+)
+
+
+def _is_authed(request: Request) -> bool:
+    """A request is 'authed' if it has either a valid OAuth session
+    OR the env-password admin cookie. The latter keeps the env-var
+    bootstrap path working pre-OAuth-rollout."""
+    if _admin_authed(request):
+        return True
+    return _get_session_user(request) is not None
+
+
+@app.middleware("http")
+async def auth_gate_middleware(request: Request, call_next):
+    """Phase 7 — sign-in is required to use the webapp.
+
+    Whitelisted prefixes (the OAuth flow itself, static assets, the
+    service worker, the env-password admin login form) bypass the gate.
+    Everything else needs a valid session OR the env-password admin
+    cookie. Unauthed HTML requests redirect to /auth/signin with the
+    original path passed as `next`; unauthed API requests get a 401
+    JSON so frontend fetch() handlers can react.
+
+    Disable the gate via `AUTH_REQUIRED=0` in the env (dev / testing).
+    """
+    if not _AUTH_REQUIRED:
+        return await call_next(request)
+
+    path = request.url.path
+
+    # Whitelist short-circuits the gate. Keep this list minimal — every
+    # entry is a route that runs WITHOUT a session check.
+    if any(path.startswith(p) for p in _AUTH_GATE_WHITELIST_PREFIXES):
+        return await call_next(request)
+
+    # Authed: continue. We deliberately don't pre-fetch the user onto
+    # request.state — most handlers don't need it and the few that do
+    # call _get_session_user() themselves (one extra query is cheap).
+    if _is_authed(request):
+        return await call_next(request)
+
+    # Unauthed:
+    #   - /api/* and any request that obviously expects JSON -> 401 JSON
+    #   - everything else -> 303 redirect to /auth/signin?next=<path>
+    accept = request.headers.get("accept", "")
+    wants_json = (
+        path.startswith("/api/")
+        or "application/json" in accept
+        or "application/json" in request.headers.get("content-type", "")
+    )
+    if wants_json:
+        return JSONResponse(
+            content={"error": "auth_required", "login_url": "/auth/signin"},
+            status_code=401,
+        )
+
+    from urllib.parse import quote
+    return RedirectResponse(
+        f"/auth/signin?next={quote(path, safe='')}", status_code=303
+    )
 
 
 # ---------- phase 4: hse-class proposal helpers ----------
@@ -3053,7 +3227,9 @@ def auth_me(request: Request):
         return JSONResponse(content={
             "authed": False,
             "google_enabled": _oauth_enabled(),
-            "login_url": "/auth/login/google" if _oauth_enabled() else None,
+            "azure_enabled": _azure_oauth_enabled(),
+            "auth_required": _AUTH_REQUIRED,
+            "login_url": "/auth/signin",
         })
     return JSONResponse(content={
         "authed": True,
@@ -3062,7 +3238,239 @@ def auth_me(request: Request):
         "name": user.get("name"),
         "picture_url": user.get("picture_url"),
         "is_admin": user.get("is_admin", False),
+        "provider": user.get("provider"),
     })
+
+
+# ---------- phase 7: azure oauth routes ----------
+
+@app.get("/auth/login/azure")
+def auth_login_azure(request: Request, next: str = "/"):
+    """Kick off the Azure Entra ID OAuth flow. Mirrors /auth/login/google
+    structure — generates a state token, stows it in a short-lived
+    cookie, redirects to Microsoft's authorize endpoint."""
+    if not _azure_oauth_enabled():
+        raise HTTPException(
+            503,
+            "Microsoft sign-in is not configured (set AZURE_CLIENT_ID / "
+            "AZURE_CLIENT_SECRET env vars).",
+        )
+    raw = secrets.token_urlsafe(32)
+    safe_next = next if next.startswith("/") and not next.startswith("//") else "/"
+    state = raw
+
+    resp = RedirectResponse(_azure_authorize_url(state), status_code=303)
+    resp.set_cookie(
+        _OAUTH_STATE_COOKIE_NAME,
+        value=f"{raw}|{safe_next}",
+        max_age=600,
+        httponly=True,
+        samesite="lax",
+        secure=os.environ.get("COOKIE_SECURE", "1") not in ("0", "false", "no"),
+    )
+    return resp
+
+
+@app.get("/auth/callback/azure")
+async def auth_callback_azure(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
+    """Microsoft's redirect target. Same shape as the Google callback —
+    state check, code exchange, profile fetch, user upsert, session,
+    retro-attribute, redirect home."""
+    if not _azure_oauth_enabled():
+        raise HTTPException(503, "azure oauth not configured")
+    if error:
+        msg = error_description or error
+        return HTMLResponse(
+            f"<h1>Sign-in cancelled</h1><p>Microsoft reported: <code>{msg}</code></p>"
+            "<p><a href='/auth/signin'>← Back</a></p>", status_code=400)
+    if not code or not state:
+        raise HTTPException(400, "missing code/state")
+
+    cookie_state = request.cookies.get(_OAUTH_STATE_COOKIE_NAME) or ""
+    raw, _, safe_next = cookie_state.partition("|")
+    if not raw or not secrets.compare_digest(raw, state):
+        log.warning("azure oauth state mismatch")
+        return HTMLResponse(
+            "<h1>Sign-in failed</h1><p>State token mismatch — try again.</p>"
+            "<p><a href='/auth/login/azure'>← Try again</a></p>", status_code=400)
+
+    try:
+        token_data = await _azure_exchange_code(code)
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise HTTPException(401, "no access token in azure response")
+        profile = await _azure_fetch_userinfo(access_token)
+    except HTTPException:
+        return HTMLResponse(
+            "<h1>Sign-in failed</h1><p>Microsoft rejected the auth code. Try again.</p>"
+            "<p><a href='/auth/login/azure'>← Try again</a></p>", status_code=401)
+
+    try:
+        user = _upsert_user("azure", profile)
+        session_token = _create_session(user["id"], request)
+    except Exception as e:  # noqa: BLE001
+        log.error("azure callback persistence failed: %s", e)
+        return HTMLResponse(
+            "<h1>Sign-in failed</h1>"
+            "<p>Couldn't save your session. The sysadmin has been notified.</p>"
+            "<p><a href='/'>← Back to app</a></p>", status_code=500)
+
+    pre_auth_key = request.cookies.get(_USER_COOKIE_NAME)
+    if pre_auth_key:
+        _retro_attribute_user(user["id"], pre_auth_key)
+
+    target = safe_next if safe_next and safe_next.startswith("/") and not safe_next.startswith("//") else "/"
+    resp = RedirectResponse(target, status_code=303)
+    _attach_session_cookie(resp, session_token)
+    resp.delete_cookie(_OAUTH_STATE_COOKIE_NAME)
+    return resp
+
+
+# ---------- phase 7: sign-in chooser page ----------
+
+@app.get("/auth/signin", response_class=HTMLResponse)
+def auth_signin(request: Request, next: str = "/"):
+    """Provider-chooser landing page. Anonymous users hit this when the
+    auth gate redirects them. Shows whichever providers are configured;
+    a single-provider deployment gets a single button. Bilingual."""
+    # If they already have a valid session, no need to choose — bounce.
+    if _get_session_user(request):
+        return RedirectResponse(next or "/", status_code=303)
+
+    safe_next = next if next.startswith("/") and not next.startswith("//") else "/"
+    from urllib.parse import quote
+    n = quote(safe_next, safe="")
+
+    google_btn = ""
+    if _oauth_enabled():
+        google_btn = f"""
+        <a href="/auth/login/google?next={n}" class="provider-btn google">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          <span data-locale="en">Continue with Google</span><span data-locale="vn">Tiếp tục với Google</span>
+        </a>"""
+    azure_btn = ""
+    if _azure_oauth_enabled():
+        azure_btn = f"""
+        <a href="/auth/login/azure?next={n}" class="provider-btn microsoft">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <rect x="2"  y="2"  width="9" height="9" fill="#F25022"/>
+            <rect x="13" y="2"  width="9" height="9" fill="#7FBA00"/>
+            <rect x="2"  y="13" width="9" height="9" fill="#00A4EF"/>
+            <rect x="13" y="13" width="9" height="9" fill="#FFB900"/>
+          </svg>
+          <span data-locale="en">Continue with Microsoft</span><span data-locale="vn">Tiếp tục với Microsoft</span>
+        </a>"""
+
+    none_msg = ""
+    if not google_btn and not azure_btn:
+        none_msg = (
+            "<div class='no-providers'>"
+            "Sign-in is not configured on this server. "
+            "Set <code>GOOGLE_CLIENT_ID</code> or <code>AZURE_CLIENT_ID</code> "
+            "in the environment.</div>"
+        )
+
+    html = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Sign in · Violation AI</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icons/icon-180.png">
+<style>
+* {{ box-sizing: border-box; }}
+html, body {{ height: 100%; }}
+body {{ font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+       margin: 0; background: linear-gradient(160deg, #f0fdf4 0%, #f8fafc 100%);
+       color: #0f172a; display: flex; align-items: center; justify-content: center; padding: 16px; }}
+.card {{ background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(15, 23, 42, 0.06);
+        padding: 32px 28px; max-width: 380px; width: 100%; text-align: center; }}
+.brand {{ display: inline-flex; align-items: center; gap: 8px;
+         font-size: 18px; font-weight: 600; margin-bottom: 8px; }}
+.brand .check {{ width: 28px; height: 28px; border-radius: 999px;
+                background: #10b981; color: #fff; display: grid; place-items: center; }}
+.brand .check svg {{ width: 16px; height: 16px; }}
+.brand .accent {{ color: #10b981; }}
+h1 {{ font-size: 22px; margin: 12px 0 6px; font-weight: 600; }}
+.sub {{ color: #64748b; font-size: 13px; margin: 0 0 24px; }}
+.providers {{ display: flex; flex-direction: column; gap: 10px; }}
+.provider-btn {{ display: flex; align-items: center; justify-content: center; gap: 12px;
+                padding: 12px 16px; border-radius: 10px; text-decoration: none;
+                font-weight: 600; font-size: 14px; transition: transform .04s, box-shadow .15s; }}
+.provider-btn:active {{ transform: scale(0.98); }}
+.provider-btn.google {{ background: #fff; color: #1f2937; border: 1px solid #d1d5db; }}
+.provider-btn.google:hover {{ box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08); border-color: #9ca3af; }}
+.provider-btn.microsoft {{ background: #2f2f2f; color: #fff; border: 1px solid #2f2f2f; }}
+.provider-btn.microsoft:hover {{ background: #1f1f1f; border-color: #1f1f1f; }}
+.foot {{ color: #94a3b8; font-size: 11px; margin-top: 24px; }}
+.foot a {{ color: inherit; text-decoration: underline; }}
+.locale-toggle {{ position: absolute; top: 16px; right: 16px; display: flex; gap: 4px;
+                 background: rgba(255,255,255,0.8); border-radius: 999px; padding: 2px;
+                 border: 1px solid #e2e8f0; }}
+.locale-toggle button {{ font: inherit; background: none; border: 0; cursor: pointer;
+                        padding: 4px 10px; border-radius: 999px; color: #64748b; font-weight: 600; font-size: 11px; }}
+.locale-toggle button.active {{ background: #10b981; color: #fff; }}
+.no-providers {{ background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+                padding: 12px; border-radius: 8px; font-size: 12px; text-align: left; }}
+[data-locale]:not(.show) {{ display: none; }}
+</style></head><body>
+<div class="locale-toggle">
+  <button id="loc-en" class="active" type="button">EN</button>
+  <button id="loc-vn" type="button">VN</button>
+</div>
+<div class="card">
+  <div class="brand">
+    <span class="check"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+    <span>Violation <span class="accent">AI</span></span>
+  </div>
+  <h1><span data-locale="en">Sign in to continue</span><span data-locale="vn">Đăng nhập để tiếp tục</span></h1>
+  <p class="sub">
+    <span data-locale="en">AECIS HSE inspection tool. Pick your provider.</span>
+    <span data-locale="vn">Công cụ kiểm tra HSE của AECIS. Chọn nhà cung cấp.</span>
+  </p>
+  <div class="providers">
+    {google_btn}
+    {azure_btn}
+    {none_msg}
+  </div>
+  <p class="foot">
+    <span data-locale="en">By signing in, you agree to use this tool for AECIS HSE inspection only.</span>
+    <span data-locale="vn">Bằng cách đăng nhập, bạn đồng ý chỉ sử dụng công cụ này cho việc kiểm tra HSE của AECIS.</span>
+  </p>
+</div>
+<script>
+  // Lightweight EN/VN locale toggle. Persists in localStorage so the
+  // sign-in page remembers the user's preference between visits.
+  (function () {{
+    const saved = localStorage.getItem("vai-lang") || "en";
+    const enBtn = document.getElementById("loc-en");
+    const vnBtn = document.getElementById("loc-vn");
+    function apply(loc) {{
+      document.querySelectorAll("[data-locale]").forEach(el => {{
+        el.classList.toggle("show", el.dataset.locale === loc);
+      }});
+      enBtn.classList.toggle("active", loc === "en");
+      vnBtn.classList.toggle("active", loc === "vn");
+      localStorage.setItem("vai-lang", loc);
+    }}
+    enBtn.addEventListener("click", () => apply("en"));
+    vnBtn.addEventListener("click", () => apply("vn"));
+    apply(saved);
+  }})();
+</script>
+</body></html>"""
+    return HTMLResponse(html)
 
 
 # ---------- admin (env-var-password gated; user is_admin also recognised in phase 5) ----------

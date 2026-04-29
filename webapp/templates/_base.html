@@ -394,17 +394,19 @@
         .then((r) => r.ok ? r.json() : { authed: false })
         .then((d) => {
           if (!d.authed) {
-            // Hide the pill entirely if Google OAuth isn't configured
-            // — no point teasing a button that 503s on click.
-            if (!d.google_enabled) {
+            // Hide the pill entirely if neither OAuth provider is
+            // configured — no point teasing a button that 503s on click.
+            if (!d.google_enabled && !d.azure_enabled) {
               pill.classList.add("hidden");
               return;
             }
-            // Logged out: show "Sign in" button. We send `next=` so the
-            // callback returns the user to where they were.
+            // Logged out: route to the provider-chooser page (or the
+            // single-provider login URL when only one is configured).
+            // Phase 7 makes the chooser the canonical entry point.
             const nextParam = encodeURIComponent(window.location.pathname + window.location.search);
+            const target = d.login_url || "/auth/signin";
             signinBtn.addEventListener("click", () => {
-              window.location.href = `/auth/login/google?next=${nextParam}`;
+              window.location.href = `${target}?next=${nextParam}`;
             });
             show(signinBtn);
             return;
