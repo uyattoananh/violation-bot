@@ -1,0 +1,471 @@
+FUTURE IMPLEMENTATION PLAN
+==========================
+
+Captured 2026-04-29. Items below are scoped, ranked by dependency
+order, and include implementation notes from the session that produced
+the current production state (commit d9205ca).
+
+These are NOT yet implemented. Each block is a spec, not code.
+
+
+=============================================================
+1.  PWA CONVERSION
+=============================================================
+
+WHAT
+  Convert the FastAPI/Jinja webapp to a Progressive Web App so
+  inspectors can install it to their phone home-screen and use it
+  offline-first. The mobile-app endpoint already POSTs photos to
+  /api/upload — PWA gives a unified surface for both office desktop
+  and field-mobile use.
+
+WHY
+  - One codebase serves desktop + mobile field use
+  - Offline-first: inspector can mark photos in poor signal areas,
+    sync queue uploads when connectivity returns
+  - Push notifications for "batch finished classifying"
+  - Apple/Android home-screen install without app-store overhead
+
+IMPLEMENTATION SKETCH
+  1. Add /static/manifest.json with name, short_name, icons (192,
+     512), theme_color (#10b981 — same as existing emerald theme),
+     display: "standalone", start_url: "/".
+  2. Add /static/service-worker.js. Two cache strategies:
+       - precache for app shell (HTML + Tailwind CDN + app.css + JS)
+       - runtime cache for /static/* + R2 photo thumbnails (LRU)
+  3. <link rel="manifest" href="/static/manifest.json"> in _base.html
+  4. <script>navigator.serviceWorker.register("/static/service-worker.js")</script>
+  5. Apple-touch-icon meta + apple-mobile-web-app-capable for iOS
+  6. Background sync API for queued uploads:
+       - When /api/upload fails (offline), store the FormData in
+         IndexedDB with a UUID
+         - Service worker registers a 'sync' event
+         - On reconnect, replay queued uploads
+  7. Test install flow on Chrome (desktop), Safari (iOS), Chrome
+     (Android). iOS has the most restrictive PWA story — single-page
+     navigation only, limited storage.
+
+DEPENDENCIES / CAVEATS
+  - The existing dropzone + upload flow is already tolerant of
+    chunked uploads; sync queue plumbs into it without restructuring.
+  - HEIC handling on mobile: iOS share-sheet hands files as HEIC.
+    The /api/upload endpoint already converts via pillow-heif. PWA
+    install doesn't change that.
+  - Tailwind CDN is a runtime dependency; precache it or self-host.
+
+EFFORT
+  ~2-3 days for a polished PWA. ~1 day for a basic install + cache.
+
+
+=============================================================
+2.  OAUTH + AZURE AD LOGIN
+=============================================================
+
+WHAT
+  Replace the current "no auth, single tenant" model with proper
+  OAuth via Azure AD (Microsoft Entra ID). Implemented LAST in the
+  feature sequence — every other feature below assumes auth exists.
+
+WHY
+  - AECIS clients already use Microsoft 365. Azure AD = SSO they
+    already have, no separate password management.
+  - Per-user attribution makes the daily-quota, statistics-collection,
+    and 14-day-verification features actually function.
+  - Tenant separation moves from "manual env var" to "claim from
+    JWT" — multi-customer use unlocks.
+
+IMPLEMENTATION SKETCH
+  1. Register the app in Azure AD; get client_id, tenant_id,
+     client_secret. Configure redirect URI to https://hse.aecis.ca/auth/callback.
+  2. Use authlib (Python) — mature OAuth client lib, integrates
+     cleanly with FastAPI.
+  3. Routes:
+       GET  /auth/login    -> redirects to Azure AD authorize URL
+       GET  /auth/callback -> exchanges code for tokens, fetches
+                              user profile (email, oid, name), creates
+                              or upserts a `users` row, sets a session
+                              cookie (signed JWT, httponly, samesite=lax,
+                              secure).
+       POST /auth/logout   -> clears cookie
+  4. Schema:
+       users (
+         id UUID PRIMARY KEY,
+         azure_oid TEXT UNIQUE,    -- Azure AD object id (stable)
+         email TEXT,
+         display_name TEXT,
+         tenant_id UUID,           -- which AECIS tenant this user belongs to
+         created_at TIMESTAMPTZ,
+         last_login_at TIMESTAMPTZ
+       )
+  5. FastAPI dependency: get_current_user(request: Request) -> User
+     Reads cookie, verifies JWT, returns User row (or 401).
+  6. Decorate every existing /api/* route with this dependency. Each
+     route gets `user: User = Depends(get_current_user)`.
+  7. Replace DEFAULT_TENANT_ID logic with `user.tenant_id` everywhere:
+       - /api/upload writes photos.tenant_id = user.tenant_id
+       - /api/pending filters by user.tenant_id
+       - /api/batches filters by user.tenant_id
+       - /api/photos/{id}/* checks photo.tenant_id == user.tenant_id
+         before letting the user touch it
+  8. Frontend: <header> shows logged-in user's email + sign-out link.
+     Anonymous visit -> redirect to /auth/login.
+
+DEPENDENCIES / CAVEATS
+  - Multi-tenant requires the `tenants` table to be populated with
+    real customer rows (not just "Public Demo"). Provisioning UI for
+    AECIS admins to add new tenants is its own mini-feature.
+  - The mobile-app's POST endpoint also needs auth. Either:
+       (a) Same OAuth, mobile uses a different redirect URI
+       (b) Service-account API keys (stored in mobile app keychain)
+  - Some endpoints might need to remain public (e.g. /healthz). Keep
+    them allowlisted in the dependency.
+  - Use python-jose for JWT signing in our own session cookies.
+
+EFFORT
+  ~3-5 days for full multi-tenant cutover. Most of the work is the
+  per-route plumbing, not the OAuth handshake itself.
+
+
+=============================================================
+3.  FREE TIER: 30 PHOTOS / DAY / USER
+=============================================================
+
+WHAT
+  Per-user daily quota of 30 photo classifications. Hard cap; over
+  the limit returns 429 with a "upgrade for more" message.
+
+WHY
+  - Cost containment as the user base grows (each photo is ~$0.003 on
+    Flash + Stage 2, so 30/day/user = ~$2.70/user/month if they max
+    out — sustainable)
+  - Forces conversion to paid tier for power users
+  - Discourages script-bombing
+
+IMPLEMENTATION SKETCH
+  1. Schema:
+       quota_usage (
+         user_id UUID,
+         day DATE,
+         photos_classified INT DEFAULT 0,
+         PRIMARY KEY (user_id, day)
+       )
+  2. /api/upload increments quota_usage for the current user + UTC day.
+     If user is over QUOTA_FREE_PER_DAY (default 30 from env), return
+     HTTP 429 with JSON {error: "daily_limit_reached", limit: 30,
+                          resets_at: "<next UTC midnight ISO>"}.
+  3. Frontend: catch 429, show the existing error banner with
+     i18n("quota_reached") + countdown to UTC midnight.
+  4. Footer adds a small "today: N / 30 photos used" indicator next
+     to the existing cost ticker.
+  5. Optional: per-tier limits (free=30, paid=unlimited). Add
+     `users.tier` column, gate on that.
+
+DEPENDENCIES / CAVEATS
+  - Depends on auth (each request needs to know user_id).
+  - 30 is generous-but-tight. Adjust via env QUOTA_FREE_PER_DAY.
+  - Counting per-photo, not per-upload-batch — a 50-photo batch from
+    a free user uploads the first 30 and rejects the next 20 with a
+    clear error.
+
+EFFORT
+  ~half a day after auth is in place.
+
+
+=============================================================
+4.  USER + USAGE STATISTICS
+=============================================================
+
+WHAT
+  Track and surface basic usage telemetry: daily active users,
+  photos uploaded per user, photos reviewed (= corrections submitted)
+  per user, time-to-review, batch sizes, accuracy by inspector.
+
+WHY
+  - AECIS account managers need to see who's using the product
+  - Inspector productivity dashboards
+  - Identify power users for retention; identify lapsed users for
+    re-engagement
+  - Monitor cost-per-active-user
+
+IMPLEMENTATION SKETCH
+  1. Most signal already exists in the existing tables (corrections,
+     classifications, photos). Just need a query layer + UI.
+  2. New table for daily roll-ups (compute nightly via cron):
+       daily_user_stats (
+         day DATE,
+         user_id UUID,
+         photos_uploaded INT,
+         photos_reviewed INT,         -- corrections rows where action!=null
+         confirms INT,                -- action='confirm'
+         corrections_count INT,       -- action='correct'
+         active BOOL,                 -- did anything today
+         PRIMARY KEY (day, user_id)
+       )
+  3. Roll-up job (scripts/rollup_daily_stats.py): runs from cron at
+     00:30 UTC, computes yesterday's row per user, inserts.
+  4. Admin-only routes:
+       GET /admin/stats               -> overview (DAU, MAU, total
+                                          uploads, review rate)
+       GET /admin/stats/users         -> per-user table
+       GET /admin/stats/users/{id}    -> per-user time series
+  5. Admin gate: `users.is_admin = TRUE` flag, dependency
+     `get_admin_user`.
+  6. Charts: a small JS lib (chart.js or just SVG) — the data is
+     small (one row per user per day, ~100 rows max).
+  7. Per-batch summary already exists at /api/export/summary. Extend
+     it with reviewer attribution once auth is in.
+
+DEPENDENCIES / CAVEATS
+  - Depends on auth (every action needs user_id).
+  - Privacy: the stats are "internal management only" — never expose
+    other users' usage to non-admin users.
+  - Compliance: if you collect personal data on European users,
+    consider GDPR. AECIS is Vietnam-based so probably not relevant
+    initially, but plan for it.
+
+EFFORT
+  ~2 days for the roll-up + basic admin dashboard.
+
+
+=============================================================
+5.  EMAIL OUTPUT (ZIP / CSV / HTML / PDF)
+=============================================================
+
+WHAT
+  Inspector clicks "Email this batch" instead of downloading; gets
+  the export delivered to their email (PDF, ZIP, CSV, HTML — all
+  current export formats already exist in webapp/app.py).
+
+WHY
+  - Mobile users can't easily download multi-MB ZIPs through a
+    browser; email gets it onto their corporate inbox where IT
+    workflows already handle large attachments
+  - Senior inspectors review on phone; they want to forward straight
+    to the safety officer
+  - Audit trail: there's a "sent on YYYY-MM-DD to X" record that the
+    raw download doesn't produce
+
+IMPLEMENTATION SKETCH
+  1. Pick an SMTP provider:
+       - SendGrid (free tier 100/day) — easiest
+       - AWS SES — cheap if AECIS already has AWS
+       - Microsoft Graph (since they're on M365) — best integration
+         with Azure AD account
+       Recommendation: Graph API, since Azure AD is already in.
+  2. Schema:
+       email_jobs (
+         id UUID, user_id UUID, batch_id UUID,
+         format TEXT,            -- 'pdf' | 'zip' | 'csv' | 'html'
+         to_email TEXT,
+         status TEXT,            -- 'pending' | 'sent' | 'failed'
+         error TEXT,
+         created_at TIMESTAMPTZ,
+         sent_at TIMESTAMPTZ
+       )
+  3. New endpoint:
+       POST /api/export/email
+         body: {batch_id, format, to_email}
+         enqueues an email_jobs row; returns 202 + job id
+  4. Background worker (extend webapp.worker or a new email_worker):
+       - polls email_jobs.pending
+       - generates the export by calling the existing in-process
+         export functions (export_pdf, export_zip, etc.)
+       - sends via Graph or SES with the file as attachment
+       - updates email_jobs.status
+  5. Frontend: dropdown menu has "Download" (current) + "Email to me"
+     button. Form for "Send to: <other email>" optional.
+  6. Throttle: 5 emails per user per day. Larger ZIPs (>20MB) require
+     "premium" tier or get truncated.
+
+DEPENDENCIES / CAVEATS
+  - PDF/ZIP generation already exists; this is purely the delivery
+    channel.
+  - Large attachments: ZIPs of 200-photo batches can be 50-200MB.
+    Some email systems reject >25MB. Fallback: upload to R2 with a
+    presigned URL and email the LINK instead of the file.
+  - Spam risk: rate-limit per recipient address, not just per sender.
+    Otherwise users could spam external addresses with auto-generated
+    reports.
+
+EFFORT
+  ~3 days. The email worker + delivery layer is the new code; the
+  export generation is reusing what's there.
+
+
+=============================================================
+6.  USER-SUBMITTED HSE CLASSES (ADMIN-APPROVED)
+=============================================================
+
+WHAT
+  Inspectors can propose a new HSE category or fine sub-type that's
+  not in the AECIS canonical taxonomy. The proposal queues for admin
+  review; on approval it joins the live classifier vocabulary.
+
+WHY
+  - AECIS taxonomy isn't static — new violation types emerge with
+    new project types, new equipment, new regulations
+  - Without this, inspectors hack around with the "note" field;
+    valuable data gets buried in unstructured text
+  - Distributes taxonomy curation across the user base instead of
+    requiring a central edit cycle
+
+IMPLEMENTATION SKETCH
+  1. Schema:
+       hse_class_proposals (
+         id UUID PRIMARY KEY,
+         proposed_by UUID REFERENCES users(id),
+         parent_slug TEXT,           -- which existing parent it goes under
+         proposed_slug TEXT,         -- generated from label
+         label_en TEXT,
+         label_vn TEXT,
+         description TEXT,           -- why this class is needed
+         example_photo_ids UUID[],   -- inspector points at example photos
+         status TEXT,                -- 'pending' | 'approved' | 'rejected'
+         reviewed_by UUID,
+         reviewer_note TEXT,
+         created_at, reviewed_at
+       )
+  2. User-side flow:
+       - Edit form gets a "Propose a new sub-type" link below the
+         picker
+       - Modal: parent (pre-selected from current pick) + label_en +
+         label_vn + description + "use this photo as an example"
+         checkbox
+       - POST /api/hse-classes/propose
+       - User can save a correction tagged with the PROPOSED slug;
+         the correction goes through normally but the slug is stored
+         as 'pending:<uuid>' until approved, then renamed.
+  3. Admin review flow:
+       - GET  /admin/proposals (pending list)
+       - POST /admin/proposals/{id}/approve (slug becomes real, gets
+         appended to fine_hse_types_by_parent.json + reloaded by
+         workers + retroactively patched on existing corrections)
+       - POST /admin/proposals/{id}/reject (with reason; user
+         notified)
+  4. The taxonomy file gets HOT-RELOADED on every approval (workers
+     re-read fine_hse_types_by_parent.json on a SIGHUP, or via a
+     /admin/reload-taxonomy endpoint).
+  5. Approval policy: require 2+ inspectors to vote-up the same
+     proposal before admin sees it (community filter; reduces admin
+     queue). Or skip and trust the admin to reject duplicates.
+
+DEPENDENCIES / CAVEATS
+  - Depends on auth (proposed_by is a user_id).
+  - Slug collisions: enforce uniqueness across all 386 fine slugs
+    + all parent slugs. Auto-suffix on conflict.
+  - VN/EN both required (or the model can't render the label
+    correctly for the wrong-language inspector).
+  - The classifier prompt has a hard-coded 29-class parent list. If
+    user proposes a new PARENT (not just sub-type), the prompt must
+    re-render. Not impossible — the prompt builder reads taxonomy.json
+    dynamically — but worth keeping out of v1.
+
+EFFORT
+  ~5-7 days. The hot-reload semantics + retroactive slug-patch on
+  approval is the trickiest part.
+
+
+=============================================================
+7.  REAL-USER VERIFICATION AFTER 14 DAYS
+=============================================================
+
+WHAT
+  After a user has been active for 14 days, prompt for additional
+  identity verification (SMS code, email magic-link, or similar).
+  Until verified, the account is in "trial" mode (might have lower
+  quota or feature gates).
+
+WHY
+  - Filters bots / abandoned-test accounts from real long-term users
+  - Required before granting "real-user" privileges (higher quota,
+    propose new HSE classes, email export)
+  - Reduces fraud / quota-laundering across multiple free accounts
+
+IMPLEMENTATION SKETCH
+  1. Schema additions to `users`:
+       phone_e164 TEXT,
+       phone_verified_at TIMESTAMPTZ,
+       email_verified_at TIMESTAMPTZ,
+       trial_expires_at TIMESTAMPTZ,    -- created_at + 14 days
+       verified BOOL DEFAULT FALSE
+  2. After 14 days from first login:
+       - Frontend banner: "verify your account to keep using"
+       - Soft block: read-only mode (can view but not upload)
+  3. Verification methods (in priority order):
+       a. SMS: send 6-digit code via Twilio, user enters in modal
+       b. Email magic-link: send unique URL via Graph; click verifies
+       c. Domain-based: if email ends in @aecis.com or known partner
+          domains, auto-verify on signup (Azure AD already validated
+          the domain)
+  4. Admin override: admin can manually verify a user from the
+     /admin/users panel.
+  5. Sub-feature: a per-IP rate limit on verification attempts (max
+     5 per hour) to stop brute-force.
+
+DEPENDENCIES / CAVEATS
+  - SMS costs ~$0.01-0.05 per verification depending on provider /
+    country. Vietnam SMS is cheap; western numbers are pricier.
+    Budget impact: if 1000 users sign up and 80% verify by SMS,
+    that's $40-80 — negligible.
+  - Domain auto-verify (3c) is the cleanest UX for AECIS-internal
+    users and should be the primary path. SMS is the fallback for
+    external clients.
+  - Storing phone numbers requires care under privacy regulations.
+    Encrypt at rest + only show last 4 digits in admin UI.
+  - The 14-day timer is per-user; a re-login doesn't reset it. Keep
+    `trial_expires_at` immutable after first set.
+
+EFFORT
+  ~2 days for a single verification method (e.g. SMS-only). +1 day
+  per additional method.
+
+
+=============================================================
+RECOMMENDED IMPLEMENTATION ORDER
+=============================================================
+
+The features depend on each other. Sequence:
+
+  1. Auth (#2)            BLOCKS: every other item
+  2. Quota (#3)           depends on #1
+  3. Stats (#4)           depends on #1
+  4. PWA (#1)             independent of auth, but better UX with auth
+  5. Email export (#5)    depends on #1
+  6. User-submitted classes (#6)  depends on #1
+  7. 14-day verification (#7)     depends on #1, #4
+
+Realistic phasing:
+
+  PHASE 1 (~2 weeks):  auth + quota + basic stats
+  PHASE 2 (~1 week):   PWA + email export
+  PHASE 3 (~1 week):   user-submitted classes
+  PHASE 4 (~3 days):   14-day verification
+
+Total: ~5 weeks of focused work, assuming no major scope creep on
+auth (which is by far the most error-prone of the seven).
+
+
+=============================================================
+THINGS TO KEEP IN MIND ACROSS ALL OF THESE
+=============================================================
+
+  - Backwards compatibility: a chunk of existing data has no user_id
+    (was inserted before auth). Decide: backfill with a "legacy" user,
+    or keep tenant_id as the only ownership signal for old rows.
+
+  - Tenant migration: the system currently ships single-tenant
+    ("Public Demo"). Multi-tenant requires a tenant-picker on signup
+    and admin tooling to create new tenants. That's NOT in any of
+    the 7 items above — flag it as a parallel workstream.
+
+  - Cost ticker (already implemented) needs to become PER-USER once
+    auth is in. Today it's per-tenant. Trivial change but easy to
+    forget.
+
+  - The audit trail (corrections.created_at) needs to record user_id
+    too. Schema migration, not hard.
+
+  - Documentation: every feature above needs a short user-facing
+    help doc. AECIS clients aren't going to read source code.
+
+End of plan.
