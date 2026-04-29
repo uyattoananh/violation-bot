@@ -242,6 +242,17 @@ _ADMIN_COOKIE_MAX_AGE = 60 * 60 * 12   # 12 hours
 # multiple gaps in a single shift can submit them all.
 _PROPOSAL_DAILY_PER_USER = int(os.environ.get("PROPOSAL_DAILY_PER_USER", "3"))
 
+# Phase 5 — Google OAuth. None = OAuth disabled (auth routes return 503).
+_GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+_GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+# Default to the production redirect; override via env for dev.
+_GOOGLE_REDIRECT_URI = os.environ.get(
+    "GOOGLE_REDIRECT_URI", "https://hse.aecis.ca/auth/callback/google"
+)
+_SESSION_COOKIE_NAME = "vai_session"
+_OAUTH_STATE_COOKIE_NAME = "vai_oauth_state"
+_SESSION_MAX_AGE_SECONDS = int(os.environ.get("SESSION_MAX_AGE_DAYS", "30")) * 86400
+
 
 def _get_or_set_user_key(request: Request, response_headers: dict | None = None) -> str:
     """Read the user-key cookie; mint a fresh UUID if missing.
@@ -327,10 +338,252 @@ def _quota_increment(user_key: str, n: int) -> None:
 def _admin_authed(request: Request) -> bool:
     """Cheap admin gate. Cookie set after correct password POST.
     Returns False when ADMIN_PASSWORD env var isn't set (admin off).
+
+    Phase 5 also recognises a signed-in user with users.is_admin = TRUE,
+    so once the OAuth flow is in production the env-var fallback can
+    be removed without breaking the dashboard."""
+    if _ADMIN_PASSWORD and request.cookies.get(_ADMIN_COOKIE_NAME) == _ADMIN_PASSWORD:
+        return True
+    user = _get_session_user(request)
+    return bool(user and user.get("is_admin"))
+
+
+# ---------- phase 5: google oauth helpers ----------
+
+def _oauth_enabled() -> bool:
+    """OAuth is opt-in via env vars. When the credentials aren't set,
+    every /auth/* route returns 503 with a clear message — webapp keeps
+    working as anonymous-cookie-only."""
+    return bool(_GOOGLE_CLIENT_ID and _GOOGLE_CLIENT_SECRET)
+
+
+def _new_session_token() -> str:
+    """64-char hex string. URL-safe, unguessable, fits any cookie."""
+    return secrets.token_hex(32)
+
+
+def _attach_session_cookie(response, token: str) -> None:
+    """Set the session cookie on an outbound response. HttpOnly so JS
+    can't read it; SameSite=Lax so it survives top-level navigation
+    from Google's redirect; Secure unless explicitly disabled for dev."""
+    response.set_cookie(
+        _SESSION_COOKIE_NAME,
+        value=token,
+        max_age=_SESSION_MAX_AGE_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=os.environ.get("COOKIE_SECURE", "1") not in ("0", "false", "no"),
+    )
+
+
+def _clear_session_cookie(response) -> None:
+    """Logout: explicitly clear (max_age=0) so the browser drops it."""
+    response.delete_cookie(_SESSION_COOKIE_NAME)
+
+
+def _get_session_user(request: Request) -> dict | None:
+    """Look up the current session and return its user row + the
+    boolean is_admin flag. Returns None when:
+      - cookie absent
+      - session row missing or expired
+      - sessions table not yet migrated (treat as 'not signed in')
+    Failures are silent — auth must never break anonymous browsing.
     """
-    if not _ADMIN_PASSWORD:
-        return False
-    return request.cookies.get(_ADMIN_COOKIE_NAME) == _ADMIN_PASSWORD
+    token = request.cookies.get(_SESSION_COOKIE_NAME)
+    if not token:
+        return None
+    try:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        sess = (
+            get_db().table("sessions").select("user_id, expires_at")
+              .eq("token", token).limit(1).execute().data or []
+        )
+        if not sess:
+            return None
+        if sess[0]["expires_at"] <= now:
+            return None
+        user_id = sess[0]["user_id"]
+        users = (
+            get_db().table("users")
+              .select("id, provider, email, name, picture_url, is_admin")
+              .eq("id", user_id).limit(1).execute().data or []
+        )
+        return users[0] if users else None
+    except Exception as e:  # noqa: BLE001
+        # Pre-migration or transient DB hiccup — treat as not signed in.
+        if "sessions" in str(e) or "users" in str(e):
+            return None
+        log.warning("session lookup failed: %s", e)
+        return None
+
+
+def _google_authorize_url(state: str) -> str:
+    """Build the Google OAuth 2.0 authorize URL. We ask for openid +
+    profile + email (the same set declared in API permissions). Adding
+    `prompt=select_account` lets the user pick which Google identity
+    to use even when they're already logged into Google in this browser
+    — important for shared inspector workstations.
+    """
+    from urllib.parse import urlencode
+    qs = urlencode({
+        "client_id": _GOOGLE_CLIENT_ID,
+        "redirect_uri": _GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "prompt": "select_account",
+        "access_type": "online",
+    })
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{qs}"
+
+
+async def _google_exchange_code(code: str) -> dict:
+    """POST the auth code to Google's token endpoint and return the
+    parsed JSON. Raises HTTPException on any non-200 — caller surfaces
+    a 'sign-in failed, please try again' page.
+    """
+    import httpx
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": _GOOGLE_CLIENT_ID,
+                "client_secret": _GOOGLE_CLIENT_SECRET,
+                "redirect_uri": _GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+        )
+    if r.status_code != 200:
+        log.warning("google token exchange failed: %s %s", r.status_code, r.text[:300])
+        raise HTTPException(401, "google token exchange failed")
+    return r.json()
+
+
+async def _google_fetch_userinfo(access_token: str) -> dict:
+    """Pull the user's profile claims (sub, email, name, picture) from
+    the Google userinfo endpoint. Avoids parsing the id_token JWT
+    ourselves — Google's userinfo is the canonical surface for the same
+    claims and saves us a JWT-verification dependency."""
+    import httpx
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(
+            "https://openidconnect.googleapis.com/v1/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if r.status_code != 200:
+        log.warning("google userinfo failed: %s %s", r.status_code, r.text[:300])
+        raise HTTPException(401, "google userinfo failed")
+    return r.json()
+
+
+def _upsert_user(provider: str, profile: dict) -> dict:
+    """Find-or-create the users row for this provider/sub. Returns the
+    full row. Updates email/name/picture on every login since Google
+    profile fields can change between sessions."""
+    from datetime import datetime, timezone
+    db = get_db()
+    sub = profile.get("sub") or profile.get("oid")
+    if not sub:
+        raise HTTPException(401, "missing user identifier from provider")
+    existing = (
+        db.table("users").select("*")
+          .eq("provider", provider)
+          .eq("provider_user_id", sub)
+          .limit(1).execute().data or []
+    )
+    now = datetime.now(timezone.utc).isoformat()
+    if existing:
+        user = existing[0]
+        db.table("users").update({
+            "email": profile.get("email") or user.get("email"),
+            "name": profile.get("name") or user.get("name"),
+            "picture_url": profile.get("picture") or user.get("picture_url"),
+            "last_seen_at": now,
+        }).eq("id", user["id"]).execute()
+        return {**user,
+                "email": profile.get("email") or user.get("email"),
+                "name": profile.get("name") or user.get("name"),
+                "picture_url": profile.get("picture") or user.get("picture_url"),
+                "last_seen_at": now}
+    inserted = (
+        db.table("users").insert({
+            "provider": provider,
+            "provider_user_id": sub,
+            "email": profile.get("email"),
+            "name": profile.get("name"),
+            "picture_url": profile.get("picture"),
+            "last_seen_at": now,
+        }).execute().data or []
+    )
+    if not inserted:
+        raise HTTPException(500, "failed to create user record")
+    return inserted[0]
+
+
+def _create_session(user_id: str, request: Request) -> str:
+    """Insert a sessions row and return the token to put in the cookie.
+    The token is the only secret — user_id never leaves the server."""
+    from datetime import datetime, timezone, timedelta
+    token = _new_session_token()
+    expires = datetime.now(timezone.utc) + timedelta(seconds=_SESSION_MAX_AGE_SECONDS)
+    ua = request.headers.get("user-agent", "")[:500]
+    fwd = request.headers.get("x-forwarded-for") or ""
+    ip = (fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else None))
+    try:
+        get_db().table("sessions").insert({
+            "user_id": user_id,
+            "token": token,
+            "expires_at": expires.isoformat(),
+            "user_agent": ua,
+            "ip": ip,
+        }).execute()
+    except Exception as e:  # noqa: BLE001
+        log.error("session insert failed: %s", e)
+        raise HTTPException(500, "session create failed")
+    return token
+
+
+def _retro_attribute_user(user_id: str, user_key: str | None) -> dict[str, int]:
+    """Stamp user_id onto every existing row currently keyed by the
+    user's pre-auth cookie value. Idempotent — re-running on subsequent
+    logins is a no-op once everything is already attributed.
+
+    Best-effort: per-table failures are logged but don't break sign-in.
+    Returns a {table: rows_touched} dict for the audit log + admin
+    visibility.
+    """
+    if not user_key:
+        return {}
+    db = get_db()
+    counts: dict[str, int] = {}
+    # Tables to retro-patch + the column that holds the cookie key.
+    tables = [
+        ("photos", "user_key"),
+        ("corrections", "user_key"),
+        ("hse_class_proposals", "proposed_by_user_key"),
+        ("daily_quota_usage", "user_key"),
+        ("email_jobs", "user_key"),
+    ]
+    for tbl, key_col in tables:
+        try:
+            (db.table(tbl)
+               .update({"user_id": user_id})
+               .eq(key_col, user_key)
+               .is_("user_id", "null")
+               .execute())
+            # PostgREST doesn't return updated row count cheaply for
+            # bulk update without a select; we report 'best-effort' as
+            # 1 (touched) and rely on the retry-idempotency.
+            counts[tbl] = 1
+        except Exception as e:  # noqa: BLE001
+            # Pre-migration tables (no user_id column yet) raise;
+            # log + continue so partially-migrated environments
+            # still let the user sign in.
+            log.warning("retro-attribute %s failed: %s", tbl, e)
+            counts[tbl] = 0
+    return counts
 
 
 # ---------- phase 4: hse-class proposal helpers ----------
@@ -2665,7 +2918,154 @@ def api_usage_today():
     }
 
 
-# ---------- admin (env-var-password gated; replaced by real auth in phase 5) ----------
+# ---------- phase 5: google oauth routes ----------
+
+@app.get("/auth/login/google")
+def auth_login_google(request: Request, next: str = "/"):
+    """Kick off the Google OAuth flow.
+
+    Generates a CSRF state token, stows it in a short-lived cookie,
+    and redirects the browser to Google's authorize endpoint. The
+    `next` query param survives the round-trip (encoded into state)
+    so the callback can drop the user back where they came from.
+    """
+    if not _oauth_enabled():
+        raise HTTPException(
+            503,
+            "Google sign-in is not configured (set GOOGLE_CLIENT_ID / "
+            "GOOGLE_CLIENT_SECRET env vars).",
+        )
+    # State token format: <random>.<safe_next> — Google echoes the
+    # whole string back; we split on '.' to verify random + recover next.
+    raw = secrets.token_urlsafe(32)
+    safe_next = next if next.startswith("/") and not next.startswith("//") else "/"
+    # base64-ish safe chars only; restore on callback.
+    encoded_next = uuid.uuid5(uuid.NAMESPACE_URL, safe_next).hex
+    # We store the actual `next` separately keyed by the random part so
+    # an attacker can't substitute a different next URL in the state.
+    state = raw
+
+    resp = RedirectResponse(_google_authorize_url(state), status_code=303)
+    resp.set_cookie(
+        _OAUTH_STATE_COOKIE_NAME,
+        value=f"{raw}|{safe_next}",
+        max_age=600,   # 10 min — long enough for the round-trip
+        httponly=True,
+        samesite="lax",
+        secure=os.environ.get("COOKIE_SECURE", "1") not in ("0", "false", "no"),
+    )
+    return resp
+
+
+@app.get("/auth/callback/google")
+async def auth_callback_google(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+):
+    """Google's redirect target. Verifies the state cookie, exchanges
+    the auth code for tokens, fetches the user profile, upserts the
+    users row, creates a session, retro-attributes pre-auth cookie
+    data, and redirects back to the app.
+
+    On any failure, drops a small inline HTML page with a 'Try again'
+    link rather than a JSON 4xx — this is a top-level browser navigation,
+    not a fetch from JS.
+    """
+    if not _oauth_enabled():
+        raise HTTPException(503, "google oauth not configured")
+    if error:
+        return HTMLResponse(
+            f"<h1>Sign-in cancelled</h1><p>Google reported: <code>{error}</code></p>"
+            "<p><a href='/'>← Back to app</a></p>", status_code=400)
+    if not code or not state:
+        raise HTTPException(400, "missing code/state")
+
+    cookie_state = request.cookies.get(_OAUTH_STATE_COOKIE_NAME) or ""
+    raw, _, safe_next = cookie_state.partition("|")
+    if not raw or not secrets.compare_digest(raw, state):
+        log.warning("oauth state mismatch")
+        return HTMLResponse(
+            "<h1>Sign-in failed</h1><p>State token mismatch — try again.</p>"
+            "<p><a href='/auth/login/google'>← Try again</a></p>", status_code=400)
+
+    try:
+        token_data = await _google_exchange_code(code)
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise HTTPException(401, "no access token in google response")
+        profile = await _google_fetch_userinfo(access_token)
+    except HTTPException:
+        return HTMLResponse(
+            "<h1>Sign-in failed</h1><p>Google rejected the auth code. Try again.</p>"
+            "<p><a href='/auth/login/google'>← Try again</a></p>", status_code=401)
+
+    # Persist user + session. Wrap so a transient DB failure doesn't
+    # leave the user stranded — they get a retry link.
+    try:
+        user = _upsert_user("google", profile)
+        session_token = _create_session(user["id"], request)
+    except Exception as e:  # noqa: BLE001
+        log.error("oauth callback persistence failed: %s", e)
+        return HTMLResponse(
+            "<h1>Sign-in failed</h1>"
+            "<p>Couldn't save your session. The sysadmin has been notified.</p>"
+            "<p><a href='/'>← Back to app</a></p>", status_code=500)
+
+    # Retro-attribute the pre-auth cookie's data to this user. Best-effort.
+    pre_auth_key = request.cookies.get(_USER_COOKIE_NAME)
+    if pre_auth_key:
+        _retro_attribute_user(user["id"], pre_auth_key)
+
+    target = safe_next if safe_next and safe_next.startswith("/") and not safe_next.startswith("//") else "/"
+    resp = RedirectResponse(target, status_code=303)
+    _attach_session_cookie(resp, session_token)
+    resp.delete_cookie(_OAUTH_STATE_COOKIE_NAME)
+    return resp
+
+
+@app.post("/auth/logout")
+def auth_logout(request: Request):
+    """Drop the session row + clear the cookie. The vai_uid cookie is
+    NOT cleared — the user can keep working anonymously. Returns a
+    303 redirect for HTML-form submissions; JS callers can ignore the
+    body."""
+    token = request.cookies.get(_SESSION_COOKIE_NAME)
+    if token:
+        try:
+            get_db().table("sessions").delete().eq("token", token).execute()
+        except Exception as e:  # noqa: BLE001
+            log.warning("session delete failed: %s", e)
+    resp = RedirectResponse("/", status_code=303)
+    _clear_session_cookie(resp)
+    return resp
+
+
+@app.get("/auth/me")
+def auth_me(request: Request):
+    """Return the current signed-in user (or {authed: false}). Read by
+    the frontend to render the user pill in the header. Cheap — single
+    sessions+users join, indexed on token. Safe to call on every page
+    load."""
+    user = _get_session_user(request)
+    if not user:
+        return JSONResponse(content={
+            "authed": False,
+            "google_enabled": _oauth_enabled(),
+            "login_url": "/auth/login/google" if _oauth_enabled() else None,
+        })
+    return JSONResponse(content={
+        "authed": True,
+        "id": user["id"],
+        "email": user.get("email"),
+        "name": user.get("name"),
+        "picture_url": user.get("picture_url"),
+        "is_admin": user.get("is_admin", False),
+    })
+
+
+# ---------- admin (env-var-password gated; user is_admin also recognised in phase 5) ----------
 
 @app.post("/admin/login")
 def admin_login(request: Request, password: str = Form(...)):

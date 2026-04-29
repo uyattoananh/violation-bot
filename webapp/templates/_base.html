@@ -74,6 +74,59 @@
                 title="Keyboard shortcuts">
           <kbd class="font-mono">?</kbd>
         </button>
+
+        <!-- Auth pill: shows sign-in button when logged out, the user's
+             avatar + first name when logged in. Click toggles a tiny
+             menu with email, admin link (if applicable), sign out.
+             Initially hidden — JS reveals the right state after
+             /auth/me returns. -->
+        <div id="auth-pill" class="relative hidden">
+          <!-- Logged-out state -->
+          <button id="auth-signin" type="button"
+                  class="hidden items-center gap-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 rounded-full px-3 py-1.5 transition-colors"
+                  title="Sign in with Google">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            <span data-i18n="auth_signin">Sign in</span>
+          </button>
+
+          <!-- Logged-in state -->
+          <button id="auth-user" type="button"
+                  class="hidden items-center gap-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:border-slate-300 rounded-full pl-1 pr-3 py-1 transition-colors"
+                  aria-haspopup="true" aria-expanded="false">
+            <img id="auth-avatar" src="" alt="" class="w-6 h-6 rounded-full bg-slate-200 object-cover" referrerpolicy="no-referrer">
+            <span id="auth-username" class="max-w-[120px] truncate">…</span>
+            <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 20 20" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 7l5 5 5-5"/>
+            </svg>
+          </button>
+
+          <!-- Dropdown menu -->
+          <div id="auth-menu"
+               class="hidden absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-40">
+            <div class="px-3 py-2 border-b border-slate-100">
+              <div id="auth-menu-name" class="font-medium text-slate-900 text-sm truncate">…</div>
+              <div id="auth-menu-email" class="text-xs text-slate-500 truncate">…</div>
+            </div>
+            <a id="auth-menu-admin"
+               href="/admin"
+               class="hidden flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.6 2A9 9 0 11 3.4 14a9 9 0 0117.2 0z"/></svg>
+              <span data-i18n="auth_admin_link">Admin panel</span>
+            </a>
+            <form method="POST" action="/auth/logout" class="m-0">
+              <button type="submit"
+                      class="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-lg">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                <span data-i18n="auth_signout">Sign out</span>
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
     </div>
   </header>
@@ -310,6 +363,84 @@
       </ul>
     </div>
   </div>
+
+  <script>
+    // Auth pill: populate header with the user's avatar+name when
+    // signed in, or a "Sign in" button when not. Lives in _base.html
+    // so admin pages and the main app share the same UX. Cookie+session
+    // are server-validated; the JSON we read here just decides what to
+    // show in the dropdown.
+    (function () {
+      const pill = document.getElementById("auth-pill");
+      if (!pill) return;
+      const signinBtn = document.getElementById("auth-signin");
+      const userBtn = document.getElementById("auth-user");
+      const menu = document.getElementById("auth-menu");
+      const avatar = document.getElementById("auth-avatar");
+      const username = document.getElementById("auth-username");
+      const menuName = document.getElementById("auth-menu-name");
+      const menuEmail = document.getElementById("auth-menu-email");
+      const adminLink = document.getElementById("auth-menu-admin");
+
+      function show(el) { el.classList.remove("hidden"); el.classList.add("inline-flex"); }
+      function hide(el) { el.classList.add("hidden"); el.classList.remove("inline-flex", "flex"); }
+
+      // Default state: pill hidden until /auth/me returns. Avoids
+      // a flash of the "Sign in" button during the round-trip on
+      // pages where the user is already authenticated.
+      pill.classList.remove("hidden");
+
+      fetch("/auth/me", { credentials: "same-origin" })
+        .then((r) => r.ok ? r.json() : { authed: false })
+        .then((d) => {
+          if (!d.authed) {
+            // Hide the pill entirely if Google OAuth isn't configured
+            // — no point teasing a button that 503s on click.
+            if (!d.google_enabled) {
+              pill.classList.add("hidden");
+              return;
+            }
+            // Logged out: show "Sign in" button. We send `next=` so the
+            // callback returns the user to where they were.
+            const nextParam = encodeURIComponent(window.location.pathname + window.location.search);
+            signinBtn.addEventListener("click", () => {
+              window.location.href = `/auth/login/google?next=${nextParam}`;
+            });
+            show(signinBtn);
+            return;
+          }
+          // Logged in: avatar + first name + dropdown.
+          const first = (d.name || d.email || "").split(/\s+/)[0] || "You";
+          username.textContent = first;
+          menuName.textContent = d.name || d.email || "Signed in";
+          menuEmail.textContent = d.email || "";
+          if (d.picture_url) avatar.src = d.picture_url;
+          if (d.is_admin) adminLink.classList.remove("hidden");
+          show(userBtn);
+          // Toggle dropdown on click; close on outside click.
+          userBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            menu.classList.toggle("hidden");
+            userBtn.setAttribute("aria-expanded",
+              menu.classList.contains("hidden") ? "false" : "true");
+          });
+          document.addEventListener("click", (e) => {
+            if (!pill.contains(e.target)) {
+              menu.classList.add("hidden");
+              userBtn.setAttribute("aria-expanded", "false");
+            }
+          });
+          // Esc closes the menu.
+          document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && !menu.classList.contains("hidden")) {
+              menu.classList.add("hidden");
+              userBtn.setAttribute("aria-expanded", "false");
+            }
+          });
+        })
+        .catch(() => { /* silent — pill stays hidden */ });
+    })();
+  </script>
 
 </body>
 </html>
