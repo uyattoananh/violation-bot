@@ -153,6 +153,23 @@
           <kbd class="font-mono">?</kbd>
         </button>
 
+        <!-- PWA install button. Hidden by default; JS in this file reveals
+             it once we detect either:
+               - Android (Chrome/Edge/Samsung) fired `beforeinstallprompt`
+               - iOS Safari (no programmatic install — opens an instructions
+                 modal showing the Share → Add to Home Screen flow)
+             Stays hidden if the page is already running standalone (i.e.
+             the user already installed it) or on desktop where install is
+             not the primary use case. -->
+        <button id="pwa-install-btn" type="button"
+                class="hidden items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 hover:border-emerald-300 rounded-full px-3 py-1.5 transition-colors"
+                title="Install app to home screen">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v12m0 0l-4-4m4 4l4-4M4.5 19.5h15"/>
+          </svg>
+          <span data-i18n="pwa_install">Install app</span>
+        </button>
+
         <!-- Auth pill: shows sign-in button when logged out, the user's
              avatar + first name when logged in. Click toggles a tiny
              menu with email, admin link (if applicable), sign out.
@@ -424,6 +441,55 @@
     </div>
   </div>
 
+  <!-- iOS Add-to-Home-Screen instructions modal. Shown only when the
+       install button is tapped on iOS Safari, since iOS doesn't expose
+       a programmatic install API (no beforeinstallprompt). The user
+       follows the Share → Add to Home Screen flow themselves; we just
+       point them at the right buttons. -->
+  <div id="pwa-ios-modal" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-slate-900" data-i18n="pwa_ios_title">Install on iPhone / iPad</h3>
+        <button id="pwa-ios-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
+      </div>
+      <ol class="text-sm text-slate-700 space-y-3">
+        <li class="flex items-start gap-2.5">
+          <span class="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold grid place-items-center">1</span>
+          <span class="flex-1 flex items-center gap-2 flex-wrap">
+            <span data-i18n="pwa_ios_step1">Tap the Share button</span>
+            <!-- iOS share-sheet icon (square + up-arrow) -->
+            <svg class="inline-block w-5 h-5 text-sky-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15M9 12l3-3m0 0l3 3m-3-3v12"/>
+            </svg>
+            <span class="text-xs text-slate-500" data-i18n="pwa_ios_step1_loc">at the bottom of Safari</span>
+          </span>
+        </li>
+        <li class="flex items-start gap-2.5">
+          <span class="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold grid place-items-center">2</span>
+          <span class="flex-1">
+            <span data-i18n="pwa_ios_step2">Scroll and tap</span>
+            <span class="font-medium text-slate-900">"<span data-i18n="pwa_ios_step2_label">Add to Home Screen</span>"</span>
+            <svg class="inline-block w-4 h-4 text-slate-500 -mt-0.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+            </svg>
+          </span>
+        </li>
+        <li class="flex items-start gap-2.5">
+          <span class="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold grid place-items-center">3</span>
+          <span class="flex-1" data-i18n="pwa_ios_step3">
+            Tap <span class="font-medium text-slate-900">"Add"</span> in the top-right.
+          </span>
+        </li>
+      </ol>
+      <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500" data-i18n="pwa_ios_note">
+        Must be opened in Safari — the share sheet's "Add to Home Screen" doesn't appear in Chrome on iOS.
+      </div>
+      <button id="pwa-ios-ok" type="button"
+              class="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+              data-i18n="pwa_ios_ok">Got it</button>
+    </div>
+  </div>
+
   <!-- Keyboard shortcuts modal -->
   <div id="kbd-help" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
@@ -519,6 +585,140 @@
           });
         })
         .catch(() => { /* silent — pill stays hidden */ });
+    })();
+
+    // =====================================================================
+    // PWA install button (cross-platform)
+    //
+    // Two install paths exist; we pick one at runtime based on the browser:
+    //
+    //   1. Android Chrome / Edge / Samsung — fires `beforeinstallprompt`
+    //      on a page that meets the install criteria (HTTPS + manifest +
+    //      SW). We capture the event, reveal the button, and call
+    //      `.prompt()` on click. One-tap install.
+    //
+    //   2. iOS Safari — Apple deliberately does NOT support
+    //      beforeinstallprompt. There is no programmatic install API
+    //      whatsoever. Best we can do is show the user instructions
+    //      pointing at the share sheet's "Add to Home Screen" item.
+    //
+    // We hide the button entirely when the page is already running
+    // standalone (the user already installed it) and on desktop where
+    // the construction-site UX is irrelevant.
+    // =====================================================================
+    (function () {
+      const btn       = document.getElementById("pwa-install-btn");
+      const iosModal  = document.getElementById("pwa-ios-modal");
+      const iosClose  = document.getElementById("pwa-ios-close");
+      const iosOk     = document.getElementById("pwa-ios-ok");
+      if (!btn) return;
+
+      // Already installed? Hide forever for this load. iOS uses
+      // navigator.standalone (non-standard); other browsers expose
+      // display-mode via matchMedia.
+      const isStandalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true;
+      if (isStandalone) return;
+
+      // Platform sniff. iOS Safari is the only browser on iOS that can
+      // actually install a PWA (Chrome/Firefox on iOS share Safari's
+      // engine but block the share-sheet item, so we still tell the
+      // user to open in Safari via the modal note).
+      const ua = navigator.userAgent || "";
+      const isIOS =
+        /iPad|iPhone|iPod/.test(ua) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPad on iPadOS 13+
+      // Mobile-only: don't pester desktop users with an "install" affordance.
+      const isMobile = isIOS || /Android|Mobile/i.test(ua);
+      if (!isMobile) return;
+
+      function show() {
+        btn.classList.remove("hidden");
+        btn.classList.add("inline-flex");
+      }
+      function hide() {
+        btn.classList.add("hidden");
+        btn.classList.remove("inline-flex");
+      }
+      function openIosModal() {
+        if (!iosModal) return;
+        iosModal.classList.remove("hidden");
+        iosModal.classList.add("flex");
+      }
+      function closeIosModal() {
+        if (!iosModal) return;
+        iosModal.classList.add("hidden");
+        iosModal.classList.remove("flex");
+      }
+
+      // ---- Android path: capture the deferred prompt ----
+      let deferredPrompt = null;
+      window.addEventListener("beforeinstallprompt", (e) => {
+        // Stop the browser's own install banner; we'll trigger it
+        // ourselves on click so the user has a clearer affordance.
+        e.preventDefault();
+        deferredPrompt = e;
+        show();
+      });
+
+      // If install actually completes, hide the button so we don't
+      // tease an action that no longer makes sense.
+      window.addEventListener("appinstalled", () => {
+        deferredPrompt = null;
+        hide();
+        try { console.debug("[pwa] installed"); } catch (_) {}
+      });
+
+      // ---- iOS path: Safari never fires beforeinstallprompt, so
+      //      we have to assume installable and show the button right
+      //      away. The click handler routes to the instructions modal. ----
+      if (isIOS) show();
+
+      // ---- Click handler — branch by platform ----
+      btn.addEventListener("click", async () => {
+        if (deferredPrompt) {
+          // Android path: native prompt. `prompt()` returns when the
+          // user picks; userChoice resolves with {outcome: "accepted"|"dismissed"}.
+          try {
+            deferredPrompt.prompt();
+            const choice = await deferredPrompt.userChoice;
+            if (choice && choice.outcome === "accepted") {
+              hide();
+            }
+          } catch (err) {
+            // Some browsers throw if prompt() is called twice. Fall
+            // back to hiding the button so we don't re-trigger.
+            console.warn("[pwa] prompt failed", err);
+          } finally {
+            deferredPrompt = null;
+          }
+          return;
+        }
+        if (isIOS) {
+          openIosModal();
+          return;
+        }
+        // Last-resort fallback: no deferred prompt and not iOS — could
+        // be a desktop browser sneaking past the mobile filter, or a
+        // browser that suppresses beforeinstallprompt. Show iOS-style
+        // instructions as the most universal hint we can give.
+        openIosModal();
+      });
+
+      // Modal close handlers — backdrop, X button, OK button, Esc key.
+      if (iosClose) iosClose.addEventListener("click", closeIosModal);
+      if (iosOk) iosOk.addEventListener("click", closeIosModal);
+      if (iosModal) {
+        iosModal.addEventListener("click", (e) => {
+          if (e.target === iosModal) closeIosModal();
+        });
+      }
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && iosModal && !iosModal.classList.contains("hidden")) {
+          closeIosModal();
+        }
+      });
     })();
   </script>
 
