@@ -282,12 +282,6 @@
         "primary_work_zone": "Electricity and Electrical Equipment"
       },
       {
-        "slug": "Damaged",
-        "label_en": "Damaged",
-        "label_vn": "unsafe electrical wire/ Dây điện bị hư hỏng, không đảm bảo an toàn",
-        "primary_work_zone": "Electricity and Electrical Equipment"
-      },
-      {
         "slug": "Damaged_welding_tong_ground_clamp_electrical_wire",
         "label_en": "Damaged welding tong, ground clamp, electrical wire",
         "label_vn": "Kìm hàn, kẹp mát, dây điện bị hư hỏng",
@@ -864,12 +858,6 @@
         "label_en": "The purlins, planks, and trays are not securely fastened",
         "label_vn": "Không neo buộc chắc chắn các thiết bị xà gồ, ván, mâm",
         "primary_work_zone": "Working at height"
-      },
-      {
-        "slug": "Unreinforced",
-        "label_en": "Unreinforced",
-        "label_vn": "unsafe lightning pole protection pole/ Cột chống sét không gia cố/ không đảm bảo an toàn",
-        "primary_work_zone": "Temporary lightning pole"
       },
       {
         "slug": "Unsafe_working_position_Risk_of_falling_collision_slipping",
@@ -1582,12 +1570,6 @@
     ],
     "Workshop_area_unsafe": [
       {
-        "slug": "No",
-        "label_en": "No",
-        "label_vn": "lacking of grounding for machines/ Tiếp địa cho máy móc không có/ không tốt",
-        "primary_work_zone": "Workshop area"
-      },
-      {
         "slug": "No_implement_5S_standards_for_area_or_no_rack_to_store_materials",
         "label_en": "No implement 5S standards for area or no rack to store materials",
         "label_vn": "Không thực hiện 5S khu vực hoặc không có kệ để chứa vật tư",
@@ -1703,12 +1685,6 @@
       }
     ],
     "Formwork_unsafe": [
-      {
-        "slug": "Not_fixed",
-        "label_en": "Not fixed",
-        "label_vn": "Không được gia cố chắc chắn",
-        "primary_work_zone": "Formwork"
-      },
       {
         "slug": "Sharp_edges_or_end_of_steel_rebar_are_not_covered_or_protected",
         "label_en": "Sharp edges or end of steel rebar are not covered or protected",
@@ -1827,6 +1803,6 @@
   },
   "stats": {
     "parent_count": 29,
-    "total_fine_types": 294
+    "total_fine_types": 290
   }
 }
