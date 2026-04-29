@@ -188,7 +188,7 @@ def build_violation_pdf(
         leftMargin=0.6 * inch, rightMargin=0.6 * inch,
         topMargin=0.7 * inch, bottomMargin=0.7 * inch,
         title="Violation Report",
-        author="Violation AI",
+        author="HSE Detector",
     )
 
     story: list = []

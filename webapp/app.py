@@ -1825,7 +1825,12 @@ footer a:hover {{ border-color: var(--ink); }}
     const langCode = (l) => ({{ vn: "vi", es: "es", zh: "zh-CN", en: "en" }}[l] || "en");
     const allBtns = Array.from(document.querySelectorAll(".locale-toggle button"));
     const knownLangs = new Set(allBtns.map(b => b.dataset.loc).filter(Boolean));
-    let saved = localStorage.getItem("vai-lang") || "en";
+    // Read both keys: the main app uses "violation-ai-lang", the
+    // landing/signin pages historically used "vai-lang". Prefer the
+    // main-app key so a returning user's choice in-app carries back
+    // here; fall back to the legacy landing key.
+    let saved = localStorage.getItem("violation-ai-lang")
+              || localStorage.getItem("vai-lang") || "en";
     if (!knownLangs.has(saved)) saved = "en";
 
     function apply(loc) {{
@@ -1845,7 +1850,11 @@ footer a:hover {{ border-color: var(--ink); }}
         els.forEach(e => e.classList.toggle("show", e.dataset.locale === target));
       }});
       allBtns.forEach(b => b.classList.toggle("active", b.dataset.loc === loc));
+      // Write to BOTH keys so the choice carries over to the in-app
+      // shell (which reads "violation-ai-lang"). Keep "vai-lang" too
+      // for backwards compatibility with any older cached pages.
       localStorage.setItem("vai-lang", loc);
+      localStorage.setItem("violation-ai-lang", loc);
       document.documentElement.lang = langCode(loc);
     }}
     allBtns.forEach(b => b.addEventListener("click", () => apply(b.dataset.loc)));
@@ -1899,7 +1908,10 @@ footer a:hover {{ border-color: var(--ink); }}
       wrap.style.display = "none";
     }});
 
-    function lang() {{ return localStorage.getItem("vai-lang") || "en"; }}
+    function lang() {{
+      return localStorage.getItem("violation-ai-lang")
+          || localStorage.getItem("vai-lang") || "en";
+    }}
     function buildIosSteps() {{
       const en = lang() !== "vn";
       const shareSvg = '<svg class="share" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15M9 12l3-3m0 0l3 3m-3-3v12"/></svg>';
@@ -4508,7 +4520,12 @@ h1 {{ font-size: 24px; margin: 14px 0 8px; font-weight: 600; letter-spacing: -0.
   (function () {{
     const allBtns = Array.from(document.querySelectorAll(".locale-toggle button"));
     const known = new Set(allBtns.map(b => b.dataset.loc).filter(Boolean));
-    let saved = localStorage.getItem("vai-lang") || "en";
+    // Read both keys: the main app uses "violation-ai-lang", the
+    // landing/signin pages historically used "vai-lang". Prefer the
+    // main-app key so a returning user's choice in-app carries back
+    // here; fall back to the legacy landing key.
+    let saved = localStorage.getItem("violation-ai-lang")
+              || localStorage.getItem("vai-lang") || "en";
     if (!known.has(saved)) saved = "en";
     function apply(loc) {{
       const groups = new Map();
@@ -4523,7 +4540,11 @@ h1 {{ font-size: 24px; margin: 14px 0 8px; font-weight: 600; letter-spacing: -0.
         els.forEach(e => e.classList.toggle("show", e.dataset.locale === target));
       }});
       allBtns.forEach(b => b.classList.toggle("active", b.dataset.loc === loc));
+      // Write to BOTH keys so the choice carries over to the in-app
+      // shell (which reads "violation-ai-lang"). Keep "vai-lang" too
+      // for backwards compatibility with any older cached pages.
       localStorage.setItem("vai-lang", loc);
+      localStorage.setItem("violation-ai-lang", loc);
     }}
     allBtns.forEach(b => b.addEventListener("click", () => apply(b.dataset.loc)));
     apply(saved);

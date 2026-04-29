@@ -225,19 +225,17 @@
       color: var(--accent) !important;
     }
 
-    /* ---- Confidence band borders: paper-warm edge, semantic only on accent strip ---- */
-    body.theme-paper .band-high   { border-color: rgba(180,83,9,0.25) !important; }
-    body.theme-paper .band-medium { border-color: rgba(217,119,6,0.35) !important; }
-    body.theme-paper .band-low    { border-color: rgba(244,63,94,0.30) !important; }
-
-    /* ---- Confidence ring: replace emerald with ink/accent ---- */
-    body.theme-paper .conf-ring {
-      --color: var(--ink) !important;
-    }
+    /* ---- Confidence ring: keep the per-card semantic color (green/amber/rose
+            set inline via setConfidenceRing); only restyle the inner circle to
+            paper and the % text to ink. Do NOT override --color or background:
+            doing so erases the high/medium/low visual cue. ---- */
     body.theme-paper .conf-ring::before {
       background: var(--paper-soft) !important;
     }
     body.theme-paper .conf-ring > span { color: var(--ink) !important; }
+    /* The .band-high / .band-medium / .band-low border colors come from
+       app.css and carry semantic meaning. Leave them alone under paper theme
+       so an inspector still sees green/amber/rose at a glance. */
 
     /* ---- Drag-over glow tinted to accent rather than emerald ---- */
     body.theme-paper .drop-active {
@@ -313,23 +311,25 @@
       outline: none !important;
     }
 
-    /* ---- Modals (email, history, kbd, propose, markup, data-notice) ---- */
-    body.theme-paper [id$="-modal"] > div > div,
+    /* ---- Modal cards (the elevated sheet inside each backdrop). Listed
+            explicitly so we only border the outer card and not inner layout
+            divs. #kbd-help doesn't follow the *-modal naming so we name it. ---- */
+    body.theme-paper #email-modal      > div,
+    body.theme-paper #markup-modal     > div,
+    body.theme-paper #propose-modal    > div,
+    body.theme-paper #history-modal    > div,
     body.theme-paper #data-notice-modal > div,
-    body.theme-paper #pwa-ios-modal > div,
-    body.theme-paper #lightbox img {
+    body.theme-paper #pwa-ios-modal    > div,
+    body.theme-paper #kbd-help         > div {
       background-color: var(--paper) !important;
       border: 1px solid var(--hairline);
     }
-    body.theme-paper [id$="-modal"] .bg-white,
-    body.theme-paper #data-notice-modal .bg-white,
-    body.theme-paper #pwa-ios-modal .bg-white { background-color: var(--paper) !important; }
 
     /* ---- The "AI suggests" / "Confirmed" pills inside cards ---- */
     body.theme-paper .bg-emerald-100\/70 { background-color: rgba(180,83,9,0.10) !important; }
 
-    /* ---- Confidence ring outer bg (slate-200 default) — keep mute on paper ---- */
-    body.theme-paper .conf-ring { background: conic-gradient(var(--ink) calc(var(--pct) * 1%), rgba(10,10,10,0.10) 0) !important; }
+    /* (Confidence ring background is handled in app.css; per-card --color
+        carries the semantic green/amber/rose. Don't override it here.) */
 
     /* ---- Brand link in header: bigger weight on the "Detector" word ---- */
     body.theme-paper .brand-link .em { color: var(--accent); font-weight: 600; }

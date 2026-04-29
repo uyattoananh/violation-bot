@@ -144,7 +144,10 @@
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-9 0V3m0 0L7.5 7.5M12 3l4.5 4.5"/>
       </svg>
-      <span id="cam-burst-upload-label" data-i18n="cam_burst_upload">Upload</span>
+      <!-- Two separate spans so applyLang() (which targets data-i18n)
+           doesn't wipe the count suffix that JS sets dynamically. -->
+      <span data-i18n="cam_burst_upload">Upload</span>
+      <span id="cam-burst-upload-count" class="tabular-nums"></span>
     </button>
   </div>
 </section>
@@ -1345,8 +1348,11 @@ function t(key) {
   return (I18N[LANG] && I18N[LANG][key]) || (I18N.en && I18N.en[key]) || key;
 }
 
+// Map our internal locale codes to proper BCP47 tags so screen readers
+// and search engines recognise the page language correctly.
+const _BCP47 = { en: "en", vn: "vi", es: "es", zh: "zh-CN" };
 function applyLang() {
-  document.documentElement.lang = LANG;
+  document.documentElement.lang = _BCP47[LANG] || "en";
   // Static elements with data-i18n
   document.querySelectorAll("[data-i18n]").forEach(elt => {
     const key = elt.dataset.i18n;
@@ -2998,7 +3004,7 @@ const camBurstThumbs  = document.getElementById("cam-burst-thumbs");
 const camBurstCount   = document.getElementById("cam-burst-count");
 const camBurstAddBtn  = document.getElementById("cam-burst-add");
 const camBurstUpBtn   = document.getElementById("cam-burst-upload");
-const camBurstUpLbl   = document.getElementById("cam-burst-upload-label");
+const camBurstUpCnt   = document.getElementById("cam-burst-upload-count");
 const camBurstClrBtn  = document.getElementById("cam-burst-clear");
 
 function _renderCamBurst() {
@@ -3026,10 +3032,9 @@ function _renderCamBurst() {
     });
   });
   if (camBurstCount) camBurstCount.textContent = String(_camBurst.files.length);
-  if (camBurstUpLbl) camBurstUpLbl.textContent =
-    _camBurst.files.length > 1
-      ? `${(typeof t === "function" ? t("cam_burst_upload") : "Upload")} ${_camBurst.files.length}`
-      : (typeof t === "function" ? t("cam_burst_upload") : "Upload");
+  // Count goes in its own span so applyLang() won't blow it away.
+  if (camBurstUpCnt) camBurstUpCnt.textContent =
+    _camBurst.files.length > 1 ? ` ${_camBurst.files.length}` : "";
   // Show / hide the tray based on whether anything is staged.
   if (camBurstTray) {
     if (_camBurst.files.length > 0) {
@@ -3071,12 +3076,24 @@ if (camBurstAddBtn && cameraInput) {
   });
 }
 if (camBurstUpBtn) {
-  camBurstUpBtn.addEventListener("click", (e) => {
+  camBurstUpBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     if (!_camBurst.files.length) return;
     const batch = _camBurst.files.slice();
-    _clearCamBurst();             // hide tray + revoke URLs before upload starts
-    uploadFiles(batch);
+    // Disable the button while the upload is in flight so a double-tap
+    // doesn't fire a second uploadFiles() with the same staged photos.
+    camBurstUpBtn.disabled = true;
+    try {
+      await uploadFiles(batch);
+      // Only clear once uploadFiles has returned. If it threw, the
+      // staged shots stay in the tray so the inspector can retry
+      // without retaking. uploadFiles itself shows error toasts.
+      _clearCamBurst();
+    } catch (err) {
+      console.warn("[burst] upload threw, keeping staged photos:", err);
+    } finally {
+      camBurstUpBtn.disabled = false;
+    }
   });
 }
 if (camBurstClrBtn) {
