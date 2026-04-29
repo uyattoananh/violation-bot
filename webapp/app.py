@@ -335,30 +335,43 @@ def _quota_today_used(user_key: str) -> int:
 
 
 def _quota_increment(user_key: str, n: int) -> None:
-    """Add n classifications to the user's today bucket. Upsert: row
-    is created on first photo; subsequent photos atomic-add. Best-effort
-    — failures are logged, not raised, so a quota table outage doesn't
-    block uploads.
+    """Add n classifications to the user's today bucket. Atomic via the
+    `quota_increment_v1` RPC — one INSERT ... ON CONFLICT DO UPDATE in
+    Postgres, no race window between read and write.
 
-    Known limit: select-then-upsert has a race window. A user firing N
-    parallel uploads at the exact same millisecond can clobber each
-    other's increments and end up at +1 instead of +N. The cap is
-    "approximate by design" — at our scale (single-user batches of
-    1-30 photos), the bypass is at most a few extra photos per quota
-    cycle. If abuse appears, replace with a Postgres RPC that does
-    `INSERT ... ON CONFLICT DO UPDATE SET photos_classified =
-    photos_classified + EXCLUDED.photos_classified RETURNING ...`
-    in one atomic statement."""
+    Best-effort: failures are logged, not raised. A quota-table outage
+    must never block uploads. If the RPC isn't deployed yet (early
+    rollout), falls back to the legacy select-then-upsert path so the
+    webapp keeps working through the migration.
+    """
     if not user_key or n <= 0:
         return
     from datetime import datetime, timezone
     today = datetime.now(timezone.utc).date().isoformat()
     db = get_db()
+    # Primary path: atomic RPC.
     try:
-        # Read-modify-write. PostgREST doesn't expose UPSERT-with-add
-        # so we do select-then-upsert. Race window is small at our
-        # write rate; even if two photos race we lose at most 1 count
-        # (the limit is approximate by design).
+        db.rpc("quota_increment_v1", {
+            "p_user_key": user_key,
+            "p_day": today,
+            "p_n": n,
+        }).execute()
+        return
+    except Exception as e:  # noqa: BLE001
+        msg = str(e)
+        # If the function genuinely doesn't exist (pre-migration env),
+        # fall back to the legacy path so the webapp still ticks the
+        # counter. Anything else, log + return.
+        if "quota_increment_v1" not in msg and "function" not in msg.lower():
+            if "daily_quota_usage" not in msg:
+                log.warning("quota_increment_v1 RPC failed: %s", e)
+            return
+        log.info("quota_increment_v1 RPC missing, using legacy upsert path "
+                 "(run scripts/add_quota_increment_rpc.py to fix the race)")
+
+    # Legacy fallback: select-then-upsert. Race window present; rely
+    # on the RPC for production hygiene.
+    try:
         existing = (
             db.table("daily_quota_usage").select("photos_classified")
               .eq("user_key", user_key).eq("day", today)
@@ -372,7 +385,7 @@ def _quota_increment(user_key: str, n: int) -> None:
         }, on_conflict="user_key,day").execute()
     except Exception as e:  # noqa: BLE001
         if "daily_quota_usage" not in str(e):
-            log.warning("quota increment failed: %s", e)
+            log.warning("quota increment fallback failed: %s", e)
 
 
 def _admin_authed(request: Request) -> bool:
@@ -4405,139 +4418,287 @@ code {{ font-family: ui-monospace, Menlo, monospace; background: var(--slate-100
     return HTMLResponse(html)
 
 
+def _refresh_user_stats_today(active_user_ids: set[str]) -> None:
+    """For each user_id who's been active today, call the
+    refresh_user_stats_v1 RPC so the materialised row reflects the
+    last few minutes of activity. Cheap — one RPC per active user
+    per /admin visit. Silently skips if the RPC isn't deployed yet
+    (caller falls back to live aggregation)."""
+    if not active_user_ids:
+        return
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).date().isoformat()
+    db = get_db()
+    for uid in active_user_ids:
+        try:
+            db.rpc("refresh_user_stats_v1", {
+                "p_user_id": uid,
+                "p_day": today,
+            }).execute()
+        except Exception as e:  # noqa: BLE001
+            # Function missing -> migration not applied yet. Whatever.
+            if "refresh_user_stats_v1" in str(e) or "function" in str(e).lower():
+                return
+            log.warning("refresh_user_stats_v1 failed for %s: %s", uid, e)
+
+
 def _build_stats_inner(days: int) -> str:
-    """Compute the stats section's inner HTML for the unified /admin
-    panel. Returns just the body content — the page shell + styles
-    live in admin_panel. Same lazy roll-up as before — at our scale
-    (a few thousand rows/day) the daily_user_stats materialized view
-    is reserved for when scale actually demands it.
+    """Render the activity-overview section of the /admin panel.
+
+    Reads from the materialised daily_user_stats table when present
+    (proper per-user breakdown including spend). Falls back to live
+    aggregation from photos/corrections when the table is empty —
+    keeps the panel useful before scripts/add_per_user_stats.py is
+    applied.
+
+    Always EXCLUDES rows with NULL user_id — those are pre-auth or
+    test traffic. The user explicitly asked for stats to ignore
+    deployment / training noise, so this filter is the gate.
     """
     from datetime import datetime, timezone, timedelta
+    from collections import defaultdict
     db = get_db()
     end = datetime.now(timezone.utc).date()
     start = end - timedelta(days=days)
-    start_iso = f"{start.isoformat()}T00:00:00Z"
-
-    # Pull recent photos + corrections with user_key, group in Python.
-    photos = (
-        db.table("photos").select("id, user_key, uploaded_at, batch_id")
-          .gte("uploaded_at", start_iso)
-          .limit(50000).execute().data or []
-    )
-    corrs = (
-        db.table("corrections").select("id, user_key, action, created_at")
-          .gte("created_at", start_iso)
-          .limit(50000).execute().data or []
-    )
-
-    # Per-day, per-user roll-up
-    from collections import defaultdict
-    by_day_user: dict[tuple, dict] = defaultdict(
-        lambda: {"uploaded": 0, "reviewed": 0, "confirms": 0, "corrections": 0}
-    )
-    by_user_total: dict[str, dict] = defaultdict(
-        lambda: {"uploaded": 0, "reviewed": 0, "confirms": 0, "corrections": 0,
-                 "first_seen": None, "last_seen": None}
-    )
-    for p in photos:
-        uk = p.get("user_key") or "(no key)"
-        day = (p.get("uploaded_at") or "")[:10]
-        if not day:
-            continue
-        by_day_user[(day, uk)]["uploaded"] += 1
-        by_user_total[uk]["uploaded"] += 1
-        if not by_user_total[uk]["first_seen"] or day < by_user_total[uk]["first_seen"]:
-            by_user_total[uk]["first_seen"] = day
-        if not by_user_total[uk]["last_seen"] or day > by_user_total[uk]["last_seen"]:
-            by_user_total[uk]["last_seen"] = day
-    for c in corrs:
-        uk = c.get("user_key") or "(no key)"
-        day = (c.get("created_at") or "")[:10]
-        if not day:
-            continue
-        action = c.get("action") or ""
-        by_day_user[(day, uk)]["reviewed"] += 1
-        by_user_total[uk]["reviewed"] += 1
-        if action == "confirm":
-            by_day_user[(day, uk)]["confirms"] += 1
-            by_user_total[uk]["confirms"] += 1
-        elif action == "correct":
-            by_day_user[(day, uk)]["corrections"] += 1
-            by_user_total[uk]["corrections"] += 1
-        if not by_user_total[uk]["first_seen"] or day < by_user_total[uk]["first_seen"]:
-            by_user_total[uk]["first_seen"] = day
-        if not by_user_total[uk]["last_seen"] or day > by_user_total[uk]["last_seen"]:
-            by_user_total[uk]["last_seen"] = day
-
-    # Headline numbers
-    today = end.isoformat()
-    today_users = {uk for (d, uk) in by_day_user if d == today}
-    week_start = (end - timedelta(days=7)).isoformat()
-    week_users = {uk for (d, uk) in by_day_user if d >= week_start}
-    month_users = set(by_user_total.keys())
-
-    headline = {
-        "DAU (today)": len(today_users),
-        "WAU (last 7d)": len(week_users),
-        f"MAU (last {days}d)": len(month_users),
-        "Photos uploaded": sum(u["uploaded"] for u in by_user_total.values()),
-        "Photos reviewed": sum(u["reviewed"] for u in by_user_total.values()),
-        "Confirm rate": (
-            f"{sum(u['confirms'] for u in by_user_total.values())}/"
-            f"{sum(u['reviewed'] for u in by_user_total.values()) or 1}"
-        ),
-    }
-
-    # Per-day table
-    days_sorted = sorted({d for (d, _) in by_day_user}, reverse=True)
-    daily_rows = []
-    for d in days_sorted[:days]:
-        users_today = {uk for (dd, uk) in by_day_user if dd == d}
-        ups = sum(u["uploaded"] for (dd, _), u in by_day_user.items() if dd == d)
-        revs = sum(u["reviewed"] for (dd, _), u in by_day_user.items() if dd == d)
-        cnfs = sum(u["confirms"] for (dd, _), u in by_day_user.items() if dd == d)
-        cors = sum(u["corrections"] for (dd, _), u in by_day_user.items() if dd == d)
-        daily_rows.append((d, len(users_today), ups, revs, cnfs, cors))
-
-    # Per-user table (top 30 by uploads)
-    user_rows = sorted(by_user_total.items(),
-                       key=lambda kv: -kv[1]["uploaded"])[:30]
 
     def _esc(s):
         return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # ---- Try the materialised path first ----
+    stats_rows: list[dict] = []
+    materialised_available = False
+    try:
+        stats_rows = (
+            db.table("daily_user_stats")
+              .select("user_id, day, photos_uploaded, classifications, "
+                      "confirms, corrections_count, proposals_submitted, "
+                      "estimated_cost_usd")
+              .gte("day", start.isoformat())
+              .limit(50000).execute().data or []
+        )
+        materialised_available = True
+    except Exception as e:  # noqa: BLE001
+        log.info("daily_user_stats not yet available, using live agg: %s", e)
+        stats_rows = []
+
+    # Refresh today's stats for everyone active today (lazy — only
+    # runs when the table exists). One RPC call per user.
+    if materialised_available:
+        today_iso = end.isoformat()
+        try:
+            today_active = (
+                db.table("photos").select("user_id")
+                  .gte("uploaded_at", f"{today_iso}T00:00:00Z")
+                  .not_.is_("user_id", "null")
+                  .limit(5000).execute().data or []
+            )
+            uids = {r["user_id"] for r in today_active if r.get("user_id")}
+            _refresh_user_stats_today(uids)
+            # Re-fetch the rows including the just-refreshed today.
+            stats_rows = (
+                db.table("daily_user_stats")
+                  .select("user_id, day, photos_uploaded, classifications, "
+                          "confirms, corrections_count, proposals_submitted, "
+                          "estimated_cost_usd")
+                  .gte("day", start.isoformat())
+                  .limit(50000).execute().data or []
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    # Fetch user details (name/email) for any user_ids in stats so
+    # the "top users" table shows real names instead of opaque UUIDs.
+    user_meta: dict[str, dict] = {}
+    if stats_rows:
+        uids = list({r["user_id"] for r in stats_rows if r.get("user_id")})
+        for i in range(0, len(uids), 100):
+            chunk = uids[i:i+100]
+            try:
+                ms = (
+                    db.table("users").select("id, email, name, is_admin")
+                      .in_("id", chunk).execute().data or []
+                )
+                for m in ms:
+                    user_meta[m["id"]] = m
+            except Exception:  # noqa: BLE001
+                pass
+
+    # ---- Fallback: live aggregation from raw tables if materialised
+    # path returned nothing AND we can confirm the table just wasn't
+    # populated yet (vs. genuinely zero activity). Filtered to authed
+    # only (user_id NOT NULL).
+    if not stats_rows:
+        try:
+            photos = (
+                db.table("photos")
+                  .select("id, user_id, uploaded_at, batch_id")
+                  .gte("uploaded_at", f"{start.isoformat()}T00:00:00Z")
+                  .not_.is_("user_id", "null")
+                  .limit(50000).execute().data or []
+            )
+            corrs = (
+                db.table("corrections")
+                  .select("id, user_id, action, created_at")
+                  .gte("created_at", f"{start.isoformat()}T00:00:00Z")
+                  .not_.is_("user_id", "null")
+                  .limit(50000).execute().data or []
+            )
+        except Exception:  # noqa: BLE001
+            photos, corrs = [], []
+        # Synthesize stats_rows from raw data.
+        agg: dict[tuple, dict] = defaultdict(
+            lambda: {"photos_uploaded": 0, "classifications": 0,
+                     "confirms": 0, "corrections_count": 0,
+                     "proposals_submitted": 0, "estimated_cost_usd": 0.0}
+        )
+        for p in photos:
+            uid = p.get("user_id")
+            day = (p.get("uploaded_at") or "")[:10]
+            if uid and day:
+                agg[(uid, day)]["photos_uploaded"] += 1
+        for c in corrs:
+            uid = c.get("user_id")
+            day = (c.get("created_at") or "")[:10]
+            if not uid or not day:
+                continue
+            if c.get("action") == "confirm":
+                agg[(uid, day)]["confirms"] += 1
+            elif c.get("action") == "correct":
+                agg[(uid, day)]["corrections_count"] += 1
+        stats_rows = [
+            {"user_id": uid, "day": day, **counters}
+            for (uid, day), counters in agg.items()
+        ]
+        # Re-fetch user metadata for these synthesized rows.
+        if stats_rows:
+            uids = list({r["user_id"] for r in stats_rows})
+            for i in range(0, len(uids), 100):
+                chunk = uids[i:i+100]
+                try:
+                    ms = (
+                        db.table("users").select("id, email, name, is_admin")
+                          .in_("id", chunk).execute().data or []
+                    )
+                    for m in ms:
+                        user_meta[m["id"]] = m
+                except Exception:  # noqa: BLE001
+                    pass
+
+    # ---- Roll up across days for headline + per-user table ----
+    by_day: dict[str, dict] = defaultdict(
+        lambda: {"users": set(), "uploaded": 0, "classified": 0,
+                 "confirms": 0, "corrections": 0, "cost": 0.0}
+    )
+    by_user: dict[str, dict] = defaultdict(
+        lambda: {"uploaded": 0, "classified": 0, "confirms": 0,
+                 "corrections": 0, "proposals": 0, "cost": 0.0,
+                 "first_seen": None, "last_seen": None}
+    )
+    for r in stats_rows:
+        uid = r.get("user_id")
+        day = r.get("day")
+        if not uid or not day:
+            continue
+        by_day[day]["users"].add(uid)
+        by_day[day]["uploaded"]   += int(r.get("photos_uploaded") or 0)
+        by_day[day]["classified"] += int(r.get("classifications") or 0)
+        by_day[day]["confirms"]   += int(r.get("confirms") or 0)
+        by_day[day]["corrections"]+= int(r.get("corrections_count") or 0)
+        by_day[day]["cost"]       += float(r.get("estimated_cost_usd") or 0)
+        u = by_user[uid]
+        u["uploaded"]    += int(r.get("photos_uploaded") or 0)
+        u["classified"]  += int(r.get("classifications") or 0)
+        u["confirms"]    += int(r.get("confirms") or 0)
+        u["corrections"] += int(r.get("corrections_count") or 0)
+        u["proposals"]   += int(r.get("proposals_submitted") or 0)
+        u["cost"]        += float(r.get("estimated_cost_usd") or 0)
+        if not u["first_seen"] or day < u["first_seen"]:
+            u["first_seen"] = day
+        if not u["last_seen"] or day > u["last_seen"]:
+            u["last_seen"] = day
+
+    # ---- Headline tiles ----
+    today = end.isoformat()
+    week_start = (end - timedelta(days=7)).isoformat()
+    today_users = by_day.get(today, {}).get("users", set())
+    week_users  = set().union(*(d["users"] for k, d in by_day.items() if k >= week_start)) if by_day else set()
+    month_users = set(by_user.keys())
+    total_uploaded = sum(u["uploaded"] for u in by_user.values())
+    total_reviewed = sum(u["confirms"] + u["corrections"] for u in by_user.values())
+    total_confirms = sum(u["confirms"] for u in by_user.values())
+    total_cost     = sum(u["cost"] for u in by_user.values())
+
+    headline = {
+        "DAU (today)":      len(today_users),
+        "WAU (last 7d)":    len(week_users),
+        f"MAU (last {days}d)": len(month_users),
+        "Photos uploaded":  total_uploaded,
+        "Photos reviewed":  total_reviewed,
+        "Confirm rate":     f"{total_confirms}/{total_reviewed or 1}",
+        "Total spend":      f"${total_cost:.2f}",
+    }
+
+    # ---- Per-day table ----
+    days_sorted = sorted(by_day.keys(), reverse=True)[:days]
+    daily_rows = [
+        (d, len(by_day[d]["users"]), by_day[d]["uploaded"],
+         by_day[d]["confirms"] + by_day[d]["corrections"],
+         by_day[d]["confirms"], by_day[d]["corrections"],
+         by_day[d]["cost"])
+        for d in days_sorted
+    ]
+
+    # ---- Per-user table ----
+    sorted_users = sorted(by_user.items(), key=lambda kv: -kv[1]["uploaded"])[:30]
+
+    def _user_label(uid: str) -> str:
+        m = user_meta.get(uid, {})
+        name = m.get("name") or ""
+        email = m.get("email") or ""
+        admin = " ★" if m.get("is_admin") else ""
+        if name:
+            return f"{_esc(name)}{admin}<div class='mono' style='font-size:10px;color:#94a3b8'>{_esc(email or uid[:8])}</div>"
+        if email:
+            return f"{_esc(email)}{admin}"
+        return f"<span class='mono'>{_esc(uid[:14])}…</span>"
 
     head_html = "".join(
         f"<div class=stat><div class=k>{_esc(k)}</div><div class=v>{_esc(v)}</div></div>"
         for k, v in headline.items()
     )
     daily_html = "".join(
-        f"<tr><td>{_esc(d)}</td><td>{n}</td><td>{u}</td><td>{r}</td><td>{c}</td><td>{x}</td></tr>"
-        for d, n, u, r, c, x in daily_rows
+        f"<tr><td>{_esc(d)}</td><td>{n}</td><td>{u}</td><td>{r}</td>"
+        f"<td>{c}</td><td>{x}</td><td>${cost:.3f}</td></tr>"
+        for d, n, u, r, c, x, cost in daily_rows
     )
     user_html = "".join(
-        f"<tr><td class=mono>{_esc(uk[:14])}…</td><td>{u['uploaded']}</td>"
-        f"<td>{u['reviewed']}</td><td>{u['confirms']}</td>"
-        f"<td>{u['corrections']}</td><td>{u['first_seen'] or ''}</td>"
-        f"<td>{u['last_seen'] or ''}</td></tr>"
-        for uk, u in user_rows
+        f"<tr><td>{_user_label(uid)}</td>"
+        f"<td>{u['uploaded']}</td><td>{u['classified']}</td>"
+        f"<td>{u['confirms']}</td><td>{u['corrections']}</td>"
+        f"<td>{u['proposals']}</td>"
+        f"<td>${u['cost']:.3f}</td>"
+        f"<td>{u['first_seen'] or ''}</td><td>{u['last_seen'] or ''}</td></tr>"
+        for uid, u in sorted_users
     )
+
+    src_label = "materialised" if materialised_available else "live (run scripts/add_per_user_stats.py)"
 
     return f"""
 <section id="stats" class="adm-section">
   <div class="adm-section-head">
     <h2>Activity overview</h2>
-    <span class="adm-window">last {days} days</span>
+    <span class="adm-window">last {days} days · source: {src_label}</span>
   </div>
   <div class="stats-grid">{head_html}</div>
   <h3>Daily activity</h3>
   <div class="adm-table-wrap"><table class="stats-tbl">
-    <thead><tr><th>Day</th><th>Users</th><th>Uploaded</th><th>Reviewed</th><th>Confirms</th><th>Corrections</th></tr></thead>
-    <tbody>{daily_html or '<tr><td colspan=6 class=adm-empty>(no data)</td></tr>'}</tbody>
+    <thead><tr><th>Day</th><th>Users</th><th>Uploaded</th><th>Reviewed</th><th>Confirms</th><th>Corrections</th><th>Spend</th></tr></thead>
+    <tbody>{daily_html or '<tr><td colspan=7 class=adm-empty>(no authenticated activity)</td></tr>'}</tbody>
   </table></div>
   <h3>Top users · last {days} days</h3>
   <div class="adm-table-wrap"><table class="stats-tbl">
-    <thead><tr><th>User key</th><th>Uploaded</th><th>Reviewed</th><th>Confirms</th><th>Corrections</th><th>First seen</th><th>Last seen</th></tr></thead>
-    <tbody>{user_html or '<tr><td colspan=7 class=adm-empty>(no data)</td></tr>'}</tbody>
+    <thead><tr><th>User</th><th>Uploaded</th><th>Classified</th><th>Confirms</th><th>Corrections</th><th>Proposals</th><th>Spend</th><th>First seen</th><th>Last seen</th></tr></thead>
+    <tbody>{user_html or '<tr><td colspan=9 class=adm-empty>(no authenticated activity)</td></tr>'}</tbody>
   </table></div>
 </section>"""
 
