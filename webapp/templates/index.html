@@ -61,6 +61,13 @@
        Kept separate from #file-input so desktop drag-drop and gallery
        select keep working unchanged. -->
   <input id="camera-input" type="file" accept="image/*" capture="environment" class="hidden">
+  <!-- Dedicated gallery input — used by the mobile "Gallery" button.
+       Critically: NO `multiple`, NO `capture`. On Android 13+ this
+       triggers the system Photo Picker (gallery-only, no Camera tile),
+       which is what users tapping "Gallery" actually want. The legacy
+       multi-select chooser (which DOES surface Camera) still backs the
+       desktop drag-drop / dropzone-tap flow via #file-input. -->
+  <input id="gallery-input" type="file" accept="image/*" class="hidden">
   <div class="flex flex-col items-center gap-3 pointer-events-none select-none">
     <div class="w-14 h-14 rounded-2xl bg-emerald-50 grid place-items-center">
       <svg class="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
@@ -3115,12 +3122,25 @@ if (camBurstClrBtn) {
     _clearCamBurst();
   });
 }
-if (btnGallery) {
-  // Explicit gallery path so the mobile UX is "two clear options"
-  // instead of "tap somewhere on the dropzone and hope".
+// Mobile Gallery button → dedicated gallery input (no multiple, no
+// capture). On Android 13+ this brings up the Photo Picker which is
+// gallery-only — no "Camera" tile that previously trapped users into
+// the camera path when they meant to pick existing photos. Single-shot
+// pick is a deliberate trade-off: multi-select would force Android
+// back to the legacy chooser which shows Camera. Inspectors who need
+// to backfill many existing photos can use desktop drag-drop or
+// repeat-tap the Gallery button — burst already covers in-the-field
+// capture so multi-select-from-library is the secondary use case.
+const galleryInput = document.getElementById("gallery-input");
+if (btnGallery && galleryInput) {
   btnGallery.addEventListener("click", (e) => {
     e.stopPropagation();
-    fileInput.click();
+    galleryInput.click();
+  });
+  galleryInput.addEventListener("change", (e) => {
+    const picked = Array.from(e.target.files || []);
+    galleryInput.value = "";
+    if (picked.length) uploadFiles(picked);
   });
 }
 ["dragenter", "dragover"].forEach(ev => dropzone.addEventListener(ev, e => {

@@ -1390,22 +1390,57 @@ def _render_landing_page(request: Request) -> HTMLResponse:
     """
     google_on = _oauth_enabled()
     azure_on = _azure_oauth_enabled()
-    providers_blurb_en = "Sign in with " + (
-        "Google or Microsoft" if (google_on and azure_on) else
-        ("Google" if google_on else ("Microsoft" if azure_on else "your provider"))
+    # Build the provider-button stack inline. Each button only renders
+    # if its provider is configured. When neither is configured we
+    # fall back to a single greyed CTA pointing at /auth/signin, which
+    # itself shows a "no providers configured" message.
+    google_svg = (
+        '<svg viewBox="0 0 24 24" aria-hidden="true">'
+        '<path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>'
+        '<path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>'
+        '<path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>'
+        '<path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>'
+        '</svg>'
     )
-    providers_blurb_vn = "Đăng nhập bằng " + (
-        "Google hoặc Microsoft" if (google_on and azure_on) else
-        ("Google" if google_on else ("Microsoft" if azure_on else "nhà cung cấp của bạn"))
+    microsoft_svg = (
+        '<svg viewBox="0 0 24 24" aria-hidden="true">'
+        '<rect x="2"  y="2"  width="9" height="9" fill="#F25022"/>'
+        '<rect x="13" y="2"  width="9" height="9" fill="#7FBA00"/>'
+        '<rect x="2"  y="13" width="9" height="9" fill="#00A4EF"/>'
+        '<rect x="13" y="13" width="9" height="9" fill="#FFB900"/>'
+        '</svg>'
     )
-    providers_blurb_es = "Inicia sesión con " + (
-        "Google o Microsoft" if (google_on and azure_on) else
-        ("Google" if google_on else ("Microsoft" if azure_on else "tu proveedor"))
-    )
-    providers_blurb_zh = "使用 " + (
-        "Google 或 Microsoft" if (google_on and azure_on) else
-        ("Google" if google_on else ("Microsoft" if azure_on else "你的账号提供商"))
-    ) + " 登录"
+    google_btn = f'''
+        <a href="/auth/login/google" class="provider-btn google">
+          {google_svg}
+          <span data-locale="en">Continue with Google</span>
+          <span data-locale="vn">Tiếp tục với Google</span>
+          <span data-locale="es">Continuar con Google</span>
+          <span data-locale="zh">使用 Google 继续</span>
+        </a>''' if google_on else ""
+    azure_btn = f'''
+        <a href="/auth/login/azure" class="provider-btn microsoft">
+          {microsoft_svg}
+          <span data-locale="en">Continue with Microsoft</span>
+          <span data-locale="vn">Tiếp tục với Microsoft</span>
+          <span data-locale="es">Continuar con Microsoft</span>
+          <span data-locale="zh">使用 Microsoft 继续</span>
+        </a>''' if azure_on else ""
+    if google_on or azure_on:
+        provider_block = f'''
+    <div class="providers-stack">{google_btn}{azure_btn}</div>'''
+    else:
+        # No providers configured at all — keep the legacy CTA so the
+        # error message at /auth/signin is reachable.
+        provider_block = '''
+    <a class="cta" href="/auth/signin">
+      <span data-locale="en">Sign in to continue</span>
+      <span data-locale="vn">Đăng nhập để tiếp tục</span>
+      <span data-locale="es">Inicia sesión para continuar</span>
+      <span data-locale="zh">登录以继续</span>
+      <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+    </a>'''
+
     html = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <title>HSE Detector — AECIS</title>
@@ -1529,6 +1564,44 @@ h1 .em {{ font-style: italic; font-weight: 400; color: var(--ink-soft); }}
 .cta:active {{ transform: scale(0.98); }}
 .cta svg {{ width: 16px; height: 16px; }}
 .cta-block {{ display: inline-flex; width: 100%; justify-content: center; margin-top: 14px; }}
+
+/* OAuth provider buttons surfaced directly on the landing hero
+   (Option B). One button per enabled provider; stacked vertically;
+   capped at ~360px so two buttons don't span the whole hero on
+   desktop. Matches the chooser page's `.provider-btn` styling
+   (paper-toned Google, ink-toned Microsoft) so the visual handoff
+   is consistent if a user does land on /auth/signin via an external
+   link. */
+.providers-stack {{
+  display: flex; flex-direction: column; gap: 10px;
+  width: 100%; max-width: 360px; margin: 6px auto 0;
+}}
+.provider-btn {{
+  display: inline-flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 13px 22px; border-radius: 999px; text-decoration: none;
+  font-weight: 600; font-size: 14px; letter-spacing: 0.005em;
+  transition: transform .04s, background .15s, border-color .15s, box-shadow .15s;
+}}
+.provider-btn:active {{ transform: scale(0.98); }}
+.provider-btn.google {{
+  background: var(--paper); color: var(--ink); border: 1px solid var(--ink);
+}}
+.provider-btn.google:hover {{
+  background: #ebe7da; box-shadow: 0 4px 14px rgba(10,10,10,0.06);
+}}
+.provider-btn.microsoft {{
+  background: var(--ink); color: var(--paper); border: 1px solid var(--ink);
+}}
+.provider-btn.microsoft:hover {{ background: #1f1f1f; }}
+.provider-btn svg {{ flex-shrink: 0; width: 18px; height: 18px; }}
+/* Tiny "more sign-in options" text link below the stack — leads
+   to the chooser page in case anyone needs the older / future
+   provider list. Quiet by default so it doesn't compete. */
+.alt-signin-link {{
+  display: block; margin-top: 14px; text-align: center;
+  font-size: 12px; color: var(--ink-mute); text-decoration: none;
+}}
+.alt-signin-link:hover {{ color: var(--ink); text-decoration: underline; text-decoration-color: var(--hairline); }}
 /* Secondary CTA — paper-tone outlined button matching the drafting
    theme. Used for the PWA install button so it sits below the
    primary "Sign in" CTA without competing for attention. */
@@ -1704,19 +1777,22 @@ footer a:hover {{ border-color: var(--ink); }}
       <span data-locale="es">Sube fotos del sitio. La IA las clasifica contra la taxonomía HSE de AECIS en inglés y vietnamita, ordena la confianza y te permite corregir al instante. Hecho para inspectores, exportable como PDF / ZIP / CSV.</span>
       <span data-locale="zh">上传现场照片。AI 按 AECIS HSE 分类法（英文与越南文）进行分类，标注置信度，并允许你即时更正。为检查员而设计，可导出为 PDF / ZIP / CSV。</span>
     </p>
-    <a class="cta" href="/auth/signin">
-      <span data-locale="en">Sign in to continue</span>
-      <span data-locale="vn">Đăng nhập để tiếp tục</span>
-      <span data-locale="es">Inicia sesión para continuar</span>
-      <span data-locale="zh">登录以继续</span>
-      <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-    </a>
+    <!-- Provider buttons (Option B): one tap from the landing into the
+         OAuth flow. The chooser at /auth/signin is still reachable via
+         the small "more options" link below for direct-link traffic. -->
+    {provider_block}
     <span class="providers-note">
-      <span data-locale="en">{providers_blurb_en} · AECIS-internal &amp; partner accounts only</span>
-      <span data-locale="vn">{providers_blurb_vn} · chỉ dành cho tài khoản nội bộ &amp; đối tác AECIS</span>
-      <span data-locale="es">{providers_blurb_es} · solo cuentas internas y de socios de AECIS</span>
-      <span data-locale="zh">{providers_blurb_zh} · 仅限 AECIS 内部及合作账号</span>
+      <span data-locale="en">AECIS-internal &amp; partner accounts only</span>
+      <span data-locale="vn">Chỉ dành cho tài khoản nội bộ &amp; đối tác AECIS</span>
+      <span data-locale="es">Solo cuentas internas y de socios de AECIS</span>
+      <span data-locale="zh">仅限 AECIS 内部及合作账号</span>
     </span>
+    <a class="alt-signin-link" href="/auth/signin">
+      <span data-locale="en">More sign-in options</span>
+      <span data-locale="vn">Tùy chọn đăng nhập khác</span>
+      <span data-locale="es">Más opciones de inicio</span>
+      <span data-locale="zh">更多登录选项</span>
+    </a>
     <!-- Install-as-PWA button. Hidden by default; revealed by JS only
          on mobile + when not already running standalone. iOS/Android
          click handlers drop into a small instructions sheet because we
