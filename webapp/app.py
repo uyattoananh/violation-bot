@@ -1792,6 +1792,15 @@ async def upload(
     # batch from a free user with 28/30 used uploads the next 2 and
     # rejects the remaining 48 with a clear error).
     user_key = _get_or_set_user_key(request)
+    # Authenticated user — stamp user_id on every photo we insert.
+    # Critical: scripts/wipe_test_stats.py purges rows with NULL
+    # user_id under the assumption that those are pre-auth / dev
+    # traffic. If we don't populate it here, every legitimate
+    # inspector upload would also get caught by that wipe. Phase 5
+    # added the user_id column; the upload handler just never
+    # started writing it.
+    _session_user = _get_session_user(request)
+    user_id = _session_user["id"] if _session_user else None
     used_today = _quota_today_used(user_key)
     remaining = max(0, _DAILY_QUOTA - used_today)
     if remaining <= 0:
@@ -1901,6 +1910,7 @@ async def upload(
             "batch_id": batch_id,
             "batch_label": batch_label,
             "user_key": user_key,
+            "user_id": user_id,
         }
         if gps:
             photo_payload["exif_lat"] = gps[0]
