@@ -783,6 +783,51 @@ async def auth_gate_middleware(request: Request, call_next):
     )
 
 
+# Registered AFTER the auth gate so it's the OUTER wrapper — adds
+# headers to every response, including the gate's 303 / 401 outputs.
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Apply baseline security + cache hygiene headers to every response.
+
+    Hardening pass added after a QA sweep noticed the production / and
+    /admin responses had ZERO security headers. Without these:
+      - Browsers may iframe the app into another origin (clickjacking)
+      - Browsers may sniff content type from response body
+      - Referer leaks to outbound links include the full path + query
+      - HSTS not announced -> first visit could downgrade to HTTP if
+        a captive portal hijacks DNS
+
+    Cache-Control on / is critical: the same URL serves the landing
+    page (anonymous) and the app shell (authenticated). Without
+    no-store, an authed user's app HTML could be cached by a shared
+    proxy or browser and served back to a logged-out visitor.
+    """
+    response = await call_next(request)
+
+    # Universal hygiene headers — cheap, safe defaults.
+    response.headers.setdefault(
+        "Strict-Transport-Security",
+        "max-age=63072000; includeSubDomains; preload",
+    )
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "geolocation=(), microphone=(), camera=(self), payment=()",
+    )
+
+    # `/` dispatches between landing + app based on auth state — never
+    # cache it shared. Same for /admin and /auth/me which leak
+    # session-tied state. Static + SW handle their own cache headers.
+    path = request.url.path
+    if path == "/" or path.startswith("/admin") or path == "/auth/me":
+        response.headers["Cache-Control"] = "private, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+
+    return response
+
+
 # ---------- phase 4: hse-class proposal helpers ----------
 
 _SLUG_NON_ALNUM = re.compile(r"[^a-zA-Z0-9]+")
@@ -1159,6 +1204,16 @@ def service_worker_js():
             "Cache-Control": "no-cache, no-store, must-revalidate",
         },
     )
+
+
+@app.head("/", include_in_schema=False)
+def root_head():
+    """HEAD / — uptime monitors and link previewers send HEAD before
+    GET. Without this, FastAPI returns 405 and the monitor thinks the
+    site is down. Return 200 with no body; security headers from the
+    middleware still get applied.
+    """
+    return Response(status_code=200)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -3886,54 +3941,70 @@ def auth_signin(request: Request, next: str = "/"):
 <html lang="en"><head><meta charset="utf-8">
 <title>Sign in · Violation AI</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#000000">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/icons/icon-180.png">
 <style>
 * {{ box-sizing: border-box; }}
 html, body {{ height: 100%; }}
-body {{ font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-       margin: 0; background: linear-gradient(160deg, #f0fdf4 0%, #f8fafc 100%);
-       color: #0f172a; display: flex; align-items: center; justify-content: center; padding: 16px; }}
-.card {{ background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
-        box-shadow: 0 8px 32px rgba(15, 23, 42, 0.06);
-        padding: 32px 28px; max-width: 380px; width: 100%; text-align: center; }}
-.brand {{ display: inline-flex; align-items: center; gap: 8px;
-         font-size: 18px; font-weight: 600; margin-bottom: 8px; }}
-.brand .check {{ width: 28px; height: 28px; border-radius: 999px;
-                background: #10b981; color: #fff; display: grid; place-items: center; }}
-.brand .check svg {{ width: 16px; height: 16px; }}
-.brand .accent {{ color: #10b981; }}
-h1 {{ font-size: 22px; margin: 12px 0 6px; font-weight: 600; }}
-.sub {{ color: #64748b; font-size: 13px; margin: 0 0 24px; }}
+body {{ font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+       margin: 0; background: #000000; color: #ffffff; min-height: 100vh;
+       -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+       display: flex; align-items: center; justify-content: center; padding: 16px;
+       letter-spacing: -0.005em; }}
+.card {{ background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 18px; padding: 36px 30px; max-width: 400px; width: 100%;
+        text-align: center; backdrop-filter: blur(8px); }}
+.brand {{ display: inline-flex; align-items: center; gap: 10px;
+         font-size: 17px; font-weight: 600; margin-bottom: 6px; color: #ffffff; }}
+.brand .check {{ width: 28px; height: 28px; border: 1px solid rgba(255,255,255,0.4);
+                border-radius: 999px; display: grid; place-items: center; color: #fff; }}
+.brand .check svg {{ width: 14px; height: 14px; }}
+.brand .accent {{ color: rgba(255,255,255,0.45); font-weight: 400; }}
+h1 {{ font-size: 24px; margin: 14px 0 8px; font-weight: 600; letter-spacing: -0.025em; color: #ffffff; }}
+.sub {{ color: rgba(255,255,255,0.55); font-size: 13px; margin: 0 0 28px; line-height: 1.5; }}
 .providers {{ display: flex; flex-direction: column; gap: 10px; }}
 .provider-btn {{ display: flex; align-items: center; justify-content: center; gap: 12px;
-                padding: 12px 16px; border-radius: 10px; text-decoration: none;
-                font-weight: 600; font-size: 14px; transition: transform .04s, box-shadow .15s; }}
+                padding: 13px 18px; border-radius: 999px; text-decoration: none;
+                font-weight: 600; font-size: 14px; letter-spacing: 0.005em;
+                transition: transform .04s, background .15s, border-color .15s, box-shadow .15s; }}
 .provider-btn:active {{ transform: scale(0.98); }}
-.provider-btn.google {{ background: #fff; color: #1f2937; border: 1px solid #d1d5db; }}
-.provider-btn.google:hover {{ box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08); border-color: #9ca3af; }}
-.provider-btn.microsoft {{ background: #2f2f2f; color: #fff; border: 1px solid #2f2f2f; }}
-.provider-btn.microsoft:hover {{ background: #1f1f1f; border-color: #1f1f1f; }}
-.foot {{ color: #94a3b8; font-size: 11px; margin-top: 24px; }}
-.foot a {{ color: inherit; text-decoration: underline; }}
-.locale-toggle {{ position: absolute; top: 16px; right: 16px; display: flex; gap: 4px;
-                 background: rgba(255,255,255,0.8); border-radius: 999px; padding: 2px;
-                 border: 1px solid #e2e8f0; }}
-.locale-toggle button {{ font: inherit; background: none; border: 0; cursor: pointer;
-                        padding: 4px 10px; border-radius: 999px; color: #64748b; font-weight: 600; font-size: 11px; }}
-.locale-toggle button.active {{ background: #10b981; color: #fff; }}
-.no-providers {{ background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
-                padding: 12px; border-radius: 8px; font-size: 12px; text-align: left; }}
+.provider-btn.google {{ background: #ffffff; color: #0f172a; border: 1px solid #ffffff; }}
+.provider-btn.google:hover {{ background: rgba(255,255,255,0.92); box-shadow: 0 4px 16px rgba(255,255,255,0.08); }}
+.provider-btn.microsoft {{ background: rgba(255,255,255,0.06); color: #ffffff;
+                           border: 1px solid rgba(255,255,255,0.18); }}
+.provider-btn.microsoft:hover {{ background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.28); }}
+.foot {{ color: rgba(255,255,255,0.35); font-size: 11px; margin-top: 28px; line-height: 1.5; }}
+.foot a {{ color: rgba(255,255,255,0.7); text-decoration: underline; text-decoration-color: rgba(255,255,255,0.25); }}
+.locale-toggle {{ position: absolute; top: 16px; right: 16px; display: flex; gap: 0;
+                 border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; overflow: hidden; }}
+.locale-toggle button {{ font: inherit; background: transparent; border: 0; cursor: pointer;
+                        padding: 5px 12px; color: rgba(255,255,255,0.55); font-weight: 600;
+                        font-size: 11px; letter-spacing: 0.04em; transition: background .15s, color .15s; }}
+.locale-toggle button:hover {{ color: #ffffff; }}
+.locale-toggle button.active {{ background: #ffffff; color: #000000; }}
+.back-link {{ position: absolute; top: 16px; left: 16px; color: rgba(255,255,255,0.45);
+             text-decoration: none; font-size: 12px; letter-spacing: 0.02em;
+             padding: 5px 10px; border-radius: 999px; border: 1px solid transparent;
+             transition: color .15s, border-color .15s; }}
+.back-link:hover {{ color: #ffffff; border-color: rgba(255,255,255,0.18); }}
+.no-providers {{ background: rgba(239,68,68,0.06); color: #fca5a5;
+                 border: 1px solid rgba(239,68,68,0.25);
+                 padding: 14px; border-radius: 10px; font-size: 12px; text-align: left;
+                 line-height: 1.5; }}
+.no-providers code {{ background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 4px;
+                      font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #fde68a; }}
 [data-locale]:not(.show) {{ display: none; }}
 </style></head><body>
+<a class="back-link" href="/">← <span data-locale="en">Back</span><span data-locale="vn">Quay lại</span></a>
 <div class="locale-toggle">
   <button id="loc-en" class="active" type="button">EN</button>
   <button id="loc-vn" type="button">VN</button>
 </div>
 <div class="card">
   <div class="brand">
-    <span class="check"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
-    <span>Violation <span class="accent">AI</span></span>
+    <span class="check"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+    <span>Violation <span class="accent">/ AI</span></span>
   </div>
   <h1><span data-locale="en">Sign in to continue</span><span data-locale="vn">Đăng nhập để tiếp tục</span></h1>
   <p class="sub">
