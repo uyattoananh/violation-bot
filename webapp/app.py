@@ -1568,10 +1568,12 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
       for (let c = 0; c < cols; c++) {{
         for (let r = 0; r < rows; r++) {{
           const p = points[c][r];
-          // Noise-driven base wave (independent X/Y components for
-          // organic ripple, not a sliding pattern).
-          p.wx = simplex2(p.x * 0.005, p.y * 0.0018 + t * 0.5) * 14;
-          p.wy = simplex2(p.x * 0.0018 + t * 0.4, p.y * 0.005) * 8;
+          // Noise-driven base wave. Pronounced X amplitude so the
+          // lines curve substantially rather than reading as straight.
+          // Lower noise frequency = longer flowing waves; high amp +
+          // low freq is the look in the reference screenshot.
+          p.wx = simplex2(p.x * 0.0035, p.y * 0.002 + t * 0.5) * 38;
+          p.wy = simplex2(p.x * 0.002 + t * 0.4, p.y * 0.0035) * 18;
 
           // PROXIMITY-only cursor displacement. Compute target offset
           // (radial push away from cursor with quadratic falloff),
