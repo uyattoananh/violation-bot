@@ -1677,6 +1677,393 @@ def _enrich_with_labels(rows: list[dict], tax: dict) -> None:
         r["final_fine_hse_type_label_vn"] = fine_lbl.get("label_vn", "")
 
 
+# ---------- export-blob builder for email ----------
+
+def _build_export_blob(
+    fmt: str, batch_id: str | None, limit: int = 5000,
+) -> tuple[bytes, str, str]:
+    """Return (blob_bytes, mime_type, filename) for the requested format.
+
+    Loads the full export into memory rather than streaming — used by
+    the email endpoint which needs the bytes to attach. The existing
+    download endpoints keep their streaming code paths since they're
+    tuned for large batches.
+
+    Supported formats: 'pdf' | 'zip' | 'csv' | 'json'. Caller has
+    already validated the format string.
+    """
+    if not DEFAULT_TENANT_ID:
+        raise HTTPException(500, "tenant not configured")
+    rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit, batch_id=batch_id)
+    if not rows:
+        raise HTTPException(404, "no photos to export")
+    tax = app.state.taxonomy or load_taxonomy()
+    _enrich_with_labels(rows, tax)
+
+    from datetime import datetime, timezone
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+
+    if fmt == "csv":
+        import csv as _csv, io as _io
+        buf = _io.StringIO()
+        cols = [
+            "original_filename", "uploaded_at",
+            "final_fine_hse_type_slug",
+            "final_fine_hse_type_label_en", "final_fine_hse_type_label_vn",
+            "final_hse_type_slug", "final_hse_type_label_en", "final_hse_type_label_vn",
+            "final_location_slug", "final_location_label_en", "final_location_label_vn",
+            "reviewed", "review_action", "review_note", "reviewed_at",
+            "ai_hse_type_slug", "ai_hse_type_label_en", "ai_hse_type_label_vn",
+            "ai_hse_confidence",
+            "ai_location_slug", "ai_location_label_en", "ai_location_label_vn",
+            "ai_location_confidence",
+            "ai_rationale", "ai_model", "sha256",
+        ]
+        w = _csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+        return (
+            buf.getvalue().encode("utf-8"),
+            "text/csv; charset=utf-8",
+            f"violations_{stamp}.csv",
+        )
+
+    if fmt == "json":
+        import json as _json
+        from datetime import datetime as _dt
+        payload = {
+            "exported_at": _dt.now(timezone.utc).isoformat(),
+            "count": len(rows),
+            "photos": rows,
+        }
+        return (
+            _json.dumps(payload, indent=2, default=str).encode("utf-8"),
+            "application/json",
+            f"violations_{stamp}.json",
+        )
+
+    if fmt == "pdf":
+        from webapp.pdf_export import build_violation_pdf
+        batch_label = ""
+        for r in rows:
+            if r.get("batch_label"):
+                batch_label = r["batch_label"]
+                break
+        pdf_bytes = build_violation_pdf(
+            rows,
+            batch_label=batch_label,
+            batch_id=batch_id,
+            r2_client=get_r2(),
+            r2_bucket=R2_BUCKET,
+            project_label="AECIS HSE",
+        )
+        return (pdf_bytes, "application/pdf", f"violations_{stamp}.pdf")
+
+    if fmt == "zip":
+        import csv as _csv, io as _io, zipfile
+        r2 = get_r2()
+        zip_buf = _io.BytesIO()
+        seq_per_class: dict[str, int] = {}
+        manifest_buf = _io.StringIO()
+        mw = _csv.writer(manifest_buf)
+        mw.writerow([
+            "exported_filename", "original_filename",
+            "final_hse", "final_location",
+            "ai_hse", "ai_location", "reviewed",
+        ])
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED, compresslevel=4) as zf:
+            for r in rows:
+                try:
+                    obj = r2.get_object(Bucket=R2_BUCKET, Key=r["storage_key"])
+                    body = obj["Body"].read()
+                except Exception as e:  # noqa: BLE001
+                    log.warning("email-export-zip skip %s: %s",
+                                (r.get("sha256") or "?")[:10], e)
+                    continue
+                ext = (Path(r.get("original_filename") or "").suffix.lower() or ".jpg")
+                hse = _slug_safe(r["final_hse_type_slug"])
+                loc = _slug_safe(r["final_location_slug"])
+                key = f"{hse}__{loc}"
+                seq_per_class[key] = seq_per_class.get(key, 0) + 1
+                new_name = f"{hse}/{hse}__{loc}__{seq_per_class[key]:03d}{ext}"
+                zf.writestr(new_name, body)
+                mw.writerow([
+                    new_name,
+                    r.get("original_filename") or "",
+                    r.get("final_hse_type_label_en") or r["final_hse_type_slug"] or "",
+                    r.get("final_location_label_en") or r["final_location_slug"] or "",
+                    r.get("ai_hse_type_label_en") or r["ai_hse_type_slug"] or "",
+                    r.get("ai_location_label_en") or r["ai_location_slug"] or "",
+                    "yes" if r["reviewed"] else "no",
+                ])
+            zf.writestr("manifest.csv", manifest_buf.getvalue())
+        return (zip_buf.getvalue(), "application/zip", f"violations_{stamp}.zip")
+
+    raise HTTPException(400, f"unsupported format: {fmt}")
+
+
+# ---------- email export ----------
+
+# SMTP defaults (Gmail). Override per-deploy via env vars.
+_SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+_SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+_SMTP_USER = os.environ.get("SMTP_USER")
+_SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+_SMTP_FROM = os.environ.get("SMTP_FROM") or _SMTP_USER  # display addr
+_SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "1") not in ("0", "false", "no")
+# Inline-attachment cap. Gmail rejects >25MB; Outlook 20MB. Stay under
+# the lower for safety. Larger exports go via R2 presigned URL.
+_EMAIL_INLINE_LIMIT_BYTES = int(os.environ.get("EMAIL_INLINE_LIMIT_BYTES", str(20 * 1024 * 1024)))
+_EMAIL_DAILY_PER_USER = int(os.environ.get("EMAIL_DAILY_PER_USER", "5"))
+
+
+def _email_configured() -> bool:
+    """Whether SMTP creds are present. False = endpoint returns
+    503 with a clear "not configured" message instead of 500."""
+    return bool(_SMTP_USER and _SMTP_PASSWORD)
+
+
+def _email_count_today(user_key: str) -> int:
+    """How many email-export jobs has this user created today (UTC)?
+    Used to enforce _EMAIL_DAILY_PER_USER. Returns 0 if the table
+    isn't migrated yet (degrades silently)."""
+    if not user_key:
+        return 0
+    from datetime import datetime, timezone
+    start_iso = f"{datetime.now(timezone.utc).date().isoformat()}T00:00:00Z"
+    try:
+        r = (
+            get_db().table("email_jobs")
+              .select("id", count="exact")
+              .eq("user_key", user_key)
+              .gte("created_at", start_iso)
+              .limit(1).execute()
+        )
+        return r.count or 0
+    except Exception as e:  # noqa: BLE001
+        if "email_jobs" in str(e):
+            return 0
+        log.warning("email rate lookup failed: %s", e)
+        return 0
+
+
+def _send_email_with_attachment(
+    to_email: str, subject: str, body: str,
+    attachment_bytes: bytes | None,
+    attachment_name: str | None,
+    attachment_mime: str | None,
+) -> None:
+    """Single-shot SMTP send. Raises on transport / auth failures so
+    the caller can record the error in email_jobs.error and return a
+    useful message to the inspector. Supports skipping the attachment
+    (None) for the "too large — here's a link" path."""
+    import smtplib
+    from email.message import EmailMessage
+
+    msg = EmailMessage()
+    msg["From"] = _SMTP_FROM
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.set_content(body)
+    if attachment_bytes is not None and attachment_name:
+        # Split mime "type/subtype" so EmailMessage can categorize.
+        mime = (attachment_mime or "application/octet-stream").split(";", 1)[0]
+        if "/" in mime:
+            maintype, subtype = mime.split("/", 1)
+        else:
+            maintype, subtype = "application", "octet-stream"
+        msg.add_attachment(
+            attachment_bytes,
+            maintype=maintype, subtype=subtype,
+            filename=attachment_name,
+        )
+
+    with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT, timeout=30) as s:
+        s.ehlo()
+        if _SMTP_USE_TLS:
+            s.starttls()
+            s.ehlo()
+        s.login(_SMTP_USER, _SMTP_PASSWORD)
+        s.send_message(msg)
+
+
+def _upload_export_to_r2_for_link(
+    user_key: str, job_id: str, blob: bytes, filename: str, content_type: str,
+) -> str:
+    """For exports too big to attach inline. Stash under
+    exports/<user>/<job>/<filename> in R2 and return a presigned URL
+    valid for 7 days."""
+    r2 = get_r2()
+    key = f"exports/{user_key}/{job_id}/{filename}"
+    r2.put_object(
+        Bucket=R2_BUCKET, Key=key, Body=blob, ContentType=content_type,
+    )
+    url = r2.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": R2_BUCKET, "Key": key},
+        ExpiresIn=7 * 24 * 60 * 60,
+    )
+    return url
+
+
+@app.post("/api/export/email")
+@_maybe_limit("_RATE_LIMIT_RETRY")
+async def export_email(
+    request: Request,
+    batch_id: str | None = Form(None),
+    fmt: str = Form(..., alias="format"),
+    to_email: str = Form(...),
+    subject: str | None = Form(None),
+    body: str | None = Form(None),
+):
+    """Generate an export and email it to `to_email`.
+
+    Synchronous: blocks the request for the duration of generation +
+    SMTP send (typical: 3-10s for small batches; longer for large PDF/
+    ZIP). The frontend shows a spinner during this time.
+
+    Rate limit: per-cookie-id, _EMAIL_DAILY_PER_USER (default 5) per
+    UTC day. Counted against the email_jobs table directly.
+
+    Auto-fallback: if the generated blob exceeds
+    _EMAIL_INLINE_LIMIT_BYTES (default 20MB), upload to R2 with a
+    7-day presigned URL and email the link instead of the attachment.
+    """
+    if not _email_configured():
+        raise HTTPException(503, {
+            "error": "email_not_configured",
+            "message": "Email export is not enabled on this server. "
+                       "Set SMTP_USER + SMTP_PASSWORD env vars to turn it on.",
+        })
+    fmt = fmt.lower().strip()
+    if fmt not in ("pdf", "zip", "csv", "json"):
+        raise HTTPException(400, "format must be one of: pdf, zip, csv, json")
+
+    # Cheap email-syntax check. Real validation is the SMTP server's job.
+    to_email = (to_email or "").strip()
+    if "@" not in to_email or len(to_email) < 5:
+        raise HTTPException(400, "to_email looks invalid")
+
+    user_key = _get_or_set_user_key(request)
+    used_today = _email_count_today(user_key)
+    if used_today >= _EMAIL_DAILY_PER_USER:
+        from datetime import datetime, timezone, timedelta
+        tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).date()
+        raise HTTPException(429, {
+            "error": "email_daily_limit_reached",
+            "limit": _EMAIL_DAILY_PER_USER,
+            "used": used_today,
+            "resets_at": f"{tomorrow.isoformat()}T00:00:00Z",
+        })
+
+    db = get_db()
+
+    # Insert a pending row so we have an audit trail even if the
+    # generation/send blows up halfway through.
+    job_id_local: str | None = None
+    try:
+        ins = db.table("email_jobs").insert({
+            "user_key": user_key,
+            "batch_id": batch_id,
+            "format": fmt,
+            "to_email": to_email,
+            "subject": subject or None,
+            "body": body or None,
+            "status": "sending",
+            "attempts": 1,
+        }).execute()
+        if ins.data:
+            job_id_local = ins.data[0]["id"]
+    except Exception as e:  # noqa: BLE001
+        # Pre-migration window: table doesn't exist yet. Continue
+        # without the audit row — better to send the email than to
+        # 500 the inspector.
+        if "email_jobs" not in str(e):
+            log.warning("email_jobs insert failed: %s", e)
+
+    # Generate the blob (this is the slow part).
+    try:
+        blob, mime, filename = _build_export_blob(fmt, batch_id)
+    except HTTPException:
+        if job_id_local:
+            db.table("email_jobs").update(
+                {"status": "failed", "error": "no photos to export"}
+            ).eq("id", job_id_local).execute()
+        raise
+    except Exception as e:  # noqa: BLE001
+        if job_id_local:
+            db.table("email_jobs").update(
+                {"status": "failed", "error": f"build: {str(e)[:300]}"}
+            ).eq("id", job_id_local).execute()
+        raise HTTPException(500, f"export build failed: {e}")
+
+    # Compose subject + body
+    final_subject = subject or f"AECIS HSE — Violation Report ({len(blob) // 1024} KB, {fmt.upper()})"
+    base_body = body or (
+        "Attached: AECIS HSE violation report.\n\n"
+        "Generated by hse.aecis.ca."
+    )
+
+    # Branch: inline attachment vs link
+    use_link = len(blob) > _EMAIL_INLINE_LIMIT_BYTES
+    final_status = "sent"
+    try:
+        if use_link:
+            url = _upload_export_to_r2_for_link(
+                user_key, job_id_local or "anon", blob, filename, mime,
+            )
+            link_body = (
+                f"{base_body}\n\n"
+                f"This export is too large to attach ("
+                f"{len(blob) / 1e6:.1f} MB). Download here, link valid 7 days:\n\n"
+                f"{url}\n"
+            )
+            _send_email_with_attachment(
+                to_email, final_subject, link_body,
+                attachment_bytes=None, attachment_name=None, attachment_mime=None,
+            )
+            final_status = "too_large_emailed_link"
+        else:
+            _send_email_with_attachment(
+                to_email, final_subject, base_body,
+                attachment_bytes=blob,
+                attachment_name=filename,
+                attachment_mime=mime,
+            )
+    except Exception as e:  # noqa: BLE001
+        if job_id_local:
+            db.table("email_jobs").update(
+                {"status": "failed", "error": f"send: {str(e)[:300]}",
+                 "blob_bytes": len(blob)}
+            ).eq("id", job_id_local).execute()
+        log.exception("email send failed for job %s", job_id_local)
+        raise HTTPException(502, {
+            "error": "send_failed",
+            "message": str(e)[:200],
+        })
+
+    if job_id_local:
+        from datetime import datetime, timezone
+        db.table("email_jobs").update({
+            "status": final_status,
+            "sent_at": datetime.now(timezone.utc).isoformat(),
+            "blob_bytes": len(blob),
+        }).eq("id", job_id_local).execute()
+
+    log.info("emailed %s (%d bytes) to %s [job=%s]",
+             fmt, len(blob), to_email, job_id_local or "n/a")
+    return {
+        "ok": True,
+        "job_id": job_id_local,
+        "to_email": to_email,
+        "format": fmt,
+        "bytes": len(blob),
+        "delivery": "link" if use_link else "attachment",
+        "remaining_today": max(0, _EMAIL_DAILY_PER_USER - used_today - 1),
+    }
+
+
 @app.get("/api/export/csv")
 def export_csv(limit: int = 5000, batch_id: str | None = None):
     """Stream a CSV of every photo + AI prediction + final label.

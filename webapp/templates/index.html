@@ -241,6 +241,16 @@
           <div class="text-xs text-slate-500" data-i18n="export_json_desc">Full structured data for downstream pipelines.</div>
         </div>
       </a>
+      <button id="btn-email-export" type="button"
+              class="w-full text-left flex items-start gap-3 px-3 py-2 hover:bg-emerald-50 rounded-md border-t border-slate-100 mt-1 pt-3">
+        <svg class="w-5 h-5 mt-0.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/>
+        </svg>
+        <div>
+          <div class="font-medium text-slate-900 text-sm" data-i18n="email_btn_title">Email it</div>
+          <div class="text-xs text-slate-500" data-i18n="email_btn_desc">Send the export to a recipient. Files &gt;20 MB get a 7-day download link instead.</div>
+        </div>
+      </button>
     </div>
   </div>
 
@@ -593,6 +603,20 @@ const I18N = {
     sort_high_first: "High confidence first",
     bulk_confirm_high: "Confirm all high-confidence",
     export_btn: "Download",
+    email_btn_title: "Email it",
+    email_btn_desc: "Send the export to a recipient. Files >20 MB get a 7-day download link instead.",
+    email_title: "Email this batch",
+    email_format: "Format",
+    email_to: "Recipient email",
+    email_advanced: "Custom subject / message (optional)",
+    email_send: "Send",
+    email_sending: "Building export and sending…",
+    email_invalid_to: "Enter a valid email address.",
+    email_not_configured: "Email export is not enabled on this server yet.",
+    email_rate_limited: (limit) => `Daily email limit (${limit}) reached. Try again tomorrow.`,
+    email_done_attached: (to, kb) => `Sent to ${to} (${kb} KB attached).`,
+    email_done_link: (to, kb) => `Sent to ${to} — file too large (${kb} KB), 7-day download link in the email.`,
+    email_failed: "Send failed",
     export_pdf_title: "Printable report (PDF)",
     export_pdf_desc: "Cover page + one photo per page with classification. Hand to safety officers / clients.",
     export_zip_title: "Renamed photos ZIP",
@@ -719,6 +743,20 @@ const I18N = {
     sort_high_first: "Độ tin cậy cao trước",
     bulk_confirm_high: "Xác nhận hết ảnh tin cậy cao",
     export_btn: "Tải về",
+    email_btn_title: "Gửi email",
+    email_btn_desc: "Gửi báo cáo cho người nhận. Tệp >20 MB sẽ gửi liên kết tải (hết hạn sau 7 ngày).",
+    email_title: "Gửi báo cáo qua email",
+    email_format: "Định dạng",
+    email_to: "Email người nhận",
+    email_advanced: "Chủ đề / nội dung tùy chỉnh (không bắt buộc)",
+    email_send: "Gửi",
+    email_sending: "Đang tạo và gửi báo cáo…",
+    email_invalid_to: "Nhập email hợp lệ.",
+    email_not_configured: "Tính năng gửi email chưa được kích hoạt.",
+    email_rate_limited: (limit) => `Đã đạt giới hạn gửi email/ngày (${limit}). Thử lại ngày mai.`,
+    email_done_attached: (to, kb) => `Đã gửi đến ${to} (${kb} KB đính kèm).`,
+    email_done_link: (to, kb) => `Đã gửi đến ${to} — tệp quá lớn (${kb} KB), liên kết tải có trong email.`,
+    email_failed: "Gửi thất bại",
     export_pdf_title: "Báo cáo in (PDF)",
     export_pdf_desc: "Trang bìa + mỗi ảnh một trang kèm phân loại. Gửi cho cán bộ an toàn / khách hàng.",
     export_zip_title: "ZIP ảnh đã đổi tên",
@@ -1045,6 +1083,124 @@ function closeLightbox() {
   lightboxImg.src = "";
 }
 lightbox.addEventListener("click", closeLightbox);
+
+// =================== Email export modal ===================
+// Inspector picks format + recipient, server builds the export +
+// sends. Falls back to a presigned R2 link when the file exceeds
+// the inline-attachment limit (~20MB). Recipient email is persisted
+// in localStorage so repeat sends don't require retyping.
+function openEmailModal() {
+  const modal = el("#email-modal");
+  if (!modal) return;
+  // Pre-fill the recipient with whatever was used last time
+  const lastTo = localStorage.getItem("violation-ai-email-to") || "";
+  const toInput = el("#email-to");
+  if (toInput) toInput.value = lastTo;
+  // Reset status / submit button
+  const status = el("#email-status");
+  if (status) status.textContent = "";
+  const btn = el("#email-submit");
+  if (btn) btn.disabled = false;
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  setTimeout(() => toInput?.focus(), 60);
+}
+function closeEmailModal() {
+  const modal = el("#email-modal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+// One-time wiring at DOMContentLoaded.
+{
+  const btn = el("#btn-email-export");
+  if (btn) btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    // Hide the export menu before opening the modal
+    const menu = el("#export-menu");
+    if (menu) menu.classList.add("hidden");
+    openEmailModal();
+  });
+
+  const closeBtn = el("#email-close");
+  if (closeBtn) closeBtn.addEventListener("click", closeEmailModal);
+  const cancelBtn = el("#email-cancel");
+  if (cancelBtn) cancelBtn.addEventListener("click", closeEmailModal);
+  const modal = el("#email-modal");
+  if (modal) modal.addEventListener("click", e => {
+    if (e.target === modal) closeEmailModal();
+  });
+
+  const form = el("#email-form");
+  if (form) form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const submit = el("#email-submit");
+    const status = el("#email-status");
+    const fmt = el("#email-format")?.value || "pdf";
+    const to = (el("#email-to")?.value || "").trim();
+    const subject = (el("#email-subject")?.value || "").trim();
+    const body = (el("#email-body")?.value || "").trim();
+    if (!to || to.indexOf("@") < 0) {
+      if (status) status.textContent = t("email_invalid_to");
+      return;
+    }
+    submit.disabled = true;
+    if (status) status.textContent = t("email_sending");
+    // Persist the recipient for next time
+    localStorage.setItem("violation-ai-email-to", to);
+    try {
+      const fd = new FormData();
+      if (CURRENT_BATCH_ID) fd.append("batch_id", CURRENT_BATCH_ID);
+      fd.append("format", fmt);
+      fd.append("to_email", to);
+      if (subject) fd.append("subject", subject);
+      if (body) fd.append("body", body);
+      const r = await fetch("/api/export/email", { method: "POST", body: fd });
+      // 503 = SMTP not configured on the server
+      if (r.status === 503) {
+        let detail = {};
+        try { detail = (await r.json()).detail || {}; } catch (e) {}
+        if (status) status.textContent = detail.message || t("email_not_configured");
+        submit.disabled = false;
+        return;
+      }
+      if (r.status === 429) {
+        let detail = {};
+        try { detail = (await r.json()).detail || {}; } catch (e) {}
+        if (status) status.textContent = t("email_rate_limited")(detail.limit ?? 5);
+        submit.disabled = false;
+        return;
+      }
+      if (!r.ok) {
+        let msg = `HTTP ${r.status}`;
+        try {
+          const err = (await r.json()).detail;
+          if (typeof err === "object" && err.message) msg = err.message;
+          else if (typeof err === "string") msg = err;
+        } catch (e) {}
+        throw new Error(msg);
+      }
+      const data = await r.json();
+      const sizeKb = Math.round((data.bytes || 0) / 1024);
+      const verdict = data.delivery === "link"
+        ? t("email_done_link")(to, sizeKb)
+        : t("email_done_attached")(to, sizeKb);
+      if (status) {
+        status.textContent = verdict;
+        status.className = "text-xs text-emerald-700 min-h-[16px]";
+      }
+      showToast(verdict);
+      setTimeout(closeEmailModal, 1800);
+    } catch (e) {
+      if (status) {
+        status.textContent = `${t("email_failed")}: ${e.message}`;
+        status.className = "text-xs text-rose-600 min-h-[16px]";
+      }
+      submit.disabled = false;
+    }
+  });
+}
 
 // =================== Per-photo history modal ===================
 // Opens the audit trail for one photo: every correction, oldest first,

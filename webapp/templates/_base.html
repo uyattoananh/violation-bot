@@ -141,6 +141,54 @@
   <!-- Toast container -->
   <div id="toast" class="toast bg-slate-900 text-white text-sm rounded-full px-4 py-2.5 shadow-lg flex items-center gap-3"></div>
 
+  <!-- Email export modal: inspector picks a format + recipient,
+       server generates the export and emails it. Falls back to a
+       presigned R2 link when the file is too big to attach. -->
+  <div id="email-modal" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold" data-i18n="email_title">Email this batch</h3>
+        <button id="email-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
+      </div>
+      <form id="email-form" class="text-sm space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1" data-i18n="email_format">Format</label>
+          <select id="email-format" class="w-full border border-slate-300 rounded px-2 py-2 bg-white">
+            <option value="pdf">PDF — printable report (recommended)</option>
+            <option value="zip">ZIP — renamed photos + manifest.csv</option>
+            <option value="csv">CSV — spreadsheet</option>
+            <option value="json">JSON — programmatic</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1" data-i18n="email_to">Recipient email</label>
+          <input id="email-to" type="email" required
+                 placeholder="someone@aecis.com"
+                 class="w-full border border-slate-300 rounded px-2 py-2 bg-white"
+                 autocomplete="email">
+        </div>
+        <details class="text-xs text-slate-500">
+          <summary class="cursor-pointer hover:text-slate-900" data-i18n="email_advanced">Custom subject / message (optional)</summary>
+          <div class="mt-2 space-y-2">
+            <input id="email-subject" type="text" placeholder="Subject"
+                   class="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-sm">
+            <textarea id="email-body" rows="3" placeholder="Optional message body…"
+                      class="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-sm"></textarea>
+          </div>
+        </details>
+        <div id="email-status" class="text-xs text-slate-400 min-h-[16px]"></div>
+        <div class="flex gap-2 pt-1">
+          <button type="submit" id="email-submit"
+                  class="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-lg px-4 py-2 disabled:bg-slate-300 disabled:cursor-not-allowed">
+            <span data-i18n="email_send">Send</span>
+          </button>
+          <button type="button" id="email-cancel"
+                  class="text-slate-500 hover:text-slate-900 text-sm px-3" data-i18n="edit_cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Photo markup modal: inspector draws a rectangle on a photo and
        re-runs the classifier on just that region. Used when the AI got
        distracted by other features in the photo and missed the actual
