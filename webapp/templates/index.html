@@ -528,6 +528,7 @@ const I18N = {
   en: {
     drop_main: "Drop site photos here, or <span class='text-emerald-600 underline'>click to select</span>",
     drop_sub: "JPG · PNG · HEIC · drop hundreds at once. Each confirmation grows the AI's reference library.",
+    upload_resizing: "Optimising for upload…",
     upload_uploading: "Uploading…",
     upload_classifying: "Photos uploaded — classifying in background",
     upload_done_notif: "Batch finished classifying",
@@ -690,6 +691,7 @@ const I18N = {
   vn: {
     drop_main: "Thả ảnh hiện trường vào đây, hoặc <span class='text-emerald-600 underline'>bấm để chọn</span>",
     drop_sub: "JPG · PNG · HEIC · thả hàng trăm ảnh cùng lúc. Mỗi lần xác nhận giúp AI học thêm.",
+    upload_resizing: "Đang tối ưu trước khi tải lên…",
     upload_uploading: "Đang tải lên…",
     upload_classifying: "Đã tải xong — AI đang phân loại trong nền",
     upload_done_notif: "Phân loại lô ảnh đã xong",
@@ -2275,6 +2277,69 @@ function refreshFineSelect(card, parentSlug) {
 }
 
 // =================== Upload (chunked + progress + notifications) ===================
+
+// Client-side downscale BEFORE upload. Construction-site networks
+// are often weak (3G or worse, captive Wi-Fi); a 12 MB phone JPEG
+// over a 200 kbps uplink is 8 minutes per photo. Shrinking to
+// ~1600 px / ~85 % JPEG drops typical site photos to 200-500 KB,
+// usually 90 %+ smaller, with no perceptible loss for an HSE
+// inspection use case (the AI doesn't need 4K — it's looking for
+// PPE, scaffolding, regions, not text on a name badge).
+//
+// Skipped when:
+//   - File is already small (< 500 KB) — pre-shrunk or screenshot
+//   - createImageBitmap throws — e.g. HEIC on a browser that can't
+//     decode it. Server-side _normalize_image handles HEIC fallback.
+//   - The resize result is somehow LARGER than original (rare; happens
+//     on photos that were already heavily compressed).
+async function _resizeForUpload(file, maxDim = 1600, quality = 0.85) {
+  try {
+    if (!file || !file.type || !file.type.startsWith("image/")) return file;
+    if (file.size < 500 * 1024) return file;
+
+    // imageOrientation: 'from-image' bakes EXIF rotation into the
+    // bitmap so portrait phone shots don't end up sideways after
+    // the canvas redraw (EXIF metadata is dropped during JPEG re-encode).
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch (e) {
+      // HEIC + non-Safari, or some exotic format. Let the server handle it.
+      return file;
+    }
+
+    const ratio = Math.min(maxDim / bitmap.width, maxDim / bitmap.height, 1);
+    if (ratio >= 1) {
+      bitmap.close();
+      return file;   // image is already within the cap
+    }
+
+    const w = Math.max(1, Math.round(bitmap.width  * ratio));
+    const h = Math.max(1, Math.round(bitmap.height * ratio));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+
+    const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", quality));
+    if (!blob || blob.size >= file.size) return file;
+
+    // Wrap as a File so the server sees a name + content-type. Replace
+    // the extension with .jpg since we're now JPEG regardless of input.
+    const newName = (file.name || "photo.jpg").replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], newName, {
+      type: "image/jpeg",
+      lastModified: file.lastModified || Date.now(),
+    });
+  } catch (e) {
+    // Any unexpected failure: send original so we degrade gracefully.
+    console.warn("[resize] fallback to original:", e);
+    return file;
+  }
+}
+
 async function uploadFiles(files) {
   if (!files.length) return;
   const total = files.length;
@@ -2283,9 +2348,23 @@ async function uploadFiles(files) {
   const overlay = el("#upload-progress");
 
   overlay.classList.remove("hidden");
-  el("#upload-progress > div > div:nth-child(2)").textContent = t("upload_uploading");
+  el("#upload-progress > div > div:nth-child(2)").textContent = t("upload_resizing");
   detail.textContent = `0 / ${total}`;
   bar.style.width = "0%";
+
+  // Resize pass — runs sequentially (resize is CPU-bound; parallel
+  // doesn't help on phones and just spikes memory). Updates the
+  // progress bar for the resize phase before the upload phase begins.
+  const resized = [];
+  for (let i = 0; i < files.length; i++) {
+    resized.push(await _resizeForUpload(files[i]));
+    detail.textContent = `${i + 1} / ${total}`;
+    bar.style.width = `${Math.round(((i + 1) / total) * 50)}%`;   // resize uses first half of bar
+  }
+  files = resized;
+  el("#upload-progress > div > div:nth-child(2)").textContent = t("upload_uploading");
+  detail.textContent = `0 / ${total}`;
+  bar.style.width = "50%";
 
   // Ask for desktop notification permission once, on the first big upload
   if (!notifPermissionAsked && total >= 10 && "Notification" in window && Notification.permission === "default") {
@@ -2337,7 +2416,9 @@ async function uploadFiles(files) {
         refreshQuotaIndicator();   // also fires class-color update
       }
       detail.textContent = `${uploadedCount} / ${total}`;
-      bar.style.width = `${Math.round((uploadedCount / total) * 100)}%`;
+      // Upload phase uses the second half of the bar (50% → 100%);
+      // resize phase already filled the first half.
+      bar.style.width = `${50 + Math.round((uploadedCount / total) * 50)}%`;
       // Surface server-side rejections. Two reason families:
       //   not_an_image / empty_or_too_small  -> file unusable
       //   daily_limit_reached                -> quota cut us off mid-batch
