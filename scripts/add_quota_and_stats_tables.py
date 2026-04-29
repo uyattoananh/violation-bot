@@ -52,6 +52,15 @@ CREATE TABLE IF NOT EXISTS daily_user_stats (
 CREATE INDEX IF NOT EXISTS idx_daily_user_stats_day
     ON daily_user_stats (day DESC);
 
+-- ---------- Row Level Security ----------
+-- Both tables hold per-user usage data. The webapp ALWAYS reaches
+-- them via the service-role key (which bypasses RLS), so enabling
+-- RLS without any policies blocks every other access path: anon
+-- key, authenticated key, direct PostgREST queries from the public
+-- internet. This is what we want — these tables are backend-only.
+ALTER TABLE daily_quota_usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_user_stats  ENABLE ROW LEVEL SECURITY;
+
 -- Augment photos + corrections with the cookie-key. Lets us attribute
 -- existing rows to the new key namespace AND lets the rollup query
 -- group correctly. Until backfill, NULL means "pre-Phase-2 row".
