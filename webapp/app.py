@@ -1196,14 +1196,17 @@ def root(request: Request):
 def _render_landing_page(request: Request) -> HTMLResponse:
     """Public marketing page rendered to anonymous visitors at /.
 
-    Stylistically aligned with the app (emerald + slate, system-ui font,
-    same check-circle logo) so the transition through sign-in feels
-    continuous. Bilingual EN/VN, mobile responsive, no external assets
-    (every byte is inline so the SW can cache the whole shell offline).
-
-    The 'Sign in' CTA points at /auth/signin which then offers the
-    Google + Microsoft buttons — the same chooser the gate redirects
-    to for protected paths.
+    Black & white minimalist theme. Hero section sits inside a 16:9
+    'wave strip' framed by hairline white borders, top and bottom.
+    The wave is a vanilla-canvas reconstruction of the 21st.dev
+    `xubohuah/wave-background` component:
+      - vertical lines + horizontal sub-points form a flexible mesh
+      - per-frame distortion via inline 2D simplex noise (no
+        npm `simplex-noise` dep — same algorithm, hand-rolled in
+        ~30 lines so the page stays self-contained for SW caching)
+      - cursor proximity adds local velocity, decays back via
+        spring damping
+    Bilingual EN/VN, mobile responsive, fully inline.
     """
     google_on = _oauth_enabled()
     azure_on = _azure_oauth_enabled()
@@ -1219,7 +1222,7 @@ def _render_landing_page(request: Request) -> HTMLResponse:
 <html lang="en"><head><meta charset="utf-8">
 <title>Violation AI — AECIS HSE inspection</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#10b981">
+<meta name="theme-color" content="#000000">
 <meta name="description" content="AI-powered HSE violation detection for construction sites — built for AECIS inspectors. Sign in with Google or Microsoft to access the inspection workflow.">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/icons/icon-180.png">
@@ -1227,62 +1230,108 @@ def _render_landing_page(request: Request) -> HTMLResponse:
 <style>
 * {{ box-sizing: border-box; }}
 html, body {{ margin: 0; padding: 0; }}
-body {{ font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
-       color: #0f172a; background: #f8fafc; min-height: 100vh; }}
-.bg {{ background: linear-gradient(160deg, #ecfdf5 0%, #f8fafc 60%, #f1f5f9 100%);
-      min-height: 100vh; display: flex; flex-direction: column; }}
+body {{ font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, "Segoe UI", sans-serif;
+       color: #ffffff; background: #000000; min-height: 100vh;
+       -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+       overflow-x: hidden; }}
+.shell {{ display: flex; flex-direction: column; min-height: 100vh; }}
 
 header {{ display: flex; justify-content: space-between; align-items: center;
-         padding: 16px 24px; max-width: 1100px; margin: 0 auto; width: 100%; }}
-.brand {{ display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }}
-.brand .check {{ width: 32px; height: 32px; border-radius: 999px; background: #10b981;
-                color: #fff; display: grid; place-items: center; box-shadow: 0 2px 8px rgba(16,185,129,.25); }}
-.brand .check svg {{ width: 18px; height: 18px; }}
-.brand .accent {{ color: #10b981; }}
-.locale-toggle {{ display: flex; gap: 4px; background: rgba(255,255,255,0.7); border-radius: 999px;
-                 padding: 2px; border: 1px solid #e2e8f0; }}
-.locale-toggle button {{ font: inherit; background: none; border: 0; cursor: pointer;
-                        padding: 4px 10px; border-radius: 999px; color: #64748b; font-weight: 600; font-size: 12px; }}
-.locale-toggle button.active {{ background: #10b981; color: #fff; }}
+         padding: 18px 24px; max-width: 1280px; margin: 0 auto; width: 100%;
+         position: relative; z-index: 5; }}
+.brand {{ display: inline-flex; align-items: center; gap: 10px;
+         font-weight: 600; font-size: 16px; color: #ffffff; text-decoration: none;
+         letter-spacing: -0.01em; }}
+.brand .check {{ width: 26px; height: 26px; border: 1px solid rgba(255,255,255,0.4);
+                border-radius: 999px; display: grid; place-items: center; }}
+.brand .check svg {{ width: 14px; height: 14px; }}
+.brand .accent {{ color: rgba(255,255,255,0.45); font-weight: 400; }}
 
-main {{ flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }}
-.hero {{ max-width: 920px; width: 100%; text-align: center; }}
-.eyebrow {{ display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: .12em;
-           font-weight: 700; color: #047857; background: #d1fae5; padding: 6px 14px;
-           border-radius: 999px; margin-bottom: 18px; }}
-h1 {{ font-size: clamp(28px, 4.5vw, 44px); line-height: 1.15; font-weight: 700; margin: 0 0 18px;
-     letter-spacing: -0.02em; }}
-h1 .accent {{ color: #10b981; }}
-.lead {{ font-size: clamp(15px, 1.8vw, 18px); color: #475569; margin: 0 auto 28px;
-        max-width: 620px; }}
-.cta {{ display: inline-flex; align-items: center; gap: 10px; background: #10b981;
-       color: #fff; text-decoration: none; padding: 14px 28px; border-radius: 12px;
-       font-weight: 700; font-size: 15px; box-shadow: 0 4px 16px rgba(16,185,129,.3);
-       transition: transform .04s, box-shadow .15s, background .15s; }}
-.cta:hover {{ background: #059669; box-shadow: 0 6px 20px rgba(16,185,129,.38); }}
+.locale-toggle {{ display: flex; gap: 0; border: 1px solid rgba(255,255,255,0.18);
+                 border-radius: 999px; overflow: hidden; }}
+.locale-toggle button {{ font: inherit; background: transparent; border: 0; cursor: pointer;
+                        padding: 5px 12px; color: rgba(255,255,255,0.55); font-weight: 500; font-size: 11px;
+                        letter-spacing: 0.04em; transition: background .15s, color .15s; }}
+.locale-toggle button:hover {{ color: #ffffff; }}
+.locale-toggle button.active {{ background: #ffffff; color: #000000; }}
+
+/* ============= Hero with wave strip ============= */
+.hero {{ position: relative; width: 100%;
+        min-height: 72vh; display: flex; align-items: center; justify-content: center;
+        padding: 64px 16px; overflow: hidden; }}
+.hero-canvas {{ position: absolute; inset: 0; width: 100%; height: 100%;
+               z-index: 0; pointer-events: auto; }}
+.hero-hairline {{ position: absolute; left: 0; right: 0; height: 1px;
+                 background: rgba(255,255,255,0.7); z-index: 2; pointer-events: none; }}
+.hero-hairline.top {{ top: 0; }}
+.hero-hairline.bottom {{ bottom: 0; }}
+.hero-fade {{ position: absolute; left: 0; right: 0; height: 80px; z-index: 1;
+             pointer-events: none; }}
+.hero-fade.top {{ top: 0; background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%); }}
+.hero-fade.bottom {{ bottom: 0; background: linear-gradient(0deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%); }}
+
+.hero-content {{ position: relative; z-index: 3; max-width: 880px; width: 100%;
+                text-align: center; pointer-events: none; }}
+.hero-content > * {{ pointer-events: auto; }}
+
+.eyebrow {{ display: inline-block; font-size: 11px; text-transform: uppercase;
+           letter-spacing: 0.18em; font-weight: 600; color: rgba(255,255,255,0.7);
+           border: 1px solid rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 999px;
+           margin-bottom: 24px; backdrop-filter: blur(8px); background: rgba(0,0,0,0.3); }}
+h1 {{ font-size: clamp(36px, 6.5vw, 76px); line-height: 1.02; font-weight: 600;
+     margin: 0 0 22px; letter-spacing: -0.035em; color: #ffffff; }}
+h1 .em {{ font-style: italic; font-weight: 400; color: rgba(255,255,255,0.85); }}
+.lead {{ font-size: clamp(15px, 1.6vw, 18px); color: rgba(255,255,255,0.65);
+        margin: 0 auto 36px; max-width: 620px; line-height: 1.6; }}
+.cta {{ display: inline-flex; align-items: center; gap: 10px; background: #ffffff;
+       color: #000000; text-decoration: none; padding: 14px 28px; border-radius: 999px;
+       font-weight: 600; font-size: 14px; letter-spacing: 0.01em;
+       transition: transform .04s, background .15s, color .15s, box-shadow .15s;
+       box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 8px 32px rgba(255,255,255,0.08); }}
+.cta:hover {{ background: rgba(255,255,255,0.92); box-shadow: 0 0 0 1px rgba(255,255,255,0.1), 0 12px 40px rgba(255,255,255,0.12); }}
 .cta:active {{ transform: scale(0.98); }}
-.cta svg {{ width: 18px; height: 18px; }}
-.providers-note {{ display: block; margin-top: 12px; color: #64748b; font-size: 13px; }}
+.cta svg {{ width: 16px; height: 16px; }}
+.providers-note {{ display: block; margin-top: 18px; color: rgba(255,255,255,0.4);
+                  font-size: 12px; letter-spacing: 0.02em; }}
 
+/* ============= Features ============= */
+.features-section {{ padding: 80px 16px 60px; max-width: 1080px; margin: 0 auto;
+                    width: 100%; }}
+.features-eyebrow {{ display: block; text-align: center; font-size: 11px;
+                    text-transform: uppercase; letter-spacing: 0.18em;
+                    color: rgba(255,255,255,0.4); margin-bottom: 32px; font-weight: 600; }}
 .features {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 16px; max-width: 1080px; margin: 60px auto 0; padding: 0 16px; }}
-.feature {{ background: rgba(255,255,255,0.7); border: 1px solid #e2e8f0; border-radius: 14px;
-           padding: 22px; text-align: left; backdrop-filter: blur(6px); }}
-.feature .ic {{ width: 36px; height: 36px; border-radius: 8px; background: #d1fae5; color: #047857;
-                display: grid; place-items: center; margin-bottom: 12px; }}
-.feature .ic svg {{ width: 20px; height: 20px; }}
-.feature h3 {{ font-size: 15px; margin: 0 0 6px; font-weight: 600; }}
-.feature p {{ font-size: 13px; color: #64748b; margin: 0; line-height: 1.55; }}
+            gap: 1px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 0; }}
+.feature {{ background: #000000; padding: 28px 24px; }}
+.feature .ic {{ width: 32px; height: 32px; border: 1px solid rgba(255,255,255,0.25);
+                color: #ffffff; display: grid; place-items: center; margin-bottom: 16px;
+                border-radius: 6px; }}
+.feature .ic svg {{ width: 16px; height: 16px; }}
+.feature h3 {{ font-size: 15px; margin: 0 0 8px; font-weight: 600; color: #ffffff;
+              letter-spacing: -0.005em; }}
+.feature p {{ font-size: 13px; color: rgba(255,255,255,0.55); margin: 0; line-height: 1.6; }}
 
-footer {{ text-align: center; color: #94a3b8; font-size: 12px; padding: 32px 16px; }}
-footer a {{ color: inherit; }}
+/* ============= Footer ============= */
+footer {{ text-align: center; color: rgba(255,255,255,0.35); font-size: 11px;
+         padding: 40px 16px 32px; letter-spacing: 0.02em;
+         border-top: 1px solid rgba(255,255,255,0.08); margin-top: auto; }}
+footer a {{ color: rgba(255,255,255,0.7); text-decoration: none; }}
+footer a:hover {{ color: #ffffff; text-decoration: underline; }}
 
 [data-locale]:not(.show) {{ display: none; }}
-</style></head><body class="bg"><div class="bg">
+
+@media (max-width: 640px) {{
+  header {{ padding: 14px 16px; }}
+  .hero {{ min-height: 60vh; padding: 48px 12px; }}
+  .features-section {{ padding: 56px 12px 48px; }}
+}}
+</style></head><body>
+<div class="shell">
 <header>
-  <a class="brand" href="/" style="text-decoration:none;color:inherit">
-    <span class="check"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
-    <span>Violation <span class="accent">AI</span></span>
+  <a class="brand" href="/">
+    <span class="check"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+    <span>Violation <span class="accent">/ AI</span></span>
   </a>
   <div class="locale-toggle">
     <button id="loc-en" type="button" class="active">EN</button>
@@ -1290,32 +1339,45 @@ footer a {{ color: inherit; }}
   </div>
 </header>
 
-<main><div class="hero">
-  <span class="eyebrow">
-    <span data-locale="en">AECIS HSE inspection · powered by AI</span>
-    <span data-locale="vn">Kiểm tra HSE AECIS · do AI hỗ trợ</span>
-  </span>
-  <h1>
-    <span data-locale="en">Spot construction-site <span class="accent">safety violations</span> in seconds.</span>
-    <span data-locale="vn">Phát hiện <span class="accent">vi phạm an toàn</span> công trường trong vài giây.</span>
-  </h1>
-  <p class="lead">
-    <span data-locale="en">Upload site photos. The AI classifies them against the AECIS HSE taxonomy in English &amp; Vietnamese, ranks confidence, and lets you correct on the spot. Built for inspectors, exported as PDF / ZIP / CSV.</span>
-    <span data-locale="vn">Tải ảnh hiện trường lên. AI phân loại theo bảng phân loại HSE AECIS bằng tiếng Anh &amp; tiếng Việt, xếp hạng độ tin cậy và cho phép bạn chỉnh tại chỗ. Xây dựng cho cán bộ kiểm tra, xuất PDF / ZIP / CSV.</span>
-  </p>
-  <a class="cta" href="/auth/signin">
-    <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 003 3h2a3 3 0 003-3V7a3 3 0 00-3-3h-2a3 3 0 00-3 3v1"/></svg>
-    <span data-locale="en">Sign in to continue</span>
-    <span data-locale="vn">Đăng nhập để tiếp tục</span>
-  </a>
-  <span class="providers-note">
-    <span data-locale="en">{providers_blurb_en} · AECIS-internal &amp; partner accounts only</span>
-    <span data-locale="vn">{providers_blurb_vn} · chỉ dành cho tài khoản nội bộ &amp; đối tác AECIS</span>
-  </span>
+<section class="hero">
+  <canvas id="waves" class="hero-canvas"></canvas>
+  <div class="hero-fade top"></div>
+  <div class="hero-fade bottom"></div>
+  <div class="hero-hairline top"></div>
+  <div class="hero-hairline bottom"></div>
+  <div class="hero-content">
+    <span class="eyebrow">
+      <span data-locale="en">AECIS HSE inspection · powered by AI</span>
+      <span data-locale="vn">Kiểm tra HSE AECIS · do AI hỗ trợ</span>
+    </span>
+    <h1>
+      <span data-locale="en">Spot construction-site safety violations <span class="em">in seconds.</span></span>
+      <span data-locale="vn">Phát hiện vi phạm an toàn công trường <span class="em">trong vài giây.</span></span>
+    </h1>
+    <p class="lead">
+      <span data-locale="en">Upload site photos. The AI classifies them against the AECIS HSE taxonomy in English &amp; Vietnamese, ranks confidence, and lets you correct on the spot. Built for inspectors, exported as PDF / ZIP / CSV.</span>
+      <span data-locale="vn">Tải ảnh hiện trường lên. AI phân loại theo bảng phân loại HSE AECIS bằng tiếng Anh &amp; tiếng Việt, xếp hạng độ tin cậy và cho phép bạn chỉnh tại chỗ. Xây dựng cho cán bộ kiểm tra, xuất PDF / ZIP / CSV.</span>
+    </p>
+    <a class="cta" href="/auth/signin">
+      <span data-locale="en">Sign in to continue</span>
+      <span data-locale="vn">Đăng nhập để tiếp tục</span>
+      <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+    </a>
+    <span class="providers-note">
+      <span data-locale="en">{providers_blurb_en} · AECIS-internal &amp; partner accounts only</span>
+      <span data-locale="vn">{providers_blurb_vn} · chỉ dành cho tài khoản nội bộ &amp; đối tác AECIS</span>
+    </span>
+  </div>
+</section>
 
+<section class="features-section">
+  <span class="features-eyebrow">
+    <span data-locale="en">What it does</span>
+    <span data-locale="vn">Tính năng</span>
+  </span>
   <div class="features">
     <div class="feature">
-      <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5l5-5 4 4 6-7 3 3v6.5a2 2 0 01-2 2H5a2 2 0 01-2-2V16.5z"/></svg></div>
+      <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5l5-5 4 4 6-7 3 3v6.5a2 2 0 01-2 2H5a2 2 0 01-2-2V16.5z"/></svg></div>
       <h3>
         <span data-locale="en">Upload &amp; classify</span>
         <span data-locale="vn">Tải lên &amp; phân loại</span>
@@ -1326,7 +1388,7 @@ footer a {{ color: inherit; }}
       </p>
     </div>
     <div class="feature">
-      <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.6 2A9 9 0 11 3.4 14a9 9 0 0117.2 0z"/></svg></div>
+      <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.6 2A9 9 0 11 3.4 14a9 9 0 0117.2 0z"/></svg></div>
       <h3>
         <span data-locale="en">Confirm or correct</span>
         <span data-locale="vn">Xác nhận hoặc chỉnh sửa</span>
@@ -1337,7 +1399,7 @@ footer a {{ color: inherit; }}
       </p>
     </div>
     <div class="feature">
-      <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
+      <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
       <h3>
         <span data-locale="en">Export &amp; share</span>
         <span data-locale="vn">Xuất &amp; chia sẻ</span>
@@ -1348,14 +1410,16 @@ footer a {{ color: inherit; }}
       </p>
     </div>
   </div>
-</div></main>
+</section>
 
 <footer>
   <span data-locale="en">© AECIS · HSE Inspection Tool · <a href="/auth/signin">Sign in</a></span>
   <span data-locale="vn">© AECIS · Công cụ kiểm tra HSE · <a href="/auth/signin">Đăng nhập</a></span>
 </footer>
 </div>
+
 <script>
+  // ============= Locale toggle (same pattern as before) =============
   (function () {{
     const saved = localStorage.getItem("vai-lang") || "en";
     const enBtn = document.getElementById("loc-en");
@@ -1372,6 +1436,197 @@ footer a {{ color: inherit; }}
     enBtn.addEventListener("click", () => apply("en"));
     vnBtn.addEventListener("click", () => apply("vn"));
     apply(saved);
+  }})();
+
+  // ============= Wave canvas =============
+  // Vanilla canvas reconstruction of the 21st.dev xubohuah/wave-background
+  // component. Vertical lines + sub-points form a flexible mesh; per-frame
+  // distortion via inline 2D simplex noise; cursor proximity adds local
+  // velocity that decays via spring damping. No external deps.
+  (function () {{
+    const canvas = document.getElementById("waves");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+
+    // ---- 2D Simplex noise (Stefan Gustavson algorithm, hand-rolled) ----
+    const simplex2 = (() => {{
+      const F2 = 0.5 * (Math.sqrt(3) - 1);
+      const G2 = (3 - Math.sqrt(3)) / 6;
+      const grad3 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+      const p = new Uint8Array(256);
+      for (let i = 0; i < 256; i++) p[i] = i;
+      // Shuffle deterministically per page-load — random visual variety,
+      // reproducible within a session.
+      for (let i = 255; i > 0; i--) {{
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = p[i]; p[i] = p[j]; p[j] = tmp;
+      }}
+      const perm = new Uint8Array(512);
+      for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+      return function (xin, yin) {{
+        const s = (xin + yin) * F2;
+        const i = Math.floor(xin + s);
+        const j = Math.floor(yin + s);
+        const t = (i + j) * G2;
+        const X0 = i - t, Y0 = j - t;
+        const x0 = xin - X0, y0 = yin - Y0;
+        let i1, j1;
+        if (x0 > y0) {{ i1 = 1; j1 = 0; }} else {{ i1 = 0; j1 = 1; }}
+        const x1 = x0 - i1 + G2, y1 = y0 - j1 + G2;
+        const x2 = x0 - 1 + 2 * G2, y2 = y0 - 1 + 2 * G2;
+        const ii = i & 255, jj = j & 255;
+        const gi0 = perm[ii + perm[jj]] & 7;
+        const gi1 = perm[ii + i1 + perm[jj + j1]] & 7;
+        const gi2 = perm[ii + 1 + perm[jj + 1]] & 7;
+        let n0 = 0, n1 = 0, n2 = 0;
+        let t0 = 0.5 - x0 * x0 - y0 * y0;
+        if (t0 >= 0) {{ t0 *= t0; n0 = t0 * t0 * (grad3[gi0][0] * x0 + grad3[gi0][1] * y0); }}
+        let t1 = 0.5 - x1 * x1 - y1 * y1;
+        if (t1 >= 0) {{ t1 *= t1; n1 = t1 * t1 * (grad3[gi1][0] * x1 + grad3[gi1][1] * y1); }}
+        let t2 = 0.5 - x2 * x2 - y2 * y2;
+        if (t2 >= 0) {{ t2 *= t2; n2 = t2 * t2 * (grad3[gi2][0] * x2 + grad3[gi2][1] * y2); }}
+        return 70 * (n0 + n1 + n2);
+      }};
+    }})();
+
+    // ---- Mesh state ----
+    const LINE_GAP = 60;     // px between vertical lines
+    const POINT_GAP = 30;    // px between points along each line
+    const POINTER_RADIUS = 220;
+    const POINTER_PUSH = 0.18;
+
+    let width = 0, height = 0, dpr = 1;
+    let cols = 0, rows = 0;
+    let points = [];
+
+    function resize() {{
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+
+      cols = Math.ceil(width / LINE_GAP) + 2;
+      rows = Math.ceil(height / POINT_GAP) + 2;
+      points = [];
+      for (let c = 0; c < cols; c++) {{
+        const col = [];
+        for (let r = 0; r < rows; r++) {{
+          col.push({{
+            x: (c - 1) * LINE_GAP, y: (r - 1) * POINT_GAP,
+            wx: 0, wy: 0,        // wave displacement
+            cx: 0, cy: 0,        // cursor displacement
+            vx: 0, vy: 0,        // cursor velocity
+          }});
+        }}
+        points.push(col);
+      }}
+    }}
+
+    // ---- Pointer ----
+    const mouse = {{ x: -9999, y: -9999, lx: -9999, ly: -9999, vx: 0, vy: 0 }};
+
+    function setPointer(clientX, clientY) {{
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = clientX - rect.left;
+      mouse.y = clientY - rect.top;
+    }}
+    canvas.addEventListener("pointermove", (e) => setPointer(e.clientX, e.clientY));
+    canvas.addEventListener("pointerleave", () => {{ mouse.x = -9999; mouse.y = -9999; }});
+    // Also track on touch for mobile interaction.
+    canvas.addEventListener("touchmove", (e) => {{
+      if (e.touches.length) setPointer(e.touches[0].clientX, e.touches[0].clientY);
+    }}, {{ passive: true }});
+
+    // ---- Render loop ----
+    let t = 0;
+    let lastTime = performance.now();
+    function frame(now) {{
+      // Time scaling — slow drift so the wave feels meditative, not nervous.
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+      t += dt * 0.4;
+
+      // Track mouse velocity for impact intensity.
+      mouse.vx = mouse.x - mouse.lx;
+      mouse.vy = mouse.y - mouse.ly;
+      mouse.lx = mouse.x;
+      mouse.ly = mouse.y;
+
+      // Update each point.
+      for (let c = 0; c < cols; c++) {{
+        for (let r = 0; r < rows; r++) {{
+          const p = points[c][r];
+          // Two layers of noise — independent X/Y deformation so the
+          // mesh ripples organically rather than sliding as a unit.
+          p.wx = simplex2(p.x * 0.0035, p.y * 0.001 + t * 0.55) * 28;
+          p.wy = simplex2(p.x * 0.001 + t * 0.45, p.y * 0.0035) * 14;
+
+          // Cursor influence: nearby points get pushed in the mouse's
+          // direction of travel; force scales with both proximity and
+          // mouse speed.
+          if (mouse.x > -1000) {{
+            const dx = mouse.x - (p.x + p.wx);
+            const dy = mouse.y - (p.y + p.wy);
+            const distSq = dx * dx + dy * dy;
+            if (distSq < POINTER_RADIUS * POINTER_RADIUS) {{
+              const dist = Math.sqrt(distSq) || 1;
+              const force = 1 - dist / POINTER_RADIUS;
+              p.vx += force * mouse.vx * POINTER_PUSH;
+              p.vy += force * mouse.vy * POINTER_PUSH;
+              // Also a small repulsion on direct hover so points don't
+              // collapse into the cursor.
+              p.vx += -dx / dist * force * 0.4;
+              p.vy += -dy / dist * force * 0.4;
+            }}
+          }}
+
+          // Damping + spring back to rest.
+          p.vx *= 0.86;
+          p.vy *= 0.86;
+          p.cx += p.vx;
+          p.cy += p.vy;
+          p.cx *= 0.94;
+          p.cy *= 0.94;
+        }}
+      }}
+
+      // Draw — clear with solid black, then stroke each vertical line
+      // through its column of points.
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.32)";
+      ctx.lineWidth = 1;
+      ctx.lineCap = "round";
+
+      for (let c = 0; c < cols; c++) {{
+        ctx.beginPath();
+        for (let r = 0; r < rows; r++) {{
+          const p = points[c][r];
+          const x = p.x + p.wx + p.cx;
+          const y = p.y + p.wy + p.cy;
+          if (r === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }}
+        ctx.stroke();
+      }}
+
+      requestAnimationFrame(frame);
+    }}
+
+    // Pause when tab is hidden — saves battery on mobile.
+    document.addEventListener("visibilitychange", () => {{
+      if (!document.hidden) lastTime = performance.now();
+    }});
+
+    window.addEventListener("resize", resize);
+    resize();
+    requestAnimationFrame(frame);
   }})();
 </script>
 </body></html>"""
