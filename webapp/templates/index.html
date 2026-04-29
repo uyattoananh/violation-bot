@@ -54,6 +54,13 @@
                 px-6 py-10 sm:py-14 text-center cursor-pointer transition-all
                 hover:border-emerald-500 hover:bg-emerald-50/40">
   <input id="file-input" type="file" multiple accept="image/*" class="hidden">
+  <!-- Dedicated camera input. capture="environment" forces the rear
+       camera on Android/iOS (which is what an HSE inspector wants),
+       bypassing the OS file chooser that often hides the camera entry
+       behind 2-3 taps — especially when running as an installed PWA.
+       Kept separate from #file-input so desktop drag-drop and gallery
+       select keep working unchanged. -->
+  <input id="camera-input" type="file" accept="image/*" capture="environment" class="hidden">
   <div class="flex flex-col items-center gap-3 pointer-events-none select-none">
     <div class="w-14 h-14 rounded-2xl bg-emerald-50 grid place-items-center">
       <svg class="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
@@ -66,6 +73,28 @@
     </div>
     <div class="text-xs text-slate-500 max-w-md" data-i18n="drop_sub">
       JPG · PNG · HEIC · drop hundreds at once. Each confirmation grows the AI's reference library.
+    </div>
+    <!-- Mobile-only quick-access camera button. pointer-events-auto so
+         the click reaches the button (parent container has pointer-events-none
+         so clicks-on-empty-space still trigger the gallery picker). The
+         "or" divider keeps the two paths visually distinct. -->
+    <div class="sm:hidden flex items-center gap-3 mt-2 pointer-events-auto">
+      <button id="btn-camera" type="button"
+              class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-full px-4 py-2 shadow-sm transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/>
+        </svg>
+        <span data-i18n="cam_take">Take photo</span>
+      </button>
+      <span class="text-xs text-slate-400" data-i18n="cam_or">or</span>
+      <button id="btn-gallery" type="button"
+              class="inline-flex items-center gap-1.5 text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-300 text-sm font-medium rounded-full px-4 py-2 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
+        </svg>
+        <span data-i18n="cam_gallery">Gallery</span>
+      </button>
     </div>
   </div>
 
@@ -616,6 +645,9 @@ const I18N = {
     auth_signout: "Sign out",
     auth_admin_link: "Admin panel",
     pwa_install: "Install app",
+    cam_take: "Take photo",
+    cam_gallery: "Gallery",
+    cam_or: "or",
     pwa_ios_title: "Install on iPhone / iPad",
     pwa_ios_step1: "Tap the Share button",
     pwa_ios_step1_loc: "at the bottom of Safari",
@@ -788,6 +820,9 @@ const I18N = {
     auth_signout: "Đăng xuất",
     auth_admin_link: "Bảng quản trị",
     pwa_install: "Cài ứng dụng",
+    cam_take: "Chụp ảnh",
+    cam_gallery: "Thư viện",
+    cam_or: "hoặc",
     pwa_ios_title: "Cài đặt trên iPhone / iPad",
     pwa_ios_step1: "Bấm nút Chia sẻ",
     pwa_ios_step1_loc: "ở dưới cùng Safari",
@@ -2492,12 +2527,42 @@ async function uploadFiles(files) {
 }
 
 dropzone.addEventListener("click", (e) => {
-  if (e.target.tagName !== "BUTTON") fileInput.click();
+  // Bail if the click came from inside a button (camera, gallery, etc.).
+  // closest() walks the ancestors so SVG-inside-button clicks are also
+  // caught — naive `tagName === "BUTTON"` misses those.
+  if (e.target.closest && e.target.closest("button")) return;
+  fileInput.click();
 });
 fileInput.addEventListener("change", (e) => {
   uploadFiles(Array.from(e.target.files || []));
   fileInput.value = "";
 });
+
+// Camera quick-access. Routes through a separate hidden input that
+// has capture="environment" set, which forces the rear camera on
+// Android/iOS instead of leaving the user to hunt for it in the OS
+// file chooser. Same upload pipeline as the gallery path.
+const cameraInput = document.getElementById("camera-input");
+const btnCamera   = document.getElementById("btn-camera");
+const btnGallery  = document.getElementById("btn-gallery");
+if (btnCamera && cameraInput) {
+  btnCamera.addEventListener("click", (e) => {
+    e.stopPropagation();          // don't bubble to the dropzone click
+    cameraInput.click();
+  });
+  cameraInput.addEventListener("change", (e) => {
+    uploadFiles(Array.from(e.target.files || []));
+    cameraInput.value = "";       // allow taking the same photo twice
+  });
+}
+if (btnGallery) {
+  // Explicit gallery path so the mobile UX is "two clear options"
+  // instead of "tap somewhere on the dropzone and hope".
+  btnGallery.addEventListener("click", (e) => {
+    e.stopPropagation();
+    fileInput.click();
+  });
+}
 ["dragenter", "dragover"].forEach(ev => dropzone.addEventListener(ev, e => {
   e.preventDefault();
   dropzone.classList.add("drop-active");
