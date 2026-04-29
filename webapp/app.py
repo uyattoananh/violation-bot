@@ -1490,10 +1490,15 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
     }})();
 
     // ---- Mesh state ----
-    const LINE_GAP = 60;     // px between vertical lines
-    const POINT_GAP = 30;    // px between points along each line
-    const POINTER_RADIUS = 220;
-    const POINTER_PUSH = 0.18;
+    // Tuned 2026-04-29 #2: denser mesh + lower cursor sensitivity.
+    // Doubling line/point density makes the pattern read as one
+    // continuous field rather than a handful of standalone curves;
+    // halving the cursor radius/push keeps interaction subtle so
+    // moving the mouse across the hero doesn't fling the whole mesh.
+    const LINE_GAP = 36;     // px between vertical lines (was 60)
+    const POINT_GAP = 22;    // px between points along each line (was 30)
+    const POINTER_RADIUS = 130;   // px (was 220)
+    const POINTER_PUSH = 0.07;    // mouse-velocity gain (was 0.18)
 
     let width = 0, height = 0, dpr = 1;
     let cols = 0, rows = 0;
@@ -1562,8 +1567,11 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
           const p = points[c][r];
           // Two layers of noise — independent X/Y deformation so the
           // mesh ripples organically rather than sliding as a unit.
-          p.wx = simplex2(p.x * 0.0035, p.y * 0.001 + t * 0.55) * 28;
-          p.wy = simplex2(p.x * 0.001 + t * 0.45, p.y * 0.0035) * 14;
+          // Tuned 2026-04-29 #2: smaller amplitudes + slightly higher
+          // noise frequency so individual waves are shorter and the
+          // mesh reads as a tighter texture rather than big lazy curves.
+          p.wx = simplex2(p.x * 0.005, p.y * 0.0018 + t * 0.5) * 14;
+          p.wy = simplex2(p.x * 0.0018 + t * 0.4, p.y * 0.005) * 8;
 
           // Cursor influence: nearby points get pushed in the mouse's
           // direction of travel; force scales with both proximity and
@@ -1577,20 +1585,22 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
               const force = 1 - dist / POINTER_RADIUS;
               p.vx += force * mouse.vx * POINTER_PUSH;
               p.vy += force * mouse.vy * POINTER_PUSH;
-              // Also a small repulsion on direct hover so points don't
-              // collapse into the cursor.
-              p.vx += -dx / dist * force * 0.4;
-              p.vy += -dy / dist * force * 0.4;
+              // Tiny repulsion on direct hover so points don't collapse
+              // into the cursor. Lower coefficient (was 0.4) keeps the
+              // interaction calm.
+              p.vx += -dx / dist * force * 0.15;
+              p.vy += -dy / dist * force * 0.15;
             }}
           }}
 
-          // Damping + spring back to rest.
-          p.vx *= 0.86;
-          p.vy *= 0.86;
+          // Damping + spring back to rest. Stronger pull-back so the
+          // cursor effect dies off quickly once the mouse leaves.
+          p.vx *= 0.82;
+          p.vy *= 0.82;
           p.cx += p.vx;
           p.cy += p.vy;
-          p.cx *= 0.94;
-          p.cy *= 0.94;
+          p.cx *= 0.90;
+          p.cy *= 0.90;
         }}
       }}
 
