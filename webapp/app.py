@@ -1490,15 +1490,17 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
     }})();
 
     // ---- Mesh state ----
-    // Tuned 2026-04-29 #2: denser mesh + lower cursor sensitivity.
-    // Doubling line/point density makes the pattern read as one
-    // continuous field rather than a handful of standalone curves;
-    // halving the cursor radius/push keeps interaction subtle so
-    // moving the mouse across the hero doesn't fling the whole mesh.
-    const LINE_GAP = 36;     // px between vertical lines (was 60)
-    const POINT_GAP = 22;    // px between points along each line (was 30)
-    const POINTER_RADIUS = 130;   // px (was 220)
-    const POINTER_PUSH = 0.07;    // mouse-velocity gain (was 0.18)
+    // Tuned 2026-04-29 #3: match the reference screenshot.
+    // Denser bright mesh; cursor influence is now PROXIMITY-only
+    // (radial push) with a smooth lerp toward target — NO velocity
+    // transfer, so flinging the mouse doesn't fling the lines.
+    const LINE_GAP = 18;     // px between vertical lines
+    const POINT_GAP = 16;    // px between sub-points along a line
+    const POINTER_RADIUS = 150;   // px — influence reach
+    const POINTER_PUSH = 32;      // px — max radial displacement at cursor
+    const POINTER_DOT_R = 5;      // px — visible cursor indicator
+    const LERP = 0.12;            // smoothing factor for cursor follow
+    const REST_LERP = 0.92;       // pull-back to rest when out of range
 
     let width = 0, height = 0, dpr = 1;
     let cols = 0, rows = 0;
@@ -1532,88 +1534,89 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
     }}
 
     // ---- Pointer ----
-    const mouse = {{ x: -9999, y: -9999, lx: -9999, ly: -9999, vx: 0, vy: 0 }};
+    // Proximity-only: we only need the current cursor position (no
+    // velocity tracking). The "active" flag lets us hide the dot when
+    // the cursor isn't over the canvas.
+    const mouse = {{ x: -9999, y: -9999, active: false }};
 
     function setPointer(clientX, clientY) {{
       const rect = canvas.getBoundingClientRect();
       mouse.x = clientX - rect.left;
       mouse.y = clientY - rect.top;
+      mouse.active = true;
     }}
     canvas.addEventListener("pointermove", (e) => setPointer(e.clientX, e.clientY));
-    canvas.addEventListener("pointerleave", () => {{ mouse.x = -9999; mouse.y = -9999; }});
-    // Also track on touch for mobile interaction.
+    canvas.addEventListener("pointerleave", () => {{ mouse.active = false; }});
     canvas.addEventListener("touchmove", (e) => {{
       if (e.touches.length) setPointer(e.touches[0].clientX, e.touches[0].clientY);
     }}, {{ passive: true }});
+    canvas.addEventListener("touchend", () => {{ mouse.active = false; }});
 
     // ---- Render loop ----
     let t = 0;
     let lastTime = performance.now();
     function frame(now) {{
-      // Time scaling — slow drift so the wave feels meditative, not nervous.
+      // Time scaling — slow drift so the wave feels meditative.
       const dt = Math.min((now - lastTime) / 1000, 0.05);
       lastTime = now;
       t += dt * 0.4;
 
-      // Track mouse velocity for impact intensity.
-      mouse.vx = mouse.x - mouse.lx;
-      mouse.vy = mouse.y - mouse.ly;
-      mouse.lx = mouse.x;
-      mouse.ly = mouse.y;
+      const radiusSq = POINTER_RADIUS * POINTER_RADIUS;
+      const cursorOn = mouse.active;
 
       // Update each point.
       for (let c = 0; c < cols; c++) {{
         for (let r = 0; r < rows; r++) {{
           const p = points[c][r];
-          // Two layers of noise — independent X/Y deformation so the
-          // mesh ripples organically rather than sliding as a unit.
-          // Tuned 2026-04-29 #2: smaller amplitudes + slightly higher
-          // noise frequency so individual waves are shorter and the
-          // mesh reads as a tighter texture rather than big lazy curves.
+          // Noise-driven base wave (independent X/Y components for
+          // organic ripple, not a sliding pattern).
           p.wx = simplex2(p.x * 0.005, p.y * 0.0018 + t * 0.5) * 14;
           p.wy = simplex2(p.x * 0.0018 + t * 0.4, p.y * 0.005) * 8;
 
-          // Cursor influence: nearby points get pushed in the mouse's
-          // direction of travel; force scales with both proximity and
-          // mouse speed.
-          if (mouse.x > -1000) {{
-            const dx = mouse.x - (p.x + p.wx);
-            const dy = mouse.y - (p.y + p.wy);
+          // PROXIMITY-only cursor displacement. Compute target offset
+          // (radial push away from cursor with quadratic falloff),
+          // then lerp the current displacement toward it. Because
+          // there's no velocity term, the cursor doesn't transfer
+          // momentum — flinging the mouse doesn't fling the mesh.
+          let tx = 0, ty = 0;
+          if (cursorOn) {{
+            const dx = (p.x + p.wx) - mouse.x;
+            const dy = (p.y + p.wy) - mouse.y;
             const distSq = dx * dx + dy * dy;
-            if (distSq < POINTER_RADIUS * POINTER_RADIUS) {{
-              const dist = Math.sqrt(distSq) || 1;
-              const force = 1 - dist / POINTER_RADIUS;
-              p.vx += force * mouse.vx * POINTER_PUSH;
-              p.vy += force * mouse.vy * POINTER_PUSH;
-              // Tiny repulsion on direct hover so points don't collapse
-              // into the cursor. Lower coefficient (was 0.4) keeps the
-              // interaction calm.
-              p.vx += -dx / dist * force * 0.15;
-              p.vy += -dy / dist * force * 0.15;
+            if (distSq < radiusSq && distSq > 0.01) {{
+              const dist = Math.sqrt(distSq);
+              const f = 1 - dist / POINTER_RADIUS;
+              const push = f * f * POINTER_PUSH;   // quadratic falloff
+              tx = (dx / dist) * push;
+              ty = (dy / dist) * push;
             }}
           }}
 
-          // Damping + spring back to rest. Stronger pull-back so the
-          // cursor effect dies off quickly once the mouse leaves.
-          p.vx *= 0.82;
-          p.vy *= 0.82;
-          p.cx += p.vx;
-          p.cy += p.vy;
-          p.cx *= 0.90;
-          p.cy *= 0.90;
+          // Smooth follow: out-of-range points relax to 0; in-range
+          // points lerp toward the radial push target.
+          if (tx === 0 && ty === 0) {{
+            p.cx *= REST_LERP;
+            p.cy *= REST_LERP;
+          }} else {{
+            p.cx += (tx - p.cx) * LERP;
+            p.cy += (ty - p.cy) * LERP;
+          }}
         }}
       }}
 
-      // Draw — clear with solid black, then stroke each vertical line
-      // through its column of points.
+      // ---- Draw ----
       ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, width, height);
 
-      ctx.strokeStyle = "rgba(255,255,255,0.32)";
+      ctx.strokeStyle = "rgba(255,255,255,0.65)";
       ctx.lineWidth = 1;
       ctx.lineCap = "round";
+      ctx.lineJoin = "round";
 
+      // Draw each vertical line. With dense sub-points (16px), straight
+      // lineTo segments are visually indistinguishable from curves but
+      // ~2x cheaper than quadraticCurveTo per render.
       for (let c = 0; c < cols; c++) {{
         ctx.beginPath();
         for (let r = 0; r < rows; r++) {{
@@ -1624,6 +1627,15 @@ footer a:hover {{ color: #ffffff; text-decoration: underline; }}
           else ctx.lineTo(x, y);
         }}
         ctx.stroke();
+      }}
+
+      // Cursor indicator dot — matches the original component's
+      // pointerSize prop. Drawn last so it sits above the mesh.
+      if (cursorOn) {{
+        ctx.fillStyle = "rgba(255,255,255,0.95)";
+        ctx.beginPath();
+        ctx.arc(mouse.x, mouse.y, POINTER_DOT_R, 0, Math.PI * 2);
+        ctx.fill();
       }}
 
       requestAnimationFrame(frame);
