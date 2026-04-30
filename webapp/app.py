@@ -3425,43 +3425,56 @@ def _build_export_blob(
             ai_lbl = (r.get("ai_hse_type_label_en")
                       or r.get("ai_hse_type_slug") or "—")
             conf = float(r.get("ai_hse_confidence") or 0) * 100
+            headline = _esc(fine_lbl) if fine_lbl else _esc(hse_lbl)
+            subhead = _esc(hse_lbl) if fine_lbl else ""
             reviewed_pill = (
                 f'<span class="pill pill-reviewed">Reviewed · {_esc(r.get("review_action") or "")}</span>'
                 if r.get("reviewed") else
                 '<span class="pill pill-pending">Pending review</span>'
             )
             note_html = (
-                f'<div class="note">{_esc(r.get("review_note") or "")}</div>'
+                f'<div class="note"><strong>Note:</strong> {_esc(r.get("review_note") or "")}</div>'
                 if r.get("review_note") else ""
             )
             rationale = _esc(r.get("ai_rationale") or "")
             uploaded = _esc((r.get("uploaded_at") or "")[:19].replace("T", " "))
             filename = _esc(r.get("original_filename") or "(no name)")
             b64 = photo_b64.get(r["id"])
-            img_html = (
-                f'<img alt="" src="data:image/jpeg;base64,{b64}">'
+            # Index badge gives the recipient a quick "photo 12 of 47"
+            # reference when discussing a specific row.
+            idx_badge = f'<div class="idx-badge">#{idx + 1:03d}</div>'
+            photo_block = (
+                f'<figure class="labelled-photo">'
+                f'  {idx_badge}'
+                f'  <img alt="" src="data:image/jpeg;base64,{b64}">'
+                f'  <figcaption>'
+                f'    <div class="cap-headline">{headline}</div>'
+                + (f'    <div class="cap-sub">{subhead}</div>' if subhead else '')
+                + f'    <div class="cap-meta">{reviewed_pill}<span class="cap-conf">AI: {_esc(ai_lbl)} · {conf:.0f}%</span></div>'
+                f'  </figcaption>'
+                f'</figure>'
                 if b64 else
-                '<div class="thumb-placeholder">no thumbnail</div>'
+                f'<figure class="labelled-photo no-thumb">'
+                f'  {idx_badge}'
+                f'  <div class="thumb-placeholder">photo not embedded (cap reached)</div>'
+                f'  <figcaption>'
+                f'    <div class="cap-headline">{headline}</div>'
+                + (f'    <div class="cap-sub">{subhead}</div>' if subhead else '')
+                + f'    <div class="cap-meta">{reviewed_pill}<span class="cap-conf">AI: {_esc(ai_lbl)} · {conf:.0f}%</span></div>'
+                f'  </figcaption>'
+                f'</figure>'
             )
             return f"""
 <article class="row">
-  <div class="row-thumb">{img_html}</div>
-  <div class="row-body">
-    <div class="row-head">
-      <div class="row-title">
-        <div class="row-headline">{_esc(fine_lbl) or _esc(hse_lbl)}</div>
-        {'<div class="row-sub">' + _esc(hse_lbl) + '</div>' if fine_lbl else ''}
-      </div>
-      {reviewed_pill}
-    </div>
+  {photo_block}
+  <aside class="row-side">
     <dl class="row-meta">
-      <dt>AI suggested</dt><dd>{_esc(ai_lbl)} · {conf:.0f}%</dd>
       <dt>Original file</dt><dd>{filename}</dd>
       <dt>Uploaded</dt><dd>{uploaded}</dd>
     </dl>
-    {('<div class="row-rationale">' + rationale + '</div>') if rationale else ''}
+    {('<div class="row-rationale"><strong>AI rationale:</strong> ' + rationale + '</div>') if rationale else ''}
     {note_html}
-  </div>
+  </aside>
 </article>"""
 
         rows_html = "\n".join(_row_html(r, i) for i, r in enumerate(rows))
@@ -3524,51 +3537,99 @@ def _build_export_blob(
     border-bottom: 1px solid var(--rule); font-size: 13px;
   }}
   .top-hse .th-count {{ font-variant-numeric: tabular-nums; color: var(--ink-mute); }}
+  /* Each row is now a "labelled exhibit": photo gets the full row
+     width (or 60% on desktop) with the classification label glued
+     directly underneath as a caption strip — exactly how a museum
+     or inspection report ties an image to its identification. The
+     side column carries metadata that's secondary (filename,
+     timestamp, AI rationale, inspector note). */
   .row {{
-    display: grid; grid-template-columns: 200px 1fr; gap: 18px;
-    border: 1px solid var(--rule); padding: 16px; margin-bottom: 12px;
+    display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px;
+    border: 1px solid var(--rule); padding: 18px; margin-bottom: 16px;
     background: var(--paper-soft); page-break-inside: avoid;
   }}
-  @media (max-width: 600px) {{
+  @media (max-width: 700px) {{
     .row {{ grid-template-columns: 1fr; }}
     .stats {{ grid-template-columns: repeat(2, 1fr); }}
     .stat {{ border-right: none; border-bottom: 1px solid var(--rule); }}
     .stat:nth-child(2) {{ border-right: 0; }}
   }}
-  .row-thumb img {{
-    width: 100%; height: auto; max-height: 200px; object-fit: cover;
-    border: 1px solid var(--rule); display: block;
+  /* Labelled photo — the photo with its caption strip glued to it. */
+  .labelled-photo {{
+    margin: 0; position: relative;
+    border: 1px solid var(--ink); background: var(--ink);
+    overflow: hidden; display: flex; flex-direction: column;
   }}
-  .thumb-placeholder {{
-    width: 100%; height: 120px; display: grid; place-items: center;
-    background: var(--paper); border: 1px dashed var(--rule);
-    color: var(--ink-mute); font-size: 11px;
+  .labelled-photo img {{
+    display: block; width: 100%; height: auto;
+    max-height: 480px; object-fit: contain;
+    background: #1c1c1c;
   }}
-  .row-head {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }}
-  .row-headline {{ font-weight: 600; font-size: 15px; }}
-  .row-sub {{ color: var(--ink-mute); font-size: 11px; margin-top: 2px; }}
+  .labelled-photo .thumb-placeholder {{
+    width: 100%; min-height: 220px; display: grid; place-items: center;
+    background: #1c1c1c; color: #b9b4a4; font-size: 12px; font-style: italic;
+  }}
+  /* Caption strip, directly attached to the photo with no gap. The
+     visual contract: image and label are ONE unit — the photo is
+     "labelled". */
+  .labelled-photo figcaption {{
+    background: var(--ink); color: var(--paper);
+    padding: 12px 14px; border-top: 2px solid var(--accent);
+  }}
+  .labelled-photo .cap-headline {{
+    font-size: 16px; font-weight: 600; line-height: 1.3;
+    letter-spacing: -0.01em;
+  }}
+  .labelled-photo .cap-sub {{
+    font-size: 11px; color: rgba(245,243,235,0.65);
+    text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px;
+  }}
+  .labelled-photo .cap-meta {{
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 10px; gap: 10px; flex-wrap: wrap;
+  }}
+  .labelled-photo .cap-conf {{
+    font-size: 11px; color: rgba(245,243,235,0.6);
+    font-variant-numeric: tabular-nums;
+  }}
+  /* Index badge — top-right corner of the photo, "#001" style. */
+  .idx-badge {{
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(245,243,235,0.92); color: var(--ink);
+    padding: 3px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  }}
+  /* Side column — secondary metadata. */
+  .row-side {{ font-size: 12px; }}
   .row-meta {{
-    display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px;
+    display: grid; grid-template-columns: 90px 1fr; gap: 4px 12px;
     margin: 0 0 10px; font-size: 12px;
   }}
   .row-meta dt {{ color: var(--ink-mute); }}
-  .row-meta dd {{ margin: 0; }}
+  .row-meta dd {{ margin: 0; word-break: break-word; }}
   .row-rationale {{
-    font-size: 12px; color: var(--ink-soft); padding: 8px 10px;
+    font-size: 12px; color: var(--ink-soft); padding: 10px 12px;
     background: var(--paper); border-left: 3px solid var(--accent);
-    margin-top: 8px; line-height: 1.5;
+    margin-top: 10px; line-height: 1.5;
   }}
+  .row-rationale strong {{ color: var(--ink); }}
   .note {{
-    font-size: 12px; padding: 6px 10px; margin-top: 8px;
-    background: rgba(180, 83, 9, 0.06); border-left: 3px solid var(--accent);
+    font-size: 12px; padding: 8px 12px; margin-top: 8px;
+    background: rgba(180, 83, 9, 0.08); border-left: 3px solid var(--accent);
+    color: var(--ink-soft); line-height: 1.5;
   }}
+  .note strong {{ color: var(--ink); }}
+  /* Pills for the caption-meta line — sit on the dark caption strip
+     so they need lighter colours than on the paper bg. */
   .pill {{
-    display: inline-block; padding: 2px 10px; border-radius: 999px;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
     white-space: nowrap;
   }}
-  .pill-reviewed {{ background: rgba(4,120,87,0.10); color: var(--emerald); }}
-  .pill-pending {{ background: rgba(180,83,9,0.10); color: var(--amber); }}
+  .pill-reviewed {{ background: rgba(16,185,129,0.20); color: #6ee7b7; }}
+  .pill-pending {{ background: rgba(245,158,11,0.20); color: #fcd34d; }}
   .skipped-note {{ color: var(--ink-mute); font-size: 12px; padding: 12px; border: 1px dashed var(--rule); margin: 12px 0; }}
   footer {{ margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--ink-mute); font-size: 11px; }}
   @media print {{
