@@ -477,46 +477,32 @@
           <label class="block font-medium mb-1 text-slate-700" data-i18n="edit_pick_label">
             Pick the violation type
           </label>
-          <!-- Picker is wrapped in a positioned div so the dropdown can
-               anchor to it absolutely. The trigger is a button (not the
-               input) so tapping it on mobile doesn't auto-focus and pop
-               up the keyboard. The input is readonly by default with
-               inputmode=none to suppress the on-screen keyboard until
-               the user explicitly hits the magnifier icon. -->
+          <!-- Picker:
+               - Tap on the row (anywhere except the input itself) opens
+                 the dropdown WITHOUT focusing the input — so the on-
+                 screen keyboard does NOT pop up automatically.
+               - Tapping the input directly DOES focus it normally, so
+                 the keyboard appears and the user can type to filter.
+                 On focus the existing label is auto-selected so typing
+                 replaces it.
+               The selected pick is mirrored into the input so users
+               always see what's currently chosen. -->
           <div class="fine-picker relative mb-2">
             <input type="hidden" name="fine_hse_type_slug" class="fine-picker-value">
-            <div class="flex items-stretch gap-1">
-              <!-- The trigger pill: looks like an input but is actually
-                   a wrapper with a readonly text field inside. Tap to
-                   open the dropdown; no keyboard until the user hits the
-                   search button. -->
-              <div class="fine-picker-trigger flex-1 flex items-center gap-1.5 border border-slate-300 rounded px-2 py-1.5 bg-white cursor-pointer">
-                <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
-                </svg>
-                <input type="text"
-                       class="fine-picker-search flex-1 bg-transparent outline-none text-slate-900 placeholder-slate-400"
-                       placeholder="Tap a category"
-                       readonly
-                       inputmode="none"
-                       autocomplete="off"
-                       style="font-size: 16px"
-                       aria-label="Violation type">
-              </div>
-              <!-- Magnifier toggle: flips the input from "browse" mode
-                   (readonly, no keyboard) into "search" mode (typeable,
-                   keyboard pops up). Pressing Esc or tapping outside
-                   reverts. The icon swaps to indicate state. -->
-              <button type="button"
-                      class="fine-picker-search-toggle text-slate-500 hover:text-emerald-700 border border-slate-300 rounded px-2.5 bg-white transition-colors"
-                      aria-label="Search"
-                      title="Search">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <div class="fine-picker-trigger flex items-stretch gap-1 border border-slate-300 rounded px-1.5 py-1 bg-white cursor-pointer">
+              <div class="flex items-center gap-1.5 px-1">
+                <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                 </svg>
-              </button>
+              </div>
+              <input type="text"
+                     class="fine-picker-search flex-1 bg-transparent outline-none text-slate-900 placeholder-slate-400 px-1 py-0.5"
+                     placeholder="Tap to choose or type to search"
+                     autocomplete="off"
+                     style="font-size: 16px"
+                     aria-label="Violation type">
               <button type="button"
-                      class="fine-picker-clear hidden text-slate-400 hover:text-rose-600 border border-slate-300 rounded px-2 bg-white transition-colors"
+                      class="fine-picker-clear hidden text-slate-400 hover:text-rose-600 px-2 transition-colors"
                       title="Clear">
                 ×
               </button>
@@ -667,6 +653,7 @@ const I18N = {
     edit_loc_label: "Location",
     edit_fine_label: "AECIS sub-type <span class='text-slate-400 font-normal'>(optional)</span>",
     edit_pick_label: "Pick the violation type",
+    fine_picker_placeholder: "Tap to choose or type to search",
     fine_search_placeholder: "Search sub-types…",
     fine_search_placeholder_all: "Search ALL 386+ sub-types…",
     fine_scope_in_category: "in category",
@@ -858,6 +845,7 @@ const I18N = {
     edit_loc_label: "Vị trí",
     edit_fine_label: "Phân loại chi tiết AECIS <span class='text-slate-400 font-normal'>(không bắt buộc)</span>",
     edit_pick_label: "Chọn loại vi phạm",
+    fine_picker_placeholder: "Bấm để chọn hoặc gõ để tìm",
     fine_search_placeholder: "Tìm phân loại chi tiết…",
     fine_search_placeholder_all: "Tìm trong TẤT CẢ 386+ phân loại…",
     fine_scope_in_category: "trong danh mục",
@@ -1049,6 +1037,7 @@ const I18N = {
     edit_loc_label: "Ubicación",
     edit_fine_label: "Sub-tipo AECIS <span class='text-slate-400 font-normal'>(opcional)</span>",
     edit_pick_label: "Elige el tipo de infracción",
+    fine_picker_placeholder: "Toca para elegir o escribe para buscar",
     fine_search_placeholder: "Buscar sub-tipos…",
     fine_search_placeholder_all: "Buscar en TODOS los 386+ sub-tipos…",
     fine_scope_in_category: "en la categoría",
@@ -1240,6 +1229,7 @@ const I18N = {
     edit_loc_label: "位置",
     edit_fine_label: "AECIS 子类型 <span class='text-slate-400 font-normal'>（可选）</span>",
     edit_pick_label: "选择违规类型",
+    fine_picker_placeholder: "点击选择或输入搜索",
     fine_search_placeholder: "搜索子类型…",
     fine_search_placeholder_all: "搜索全部 386+ 子类型…",
     fine_scope_in_category: "在该类别中",
@@ -1439,6 +1429,12 @@ function applyLang() {
   // Edit-form note placeholders
   document.querySelectorAll(".edit-note").forEach(i => {
     i.placeholder = t("edit_note_ph");
+  });
+  // Picker search placeholder. Empty when the user has a current
+  // pick (the field shows the label); the placeholder shows on
+  // empty inputs only.
+  document.querySelectorAll(".fine-picker-search").forEach(i => {
+    i.placeholder = t("fine_picker_placeholder");
   });
   // Sync the language <select> dropdown in the header
   const langSelect = document.getElementById("lang-select");
@@ -2134,19 +2130,23 @@ function closeMarkupModal() {
     const status = el("#markup-status");
     if (status) status.textContent = t("markup_status_running");
     try {
-      // Extract the cropped region from the loaded <img> by drawing
-      // the bounded area onto an off-screen canvas at native resolution.
+      // The drawn rectangle is in the IMAGE's native pixel coordinates
+      // (see _markupCanvasToImagePoint), but the source <img> is loaded
+      // from a cross-origin R2 presigned URL. Drawing it onto a local
+      // canvas and then calling toBlob() raises a SecurityError
+      // ("operation insecure") on iOS Safari and any browser without
+      // crossOrigin-anonymous + R2 CORS configured. So we send the
+      // rectangle as RELATIVE coordinates (0..1) and let the server
+      // do the crop from the bytes it already has in R2.
       const img = el("#markup-img");
       const r = MARKUP.rect;
-      const off = document.createElement("canvas");
-      off.width = Math.round(r.w);
-      off.height = Math.round(r.h);
-      const octx = off.getContext("2d");
-      octx.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, off.width, off.height);
-      const blob = await new Promise(res => off.toBlob(res, "image/jpeg", 0.9));
-      if (!blob) throw new Error("could not encode region");
+      const W = img.naturalWidth || 1;
+      const H = img.naturalHeight || 1;
       const fd = new FormData();
-      fd.append("region", blob, "region.jpg");
+      fd.append("x", String(r.x / W));
+      fd.append("y", String(r.y / H));
+      fd.append("w", String(r.w / W));
+      fd.append("h", String(r.h / H));
       const resp = await fetch(`/api/photos/${encodeURIComponent(photoId)}/reclassify-region`, {
         method: "POST", body: fd,
       });
@@ -2976,17 +2976,34 @@ function _finePickerGetValue(card) {
 }
 function _finePickerSetValue(card, slug) {
   const hidden = el(".fine-picker-value", card);
+  const search = el(".fine-picker-search", card);
   const clearBtn = el(".fine-picker-clear", card);
   if (!hidden) return;
   hidden.value = slug || "";
-  // The search input stays empty by design — it's a SEARCH box, not a
-  // current-value display, and pre-populating it confused users into
-  // thinking it was a label and there was nothing to type. The
-  // currently-picked HSE / fine type is shown elsewhere on the card
-  // (the .primary-hse / .primary-fine lines) so we don't need to
-  // mirror it inside the picker.
+  // Reflect the current pick in the search box. When the user has
+  // chosen a fine sub-type or a parent category, the box shows that
+  // label (in their UI language) so they can confirm what's currently
+  // selected. Empty when nothing is picked. Users searching for
+  // something else just tap the box and type — focus selects the
+  // current text so typing replaces it, no need to manually clear.
+  if (search) {
+    if (slug) {
+      const it = FINE_BY_SLUG[slug];
+      search.value = it ? _finePickerLabel(it) : slug;
+    } else {
+      const hseSel = el(".hse-select", card);
+      const parentSlug = hseSel && hseSel.value;
+      if (parentSlug) {
+        const meta = HSE_BY_SLUG?.[parentSlug];
+        search.value = meta
+          ? (LANG === "vn" && meta.label_vn ? meta.label_vn : meta.label_en)
+          : parentSlug.replace(/_/g, " ");
+      } else {
+        search.value = "";
+      }
+    }
+  }
   if (clearBtn) {
-    // Show the clear button when SOMETHING (fine or parent) is selected.
     const hseSel = el(".hse-select", card);
     const hasParent = hseSel && hseSel.value;
     if (slug || hasParent) clearBtn.classList.remove("hidden");
@@ -2996,123 +3013,93 @@ function _finePickerSetValue(card, slug) {
 
 // Re-init the picker. Wires event listeners once per card; subsequent
 // calls (e.g. when AI pre-fills a slug) just refresh the dropdown.
-// The picker has two interaction modes:
-//   "browse" (default) — input is readonly + inputmode=none. Tapping
-//      anywhere on the trigger opens the dropdown without focusing
-//      the input, so the on-screen keyboard does NOT pop up. The
-//      user scrolls and taps a category.
-//   "search" — toggled on via the 🔍 button. Input becomes editable
-//      and gains focus, keyboard pops up, typing filters across the
-//      whole taxonomy. Closes back to browse mode on Esc, on clear,
-//      or when a pick is made.
+// Behaviour:
+//   - Tap the row (icon, padding, etc.) → dropdown opens, keyboard
+//     does NOT pop up (we preventDefault on mousedown to skip input
+//     focus).
+//   - Tap the input itself → input focuses, keyboard pops up, the
+//     existing label auto-selects so typing replaces it. The
+//     dropdown also opens (focus event handler) and switches to
+//     search-results once the user types.
+//   - The input is always typeable — no readonly toggle. Mobile
+//     users get a normal text field they can type into.
 function refreshFineSelect(card, parentSlug /* unused; kept for callers */) {
   const picker  = el(".fine-picker", card);
   if (!picker) return;
   const trigger = el(".fine-picker-trigger", card);
   const search  = el(".fine-picker-search", card);
-  const toggleBtn = el(".fine-picker-search-toggle", card);
   const clearBtn  = el(".fine-picker-clear", card);
   if (!search || !trigger) return;
-
-  function _placeholderBrowse() {
-    return LANG === "vn" ? "Bấm vào nhóm bên dưới"
-         : LANG === "es" ? "Toca una categoría abajo"
-         : LANG === "zh" ? "点击下方分类"
-         : "Tap a category below";
-  }
-  function _placeholderSearch() {
-    return LANG === "vn" ? "Tìm loại vi phạm…"
-         : LANG === "es" ? "Buscar tipo de infracción…"
-         : LANG === "zh" ? "搜索违规类型…"
-         : "Search violation type…";
-  }
-  function enterBrowseMode() {
-    search.readOnly = true;
-    search.setAttribute("inputmode", "none");
-    search.value = "";   // empty so the placeholder is visible
-    search.placeholder = _placeholderBrowse();
-    search.blur();        // dismiss keyboard if it was open
-  }
-  function enterSearchMode() {
-    search.readOnly = false;
-    search.removeAttribute("inputmode");
-    search.placeholder = _placeholderSearch();
-    // Defer focus to next tick so iOS reliably opens the keyboard.
-    setTimeout(() => { try { search.focus(); search.select(); } catch (_) {} }, 0);
-  }
 
   if (!picker.dataset.fpWired) {
     picker.dataset.fpWired = "1";
 
-    // Trigger-area tap → open picker. Stop the default focus on the
-    // contained input (focus = keyboard on mobile) by preventing
-    // mousedown's default action. Click then handles open + render.
+    // Tap-on-padding: prevent the contained input from auto-focusing
+    // when the user taps the icon or empty space inside the trigger.
+    // Tapping the input directly is allowed to focus normally so the
+    // user can type/edit.
     trigger.addEventListener("mousedown", (ev) => {
-      // If user taps the input directly while in search mode, allow
-      // normal focus so they can position the cursor.
-      if (!search.readOnly && ev.target === search) return;
+      if (ev.target === search) return;          // direct input tap → normal focus
+      // Same for clear button — let its own click handler run, which
+      // will be invoked AFTER the click event but we also don't want
+      // to focus the input from a clear-button tap.
+      if (ev.target.closest(".fine-picker-clear")) return;
       ev.preventDefault();
     });
+    // Tapping anywhere on the trigger row opens the dropdown.
     trigger.addEventListener("click", (ev) => {
-      // Each open starts fresh: empty search, reset drilled state,
-      // browse-parents mode. If the user had drilled into a parent
-      // in a previous open and then closed without picking, we don't
-      // want them to reopen into the children of an unrelated parent.
-      enterBrowseMode();
+      if (ev.target.closest(".fine-picker-clear")) return;
+      // Reset drill state on each fresh open so a previous half-
+      // finished navigation doesn't carry over.
       card.dataset.fpDrilled = "";
-      _finePickerRender(card, null, "");
+      _finePickerRender(card, null, search.value);
       _finePickerShow(card);
     });
-
-    // Magnifier toggle — flip from browse to search and focus.
-    if (toggleBtn) {
-      toggleBtn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        enterSearchMode();
-        _finePickerShow(card);
-        _finePickerRender(card, null, search.value);
-      });
-    }
-
-    // Typing in search mode re-renders flat results.
+    // Auto-select the existing label on focus so typing replaces it
+    // instead of appending. iOS sometimes ignores immediate select(),
+    // hence the next-tick defer.
+    search.addEventListener("focus", () => {
+      _finePickerShow(card);
+      _finePickerRender(card, null, search.value);
+      setTimeout(() => { try { search.select(); } catch (_) {} }, 0);
+    });
+    // Typing always re-renders. If they type letters, the render
+    // function flips to flat search results; if they delete back to
+    // empty, it falls back to browse-parents (or browse-children if
+    // a drill state is still active).
     search.addEventListener("input", () => {
       _finePickerRender(card, null, search.value);
       _finePickerShow(card);
     });
-    // Esc returns to browse mode (cancels search).
+    // Esc closes the picker.
     search.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape") {
-        enterBrowseMode();
-        _finePickerRender(card, null, "");
-        // Keep the dropdown open so the user can pick from the parent
-        // list — this is "exit search" not "close picker".
+        ev.preventDefault();
+        search.blur();
+        _finePickerHide(card);
       }
     });
 
-    // Click-outside dismiss + revert to browse mode.
+    // Click-outside dismiss.
     document.addEventListener("click", (ev) => {
-      if (!picker.contains(ev.target)) {
-        _finePickerHide(card);
-        enterBrowseMode();
-      }
+      if (!picker.contains(ev.target)) _finePickerHide(card);
     });
     if (clearBtn) clearBtn.addEventListener("click", (ev) => {
       ev.stopPropagation();
       const hseSel = el(".hse-select", card);
       if (hseSel) hseSel.value = "";
-      _finePickerSetValue(card, "");
+      _finePickerSetValue(card, "");        // clears search + hides clear button
       card.dataset.fpDrilled = "";
-      enterBrowseMode();
       _finePickerRender(card, null, "");
       _finePickerShow(card);
     });
   }
 
-  // Always boot the picker into browse mode so opening it never auto-
-  // focuses the input or pops the keyboard.
-  enterBrowseMode();
+  // Boot in browse mode (drilled state cleared) so the first open is
+  // predictable. Don't autofocus — the user has to tap the input
+  // explicitly to bring up the keyboard.
   card.dataset.fpDrilled = "";
-  _finePickerRender(card, null, "");
+  _finePickerRender(card, null, search.value);
 }
 
 // =================== Upload (chunked + progress + notifications) ===================

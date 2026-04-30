@@ -2596,8 +2596,24 @@ def photo_history(photo_id: str):
 @app.post("/api/photos/{photo_id}/reclassify-region")
 @_maybe_limit("_RATE_LIMIT_RETRY")
 async def reclassify_region(request: Request, photo_id: str,
-                            region: UploadFile = File(...)):
+                            region: UploadFile | None = File(None),
+                            x: float | None = Form(None),
+                            y: float | None = Form(None),
+                            w: float | None = Form(None),
+                            h: float | None = Form(None)):
     """Re-classify a photo using a region the inspector cropped/highlighted.
+
+    Two acceptable input shapes:
+
+      a) `region` — multipart file upload of the pre-cropped pixels.
+         Used by the desktop fallback (canvas + toBlob).
+      b) `x`, `y`, `w`, `h` — relative bounds (0..1) of the rectangle.
+         Used by the mobile-friendly path: the client sends just the
+         coordinates and the server fetches the original from R2 and
+         crops it. Avoids tainting a cross-origin canvas in the
+         browser, which on iOS / strict mobile setups raises
+         "operation insecure" when toBlob is called on a canvas that
+         has drawn an R2-presigned-URL image.
 
     Use case: the AI got confused (e.g. picked Electrical for a photo
     where the actual hazard is the missing handrail at the floor edge).
@@ -2618,13 +2634,81 @@ async def reclassify_region(request: Request, photo_id: str,
         raise HTTPException(404, "photo not found")
     photo = photo_rows[0]
 
-    raw = await region.read()
-    if not raw or len(raw) < 100:
-        raise HTTPException(400, "region payload empty or truncated")
-    if len(raw) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "region image too large")
-    if not _looks_like_supported_image(raw):
-        raise HTTPException(400, "region not a supported image")
+    if region is not None:
+        # Path (a): client sent pre-cropped bytes.
+        raw = await region.read()
+        if not raw or len(raw) < 100:
+            raise HTTPException(400, "region payload empty or truncated")
+        if len(raw) > _MAX_UPLOAD_BYTES:
+            raise HTTPException(413, "region image too large")
+        if not _looks_like_supported_image(raw):
+            raise HTTPException(400, "region not a supported image")
+    else:
+        # Path (b): client sent rect coordinates; we crop server-side
+        # from the original photo bytes pulled out of R2.
+        if x is None or y is None or w is None or h is None:
+            raise HTTPException(400,
+                "either `region` (cropped image) or x/y/w/h coords are required")
+        # Clamp + validate the rect to the unit square.
+        try:
+            xf, yf, wf, hf = float(x), float(y), float(w), float(h)
+        except Exception:
+            raise HTTPException(400, "rect coords must be numeric")
+        if not (0.0 <= xf < 1.0 and 0.0 <= yf < 1.0 and 0.0 < wf <= 1.0 and 0.0 < hf <= 1.0):
+            raise HTTPException(400, "rect coords must be in [0,1) for x,y and (0,1] for w,h")
+        if xf + wf > 1.0: wf = 1.0 - xf
+        if yf + hf > 1.0: hf = 1.0 - yf
+        if wf <= 0.0 or hf <= 0.0:
+            raise HTTPException(400, "rect collapses to zero area")
+
+        # Pull the original photo bytes from R2 and crop to the rect.
+        try:
+            r2 = get_r2()
+            obj = r2.get_object(Bucket=R2_BUCKET, Key=photo["storage_key"])
+            full_bytes = obj["Body"].read()
+        except Exception as e:  # noqa: BLE001
+            log.warning("reclassify-region: R2 fetch failed for %s: %s", photo_id, e)
+            raise HTTPException(502, f"could not fetch original photo from R2: {e}")
+        try:
+            from io import BytesIO
+            from PIL import Image
+            with Image.open(BytesIO(full_bytes)) as im:
+                im.load()
+                # Bake EXIF orientation so cropping uses the same
+                # frame the user saw on screen.
+                try:
+                    from PIL import ImageOps
+                    im = ImageOps.exif_transpose(im)
+                except Exception:  # noqa: BLE001
+                    pass
+                if im.mode not in ("RGB", "RGBA"):
+                    im = im.convert("RGB")
+                W, H = im.size
+                left = int(round(xf * W))
+                top = int(round(yf * H))
+                right = int(round((xf + wf) * W))
+                bottom = int(round((yf + hf) * H))
+                # Keep the crop at least 32x32 even if the user tapped
+                # a tiny rect — the classifier needs SOMETHING to work
+                # with. Coords are clamped to image bounds.
+                left = max(0, min(left, W - 32))
+                top = max(0, min(top, H - 32))
+                right = max(left + 32, min(right, W))
+                bottom = max(top + 32, min(bottom, H))
+                cropped = im.crop((left, top, right, bottom))
+                buf = BytesIO()
+                # If the source had alpha, flatten to white so JPEG works.
+                if cropped.mode == "RGBA":
+                    bg = Image.new("RGB", cropped.size, (255, 255, 255))
+                    bg.paste(cropped, mask=cropped.split()[3])
+                    cropped = bg
+                cropped.save(buf, format="JPEG", quality=90)
+                raw = buf.getvalue()
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001
+            log.warning("reclassify-region: PIL crop failed for %s: %s", photo_id, e)
+            raise HTTPException(500, f"could not crop region: {e}")
 
     # Run the classifier on the cropped bytes via a temp file (the
     # classify pipeline expects a file path so it can run CLIP for RAG
