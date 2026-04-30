@@ -2620,15 +2620,22 @@ function updateCard(card, photo) {
   // field so the corrections insert still has a valid location_slug.
   const locHidden = el(".loc-select-hidden", card);
   if (locHidden) locHidden.value = cls.location_slug || "Common_working_area";
-  el(".hse-select", card).value = cls.hse_type_slug;
-  // Populate the fine picker for the AI's predicted parent and pre-fill
-  // with the AI's fine pick so the inspector can confirm with one click
-  // instead of hunting through the searchable list.
-  refreshFineSelect(card, cls.hse_type_slug);
-  if (cls.fine_hse_type_slug) {
-    _finePickerSetValue(card, cls.fine_hse_type_slug);
-  } else {
-    _finePickerSetValue(card, "");
+  // Don't overwrite the picker's hidden parent select / fine pick
+  // mid-edit. updateCard runs on every 4s poll tick; if the user is
+  // currently interacting with the picker, late polls would clobber
+  // their in-progress selection. Only sync these from the AI's
+  // prediction when the picker is closed (i.e. the user isn't
+  // actively choosing).
+  const _pickerListEl = el(".fine-picker-list", card);
+  const _pickerOpen = _pickerListEl && !_pickerListEl.classList.contains("hidden");
+  if (!_pickerOpen) {
+    el(".hse-select", card).value = cls.hse_type_slug;
+    refreshFineSelect(card, cls.hse_type_slug);
+    if (cls.fine_hse_type_slug) {
+      _finePickerSetValue(card, cls.fine_hse_type_slug);
+    } else {
+      _finePickerSetValue(card, "");
+    }
   }
 
   const altSection = el(".alt-section", card);
@@ -3049,9 +3056,16 @@ function refreshFineSelect(card, parentSlug /* unused; kept for callers */) {
     // Tapping anywhere on the trigger row opens the dropdown.
     trigger.addEventListener("click", (ev) => {
       if (ev.target.closest(".fine-picker-clear")) return;
-      // Reset drill state on each fresh open so a previous half-
-      // finished navigation doesn't carry over.
-      card.dataset.fpDrilled = "";
+      const list = el(".fine-picker-list", card);
+      const wasClosed = !list || list.classList.contains("hidden");
+      // Only reset the drill state on a FRESH open. Subsequent clicks
+      // while the picker is already open (e.g. tapping the input to
+      // start typing while drilled into a parent's children) must
+      // preserve drill state — otherwise the user gets bounced back
+      // to the parent list every time their finger lands on the
+      // trigger row, which felt like the mini-tree was "jumping back
+      // to the main tree".
+      if (wasClosed) card.dataset.fpDrilled = "";
       _finePickerRender(card, null, search.value);
       _finePickerShow(card);
     });
@@ -3095,11 +3109,19 @@ function refreshFineSelect(card, parentSlug /* unused; kept for callers */) {
     });
   }
 
-  // Boot in browse mode (drilled state cleared) so the first open is
-  // predictable. Don't autofocus — the user has to tap the input
-  // explicitly to bring up the keyboard.
-  card.dataset.fpDrilled = "";
-  _finePickerRender(card, null, search.value);
+  // Don't disturb the picker while the user is interacting with it.
+  // refreshFineSelect runs on every poll() tick (every 4 s) via
+  // updateCard — without this guard, drill state got wiped and the
+  // dropdown jumped back to the parent list mid-interaction (the
+  // "mini tree keeps jumping back to main tree" bug).
+  const list = el(".fine-picker-list", card);
+  const isOpen = list && !list.classList.contains("hidden");
+  if (!isOpen) {
+    // Fresh re-init: clear drill state and rebuild the (hidden) list.
+    card.dataset.fpDrilled = "";
+    _finePickerRender(card, null, search.value);
+  }
+  // (If open, leave it alone — the user is in the middle of picking.)
 }
 
 // =================== Upload (chunked + progress + notifications) ===================
