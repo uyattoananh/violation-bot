@@ -2876,10 +2876,9 @@ function _pickParent(card, parentSlug, parentLabel) {
   // is set on hseSel.
 }
 
-// Position the (fixed) dropdown relative to the trigger. We use
-// position:fixed so the dropdown escapes the card's overflow:hidden
-// — otherwise the bottom of a long list gets clipped by the photo
-// card frame and users can't scroll down to it.
+// Position the (fixed) dropdown relative to the trigger. position:fixed
+// so the dropdown escapes the card's overflow:hidden — otherwise long
+// lists got clipped at the bottom of the photo card frame.
 function _finePickerPosition(card) {
   const list = el(".fine-picker-list", card);
   const trigger = el(".fine-picker-trigger", card);
@@ -2887,11 +2886,12 @@ function _finePickerPosition(card) {
   const rect = trigger.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  // On narrow screens (phones) span almost the full width with a
-  // small inset on each side. On wider screens, anchor to the
-  // trigger's left edge but cap width so it doesn't sprawl.
+  const sideInset = 8;
+  const gap = 6;
   const isMobile = vw < 640;
-  const sideInset = 8;   // px, only relevant for the mobile path
+
+  // Width: full viewport (minus margins) on phones; anchored to the
+  // trigger but capped on wider screens.
   let left, width;
   if (isMobile) {
     left = sideInset;
@@ -2901,42 +2901,44 @@ function _finePickerPosition(card) {
     left = Math.min(rect.left, vw - width - sideInset);
     left = Math.max(sideInset, left);
   }
-  // Below the trigger by default. If there's not enough room beneath,
-  // flip to above the trigger.
-  const gap = 6;
+
+  // Top + maxHeight: prefer placing below the trigger, fall back to
+  // above if that gives more room. Crucially, we DO NOT force a
+  // minimum height — a 200px floor would push the dropdown's top
+  // off-screen when there's only ~120px of space above. The result
+  // before this fix: the top of the dropdown (and its sticky header)
+  // got clipped by the viewport and scrolled out of reach.
   const spaceBelow = vh - rect.bottom - gap - sideInset;
   const spaceAbove = rect.top - gap - sideInset;
   let top, maxH;
-  if (spaceBelow >= 240 || spaceBelow >= spaceAbove) {
+  if (spaceBelow >= spaceAbove || spaceBelow >= 280) {
+    // Place below.
     top = rect.bottom + gap;
-    maxH = Math.max(200, Math.min(spaceBelow, Math.floor(vh * 0.7)));
+    maxH = Math.min(Math.max(spaceBelow, 0), Math.floor(vh * 0.75));
   } else {
-    maxH = Math.max(200, Math.min(spaceAbove, Math.floor(vh * 0.7)));
+    // Place above. maxH is bounded by spaceAbove so the dropdown
+    // never overflows the top of the viewport.
+    maxH = Math.min(Math.max(spaceAbove, 0), Math.floor(vh * 0.75));
     top = rect.top - gap - maxH;
   }
+  // Final clamp: never let the dropdown start above the viewport.
+  // If clamping reduces top, also shrink maxH so the bottom still
+  // fits inside the viewport.
+  if (top < sideInset) {
+    maxH -= sideInset - top;
+    top = sideInset;
+  }
+  // Or extend below.
+  if (top + maxH > vh - sideInset) {
+    maxH = vh - sideInset - top;
+  }
+  // Keep the dropdown at least minimally usable.
+  if (maxH < 120) maxH = 120;
+
   list.style.left = `${left}px`;
-  list.style.top = `${Math.max(sideInset, top)}px`;
+  list.style.top = `${top}px`;
   list.style.width = `${width}px`;
   list.style.maxHeight = `${maxH}px`;
-}
-
-// How many pickers are visible right now. The body-scroll lock is
-// engaged while at least one is open and released when all close;
-// guards against a partial picker close leaving the page scroll-locked.
-let _pickersOpen = 0;
-function _lockBodyScroll() {
-  if (_pickersOpen === 0) {
-    document.body.dataset.prevOverflow = document.body.style.overflow || "";
-    document.body.style.overflow = "hidden";
-  }
-  _pickersOpen++;
-}
-function _unlockBodyScroll() {
-  _pickersOpen = Math.max(0, _pickersOpen - 1);
-  if (_pickersOpen === 0) {
-    document.body.style.overflow = document.body.dataset.prevOverflow || "";
-    delete document.body.dataset.prevOverflow;
-  }
 }
 
 function _finePickerShow(card) {
@@ -2945,15 +2947,15 @@ function _finePickerShow(card) {
   if (!list.classList.contains("hidden")) return;   // already shown
   list.classList.remove("hidden");
   _finePickerPosition(card);
-  // Lock the page's scroll while the picker is open so the user can
-  // scroll the long sub-type list inside the dropdown without the
-  // page sliding around behind it. The previous build had a
-  // window-scroll listener that re-ran getBoundingClientRect on every
-  // tick — that caused jitter both for page scrolls AND for scrolls
-  // INSIDE the dropdown (capture:true caught those too). Locking is
-  // a cleaner fix.
-  _lockBodyScroll();
-  // Re-position only on resize / orientation change. No scroll listener.
+  // Earlier we tried locking body scroll while the picker was open.
+  // That hurt iOS Safari more than it helped: with `body { overflow:
+  // hidden }`, touch events on inner scrollable elements got eaten,
+  // so the user couldn't scroll inside the dropdown either. The
+  // dropdown is `position: fixed` — it stays anchored to the
+  // viewport on its own, even if the page scrolls behind it — so we
+  // don't actually need the lock. (overscroll-behavior: contain in
+  // app.css keeps the dropdown's scroll from chaining into the
+  // page when the user reaches the top/bottom of the list.)
   if (!card._finePickerReflow) {
     card._finePickerReflow = () => _finePickerPosition(card);
     window.addEventListener("resize", card._finePickerReflow, { passive: true });
@@ -2967,7 +2969,6 @@ function _finePickerHide(card) {
     window.removeEventListener("resize", card._finePickerReflow);
     card._finePickerReflow = null;
   }
-  _unlockBodyScroll();
 }
 
 function _finePickerGetValue(card) {
