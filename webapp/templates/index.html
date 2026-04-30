@@ -78,8 +78,15 @@
     <div class="sm:hidden font-semibold text-slate-800 text-base" data-i18n="drop_main_mobile">
       Add site photos
     </div>
-    <div class="text-xs text-slate-500 max-w-md" data-i18n="drop_sub">
+    <!-- Long form-factor copy for desktop where drag-drop is the
+         expected interaction. -->
+    <div class="hidden sm:block text-xs text-slate-500 max-w-md" data-i18n="drop_sub">
       JPG · PNG · HEIC · drop hundreds at once. Each confirmation grows the AI's reference library.
+    </div>
+    <!-- Tighter mobile copy: drag-drop doesn't apply, so the message
+         is just the format hint. -->
+    <div class="sm:hidden text-xs text-slate-500 max-w-md" data-i18n="drop_sub_mobile">
+      JPG · PNG · HEIC. Each confirmation trains the AI.
     </div>
     <!-- Mobile-only: TWO explicit buttons. No "click anywhere on the
          dropzone" target on mobile so users always pick a clear path.
@@ -225,7 +232,7 @@
              autocomplete="off">
     </div>
     <button id="batch-reset-reviews"
-            class="border-l border-slate-200 px-3 py-2 text-xs text-slate-500 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-1 transition-colors"
+            class="border-l border-slate-200 px-3 py-2 text-xs text-slate-500 hover:text-rose-700 hover:bg-rose-50 rounded-r-lg flex items-center gap-1 transition-colors"
             aria-label="Reset reviews"
             title="Wipe all confirmations / corrections you made in this batch (keeps photos and AI predictions)">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -237,17 +244,12 @@
       <span class="sm:hidden" data-i18n="batch_reset_short">Reset</span>
       <span class="hidden sm:inline" data-i18n="batch_reset">Reset reviews</span>
     </button>
-    <button id="batch-new"
-            class="border-l border-slate-200 px-3 py-2 text-xs text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-r-lg flex items-center gap-1 transition-colors"
-            aria-label="Start new batch"
-            title="Start a new batch (current photos stay on the server, this view becomes empty)">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
-      </svg>
-      <!-- "New" on mobile so the + isn't a mystery icon. -->
-      <span class="sm:hidden" data-i18n="batch_new_short">New</span>
-      <span class="hidden sm:inline" data-i18n="batch_new">New batch</span>
-    </button>
+    <!-- "New batch" was previously inside the detail view too — but
+         creating a batch from inside another batch was confusing
+         (which one am I in? did I lose the previous one?). New
+         batches are now started exclusively from the all-batches
+         list view via #btn-new-batch-from-list. The Reset-reviews
+         button keeps its rounded-right corner via the CSS below. -->
   </div>
   <div class="hidden sm:flex items-center text-xs text-slate-400 italic" id="batch-count-hint"></div>
 </div>
@@ -714,6 +716,7 @@ const I18N = {
     cam_gallery: "Gallery",
     cam_or: "or",
     drop_main_mobile: "Add site photos",
+    drop_sub_mobile: "JPG · PNG · HEIC. Each confirmation trains the AI.",
     cam_burst_staged_label: "Photos ready to upload",
     cam_burst_clear: "Clear all",
     cam_burst_add: "Take another",
@@ -904,6 +907,7 @@ const I18N = {
     cam_gallery: "Thư viện",
     cam_or: "hoặc",
     drop_main_mobile: "Thêm ảnh hiện trường",
+    drop_sub_mobile: "JPG · PNG · HEIC. Mỗi xác nhận đều giúp AI học.",
     cam_burst_staged_label: "Ảnh sẵn sàng tải lên",
     cam_burst_clear: "Xóa tất cả",
     cam_burst_add: "Chụp thêm",
@@ -1094,6 +1098,7 @@ const I18N = {
     cam_gallery: "Galería",
     cam_or: "o",
     drop_main_mobile: "Añadir fotos del sitio",
+    drop_sub_mobile: "JPG · PNG · HEIC. Cada confirmación entrena a la IA.",
     cam_burst_staged_label: "Fotos listas para subir",
     cam_burst_clear: "Borrar todas",
     cam_burst_add: "Tomar otra",
@@ -1284,6 +1289,7 @@ const I18N = {
     cam_gallery: "相册",
     cam_or: "或",
     drop_main_mobile: "添加现场照片",
+    drop_sub_mobile: "JPG · PNG · HEIC。每次确认都训练 AI。",
     cam_burst_staged_label: "待上传的照片",
     cam_burst_clear: "全部清除",
     cam_burst_add: "再拍一张",
@@ -3626,13 +3632,9 @@ batchInput.addEventListener("keydown", e => {
     batchInput.blur();
   }
 });
-el("#batch-new").addEventListener("click", () => {
-  if (cardsEl.querySelectorAll(".card").length > 0) {
-    const ok = window.confirm(t("batch_new_confirm") || "Start a new batch? Current photos stay on the server but disappear from this view. (You can still download their data via the API directly.)");
-    if (!ok) return;
-  }
-  startNewBatch();
-});
+// (Old #batch-new handler removed — see markup comment above. New
+// batches now start exclusively from the list view's
+// #btn-new-batch-from-list button, no in-batch alternative.)
 el("#batch-reset-reviews").addEventListener("click", async () => {
   const reviewedCount = document.querySelectorAll(".card[data-status='reviewed']").length;
   if (reviewedCount === 0) {
@@ -3658,7 +3660,11 @@ el("#batch-reset-reviews").addEventListener("click", async () => {
 // =================== View routing (list / detail) ===================
 const VIEW_LIST = "list";
 const VIEW_DETAIL = "detail";
-let currentView = localStorage.getItem("violation-ai-view") || VIEW_LIST;
+// Always boot the user into the all-batches list. Resuming the last
+// viewed batch (the previous default) was confusing for inspectors
+// who expected to see their full work history first; if they want
+// to keep working in a specific batch they can tap it from the list.
+let currentView = VIEW_LIST;
 const viewListEl   = el("#view-list");
 const viewDetailEl = el("#view-detail");
 
@@ -3824,10 +3830,9 @@ el("#btn-new-batch-from-list").addEventListener("click", () => {
 applyLang();
 applyFilter();
 updateStats();
-// First-visit decision: if there's no current batch in localStorage, default
-// to list view. Otherwise honour the persisted view.
-if (!localStorage.getItem("violation-ai-batch-id")) currentView = VIEW_LIST;
-switchView(currentView);
+// Always start on the batches list. The user can drill into a specific
+// batch from there.
+switchView(VIEW_LIST);
 setInterval(poll, 4000);
 // Cost ticker — refresh on load + every 60s
 refreshCostTicker();
