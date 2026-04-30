@@ -2754,8 +2754,13 @@ async def reclassify_region(request: Request, photo_id: str,
         "location_confidence": cls.location.confidence,
         "hse_type_confidence": cls.hse_type.confidence,
         "rationale": cls.rationale,
+        # Carry the region-marked indication on the `model` string,
+        # which has no enum constraint. The `source` column has a
+        # `classifications_source_check` CHECK constraint that only
+        # allows the worker's existing values (e.g. "zero_shot");
+        # picking anything else here was 500-ing the request.
         "model": cls.model + "+region-marked",
-        "source": "user_marked_region",
+        "source": "zero_shot",
         "input_tokens": cls.input_tokens,
         "output_tokens": cls.output_tokens,
         "raw_response": cls.raw_response,
