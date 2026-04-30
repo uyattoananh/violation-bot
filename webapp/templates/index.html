@@ -521,9 +521,13 @@
                 ×
               </button>
             </div>
-            <!-- Wider + taller dropdown so the parent list and the
-                 children list are easier to scan on mobile. -->
-            <div class="fine-picker-list hidden absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-[60vh] overflow-y-auto z-30">
+            <!-- Dropdown is `position: fixed` (positioned via JS in
+                 _finePickerShow) so it escapes the card's overflow:hidden
+                 — without that, fines at the bottom of a long list got
+                 clipped by the photo card frame. JS sets top/left/width
+                 each time it opens; closes on click-outside. -->
+            <div class="fine-picker-list hidden fixed bg-white border border-slate-200 rounded-lg shadow-xl overflow-y-auto z-50"
+                 style="max-height: 60vh">
               <!-- options rendered by JS -->
             </div>
           </div>
@@ -2865,13 +2869,72 @@ function _pickParent(card, parentSlug, parentLabel) {
   // is set on hseSel.
 }
 
+// Position the (fixed) dropdown relative to the trigger. We use
+// position:fixed so the dropdown escapes the card's overflow:hidden
+// — otherwise the bottom of a long list gets clipped by the photo
+// card frame and users can't scroll down to it.
+function _finePickerPosition(card) {
+  const list = el(".fine-picker-list", card);
+  const trigger = el(".fine-picker-trigger", card);
+  if (!list || !trigger) return;
+  const rect = trigger.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  // On narrow screens (phones) span almost the full width with a
+  // small inset on each side. On wider screens, anchor to the
+  // trigger's left edge but cap width so it doesn't sprawl.
+  const isMobile = vw < 640;
+  const sideInset = 8;   // px, only relevant for the mobile path
+  let left, width;
+  if (isMobile) {
+    left = sideInset;
+    width = vw - sideInset * 2;
+  } else {
+    width = Math.max(rect.width, 360);
+    left = Math.min(rect.left, vw - width - sideInset);
+    left = Math.max(sideInset, left);
+  }
+  // Below the trigger by default. If there's not enough room beneath,
+  // flip to above the trigger.
+  const gap = 6;
+  const spaceBelow = vh - rect.bottom - gap - sideInset;
+  const spaceAbove = rect.top - gap - sideInset;
+  let top, maxH;
+  if (spaceBelow >= 240 || spaceBelow >= spaceAbove) {
+    top = rect.bottom + gap;
+    maxH = Math.max(200, Math.min(spaceBelow, Math.floor(vh * 0.7)));
+  } else {
+    maxH = Math.max(200, Math.min(spaceAbove, Math.floor(vh * 0.7)));
+    top = rect.top - gap - maxH;
+  }
+  list.style.left = `${left}px`;
+  list.style.top = `${Math.max(sideInset, top)}px`;
+  list.style.width = `${width}px`;
+  list.style.maxHeight = `${maxH}px`;
+}
+
 function _finePickerShow(card) {
   const list = el(".fine-picker-list", card);
-  if (list) list.classList.remove("hidden");
+  if (!list) return;
+  list.classList.remove("hidden");
+  _finePickerPosition(card);
+  // Reposition on scroll/resize while open. Stored on the card so we
+  // can detach in _finePickerHide. Use {passive:true} so we don't
+  // block scroll perf.
+  if (!card._finePickerReflow) {
+    card._finePickerReflow = () => _finePickerPosition(card);
+    window.addEventListener("scroll", card._finePickerReflow, { passive: true, capture: true });
+    window.addEventListener("resize", card._finePickerReflow, { passive: true });
+  }
 }
 function _finePickerHide(card) {
   const list = el(".fine-picker-list", card);
   if (list) list.classList.add("hidden");
+  if (card._finePickerReflow) {
+    window.removeEventListener("scroll", card._finePickerReflow, { capture: true });
+    window.removeEventListener("resize", card._finePickerReflow);
+    card._finePickerReflow = null;
+  }
 }
 
 function _finePickerGetValue(card) {
