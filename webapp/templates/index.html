@@ -2410,10 +2410,17 @@ function getOrCreateCard(photo) {
 
 function toggleEdit(card) {
   const f = el(".edit-form", card);
+  const willHide = !f.classList.contains("hidden");
   f.classList.toggle("hidden");
-  if (!f.classList.contains("hidden")) {
-    setTimeout(() => el(".hse-select", card).focus(), 50);
+  if (willHide) {
+    // Edit form is closing — make sure the picker is also closed so
+    // its body-scroll lock is released. Without this, taps on Cancel
+    // (or hitting Esc) left the page silently un-scrollable.
+    _finePickerHide(card);
   }
+  // (No auto-focus on the hidden hse-select — that was a relic from
+  // when the parent select was a visible <select>. The new picker
+  // opens on user tap, not on form open.)
 }
 
 function setConfidenceRing(card, conf, band) {
@@ -2913,28 +2920,54 @@ function _finePickerPosition(card) {
   list.style.maxHeight = `${maxH}px`;
 }
 
+// How many pickers are visible right now. The body-scroll lock is
+// engaged while at least one is open and released when all close;
+// guards against a partial picker close leaving the page scroll-locked.
+let _pickersOpen = 0;
+function _lockBodyScroll() {
+  if (_pickersOpen === 0) {
+    document.body.dataset.prevOverflow = document.body.style.overflow || "";
+    document.body.style.overflow = "hidden";
+  }
+  _pickersOpen++;
+}
+function _unlockBodyScroll() {
+  _pickersOpen = Math.max(0, _pickersOpen - 1);
+  if (_pickersOpen === 0) {
+    document.body.style.overflow = document.body.dataset.prevOverflow || "";
+    delete document.body.dataset.prevOverflow;
+  }
+}
+
 function _finePickerShow(card) {
   const list = el(".fine-picker-list", card);
   if (!list) return;
+  if (!list.classList.contains("hidden")) return;   // already shown
   list.classList.remove("hidden");
   _finePickerPosition(card);
-  // Reposition on scroll/resize while open. Stored on the card so we
-  // can detach in _finePickerHide. Use {passive:true} so we don't
-  // block scroll perf.
+  // Lock the page's scroll while the picker is open so the user can
+  // scroll the long sub-type list inside the dropdown without the
+  // page sliding around behind it. The previous build had a
+  // window-scroll listener that re-ran getBoundingClientRect on every
+  // tick — that caused jitter both for page scrolls AND for scrolls
+  // INSIDE the dropdown (capture:true caught those too). Locking is
+  // a cleaner fix.
+  _lockBodyScroll();
+  // Re-position only on resize / orientation change. No scroll listener.
   if (!card._finePickerReflow) {
     card._finePickerReflow = () => _finePickerPosition(card);
-    window.addEventListener("scroll", card._finePickerReflow, { passive: true, capture: true });
     window.addEventListener("resize", card._finePickerReflow, { passive: true });
   }
 }
 function _finePickerHide(card) {
   const list = el(".fine-picker-list", card);
-  if (list) list.classList.add("hidden");
+  if (!list || list.classList.contains("hidden")) return;   // already hidden
+  list.classList.add("hidden");
   if (card._finePickerReflow) {
-    window.removeEventListener("scroll", card._finePickerReflow, { capture: true });
     window.removeEventListener("resize", card._finePickerReflow);
     card._finePickerReflow = null;
   }
+  _unlockBodyScroll();
 }
 
 function _finePickerGetValue(card) {
@@ -3645,6 +3678,10 @@ function applyReviewedState(card, action) {
   el(".state-predicted", card).classList.add("hidden");
   el(".state-reviewed", card).classList.remove("hidden");
   el(".edit-form", card).classList.add("hidden");
+  // Close the picker too if it was open — keeps the body-scroll lock
+  // counter accurate when the user submits a correction without
+  // explicitly tapping outside the picker first.
+  _finePickerHide(card);
   const lbl = el(".reviewed-label", card);
   const ico = el(".reviewed-icon", card);
   if (action === "confirm") {
