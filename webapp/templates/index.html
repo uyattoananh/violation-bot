@@ -299,6 +299,16 @@
           <div class="text-xs text-slate-500" data-i18n="export_pdf_desc">Cover page + one photo per page with classification. Hand to safety officers / clients.</div>
         </div>
       </a>
+      <a href="/api/export/html" download
+         class="flex items-start gap-3 px-3 py-2 hover:bg-slate-50 rounded-md group">
+        <svg class="w-5 h-5 mt-0.5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/>
+        </svg>
+        <div>
+          <div class="font-medium text-slate-900 text-sm" data-i18n="export_html_title">Web report (HTML)</div>
+          <div class="text-xs text-slate-500" data-i18n="export_html_desc">Self-contained page with embedded photos. Opens in any browser; prints cleanly.</div>
+        </div>
+      </a>
       <a href="/api/export/zip" download
          class="flex items-start gap-3 px-3 py-2 hover:bg-slate-50 rounded-md group">
         <svg class="w-5 h-5 mt-0.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
@@ -788,6 +798,8 @@ const I18N = {
     email_failed: "Send failed",
     export_pdf_title: "Printable report (PDF)",
     export_pdf_desc: "Cover page + one photo per page with classification. Hand to safety officers / clients.",
+    export_html_title: "Web report (HTML)",
+    export_html_desc: "Self-contained page with embedded photos. Opens in any browser; prints cleanly.",
     export_zip_title: "Renamed photos ZIP",
     export_zip_desc: "Photos renamed by class, plus manifest.csv. Drag straight into folders.",
     export_csv_title: "CSV (spreadsheet)",
@@ -980,6 +992,8 @@ const I18N = {
     email_failed: "Gửi thất bại",
     export_pdf_title: "Báo cáo in (PDF)",
     export_pdf_desc: "Trang bìa + mỗi ảnh một trang kèm phân loại. Gửi cho cán bộ an toàn / khách hàng.",
+    export_html_title: "Báo cáo web (HTML)",
+    export_html_desc: "Trang đơn lẻ với ảnh đính kèm. Mở bằng trình duyệt; in dễ dàng.",
     export_zip_title: "ZIP ảnh đã đổi tên",
     export_zip_desc: "Ảnh đổi tên theo lớp, kèm manifest.csv. Kéo thẳng vào thư mục.",
     export_csv_title: "CSV (bảng tính)",
@@ -1172,6 +1186,8 @@ const I18N = {
     email_failed: "Falló el envío",
     export_pdf_title: "Informe imprimible (PDF)",
     export_pdf_desc: "Portada + una foto por página con clasificación. Para entregar a oficiales de seguridad / clientes.",
+    export_html_title: "Informe web (HTML)",
+    export_html_desc: "Página autónoma con fotos incrustadas. Se abre en cualquier navegador; imprime limpio.",
     export_zip_title: "ZIP de fotos renombradas",
     export_zip_desc: "Fotos renombradas por clase, más manifest.csv. Arrástralas directamente a carpetas.",
     export_csv_title: "CSV (hoja de cálculo)",
@@ -1364,6 +1380,8 @@ const I18N = {
     email_failed: "发送失败",
     export_pdf_title: "可打印报告（PDF）",
     export_pdf_desc: "封面页 + 每张照片一页含分类。可交给安全官 / 客户。",
+    export_html_title: "网页报告（HTML）",
+    export_html_desc: "包含照片的独立网页。任何浏览器打开；打印效果良好。",
     export_zip_title: "重命名照片 ZIP",
     export_zip_desc: "按类别重命名的照片，附 manifest.csv。可直接拖入文件夹。",
     export_csv_title: "CSV（电子表格）",

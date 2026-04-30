@@ -3365,6 +3365,251 @@ def _build_export_blob(
         )
         return (pdf_bytes, "application/pdf", f"violations_{stamp}.pdf")
 
+    if fmt == "html":
+        # Self-contained HTML report. Embeds the CSS inline and pulls
+        # each photo's bytes from R2 to encode as a base64 data URI,
+        # so the recipient can open / forward the file with no
+        # network round-trip and no expiring presigned URL. Caps the
+        # number of inlined thumbnails to keep the file under the
+        # email-inline-attachment limit; remaining rows show a
+        # placeholder + filename and the cover-page summary.
+        import base64 as _b64
+        from html import escape as _esc
+
+        # Header summary aggregations (mirrors the in-app summary card).
+        total = len(rows)
+        reviewed = sum(1 for r in rows if r.get("reviewed"))
+        pending = total - reviewed
+        avg_conf = (
+            (sum(float(r.get("ai_hse_confidence") or 0) for r in rows) / total)
+            if total else 0
+        )
+        # Top-N HSE types (by final pick) for the summary.
+        from collections import Counter as _Counter
+        top_hse = _Counter()
+        for r in rows:
+            label = (r.get("final_hse_type_label_en")
+                     or r.get("final_hse_type_slug")
+                     or "—")
+            top_hse[label] += 1
+        top_hse_rows = top_hse.most_common(5)
+
+        batch_label = ""
+        for r in rows:
+            if r.get("batch_label"):
+                batch_label = r["batch_label"]
+                break
+        title_label = batch_label or (f"Batch · {batch_id[:8]}" if batch_id else "AECIS HSE Report")
+
+        # Pre-fetch up to N thumbnails as base64. Larger batches will
+        # still render — they just won't have inlined images for the
+        # remainder. The 80-photo cap keeps the HTML under ~15 MB
+        # even with ~100 KB resized JPEGs and leaves room for the
+        # email-inline-attachment limit (default 18 MB).
+        THUMB_CAP = 80
+        r2 = get_r2()
+        photo_b64: dict[str, str] = {}
+        for r in rows[:THUMB_CAP]:
+            try:
+                obj = r2.get_object(Bucket=R2_BUCKET, Key=r["storage_key"])
+                photo_b64[r["id"]] = _b64.b64encode(obj["Body"].read()).decode("ascii")
+            except Exception as e:  # noqa: BLE001
+                log.warning("html-export: skip thumb %s: %s",
+                            (r.get("sha256") or "?")[:10], e)
+
+        def _row_html(r: dict, idx: int) -> str:
+            fine_lbl = (r.get("final_fine_hse_type_label_en")
+                        or r.get("final_fine_hse_type_slug") or "")
+            hse_lbl = (r.get("final_hse_type_label_en")
+                       or r.get("final_hse_type_slug") or "—")
+            ai_lbl = (r.get("ai_hse_type_label_en")
+                      or r.get("ai_hse_type_slug") or "—")
+            conf = float(r.get("ai_hse_confidence") or 0) * 100
+            reviewed_pill = (
+                f'<span class="pill pill-reviewed">Reviewed · {_esc(r.get("review_action") or "")}</span>'
+                if r.get("reviewed") else
+                '<span class="pill pill-pending">Pending review</span>'
+            )
+            note_html = (
+                f'<div class="note">{_esc(r.get("review_note") or "")}</div>'
+                if r.get("review_note") else ""
+            )
+            rationale = _esc(r.get("ai_rationale") or "")
+            uploaded = _esc((r.get("uploaded_at") or "")[:19].replace("T", " "))
+            filename = _esc(r.get("original_filename") or "(no name)")
+            b64 = photo_b64.get(r["id"])
+            img_html = (
+                f'<img alt="" src="data:image/jpeg;base64,{b64}">'
+                if b64 else
+                '<div class="thumb-placeholder">no thumbnail</div>'
+            )
+            return f"""
+<article class="row">
+  <div class="row-thumb">{img_html}</div>
+  <div class="row-body">
+    <div class="row-head">
+      <div class="row-title">
+        <div class="row-headline">{_esc(fine_lbl) or _esc(hse_lbl)}</div>
+        {'<div class="row-sub">' + _esc(hse_lbl) + '</div>' if fine_lbl else ''}
+      </div>
+      {reviewed_pill}
+    </div>
+    <dl class="row-meta">
+      <dt>AI suggested</dt><dd>{_esc(ai_lbl)} · {conf:.0f}%</dd>
+      <dt>Original file</dt><dd>{filename}</dd>
+      <dt>Uploaded</dt><dd>{uploaded}</dd>
+    </dl>
+    {('<div class="row-rationale">' + rationale + '</div>') if rationale else ''}
+    {note_html}
+  </div>
+</article>"""
+
+        rows_html = "\n".join(_row_html(r, i) for i, r in enumerate(rows))
+        skipped = max(0, total - THUMB_CAP)
+        skipped_note = (
+            f'<p class="skipped-note">Note: thumbnails embedded for the first {THUMB_CAP} photos. '
+            f'The remaining {skipped} are listed without thumbnails.</p>'
+            if skipped else ""
+        )
+
+        top_hse_html = "".join(
+            f'<li><span class="th-label">{_esc(lbl)}</span>'
+            f'<span class="th-count">{n}</span></li>'
+            for (lbl, n) in top_hse_rows
+        )
+
+        html = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AECIS HSE — {_esc(title_label)}</title>
+<style>
+  :root {{
+    --paper: #f5f3eb; --paper-soft: #fbfaf4;
+    --ink: #0a0a0a; --ink-soft: #3a3a3a; --ink-mute: #6b7280;
+    --hairline: rgba(10,10,10,0.4); --rule: rgba(10,10,10,0.13);
+    --accent: #b45309; --emerald: #047857; --amber: #b45309; --rose: #be123c;
+  }}
+  * {{ box-sizing: border-box; }}
+  html, body {{ margin: 0; padding: 0; }}
+  body {{
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro", "Inter", system-ui, "Segoe UI", sans-serif;
+    background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased;
+    padding: 32px 24px 64px;
+  }}
+  .wrap {{ max-width: 880px; margin: 0 auto; }}
+  header.cover {{
+    border: 1px solid var(--ink); padding: 28px;
+    background: var(--paper-soft); margin-bottom: 24px;
+  }}
+  header.cover h1 {{
+    margin: 0 0 6px; font-size: 24px; letter-spacing: -0.02em;
+  }}
+  header.cover .sub {{
+    color: var(--ink-mute); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase;
+    margin-bottom: 18px;
+  }}
+  .stats {{
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    border: 1px solid var(--rule); margin-bottom: 18px;
+  }}
+  .stat {{ padding: 12px 14px; border-right: 1px solid var(--rule); }}
+  .stat:last-child {{ border-right: 0; }}
+  .stat-label {{ font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-mute); margin-bottom: 4px; }}
+  .stat-value {{ font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }}
+  .top-hse h3 {{ margin: 12px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); }}
+  .top-hse ul {{ list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--rule); }}
+  .top-hse li {{
+    display: flex; justify-content: space-between; padding: 6px 2px;
+    border-bottom: 1px solid var(--rule); font-size: 13px;
+  }}
+  .top-hse .th-count {{ font-variant-numeric: tabular-nums; color: var(--ink-mute); }}
+  .row {{
+    display: grid; grid-template-columns: 200px 1fr; gap: 18px;
+    border: 1px solid var(--rule); padding: 16px; margin-bottom: 12px;
+    background: var(--paper-soft); page-break-inside: avoid;
+  }}
+  @media (max-width: 600px) {{
+    .row {{ grid-template-columns: 1fr; }}
+    .stats {{ grid-template-columns: repeat(2, 1fr); }}
+    .stat {{ border-right: none; border-bottom: 1px solid var(--rule); }}
+    .stat:nth-child(2) {{ border-right: 0; }}
+  }}
+  .row-thumb img {{
+    width: 100%; height: auto; max-height: 200px; object-fit: cover;
+    border: 1px solid var(--rule); display: block;
+  }}
+  .thumb-placeholder {{
+    width: 100%; height: 120px; display: grid; place-items: center;
+    background: var(--paper); border: 1px dashed var(--rule);
+    color: var(--ink-mute); font-size: 11px;
+  }}
+  .row-head {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }}
+  .row-headline {{ font-weight: 600; font-size: 15px; }}
+  .row-sub {{ color: var(--ink-mute); font-size: 11px; margin-top: 2px; }}
+  .row-meta {{
+    display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px;
+    margin: 0 0 10px; font-size: 12px;
+  }}
+  .row-meta dt {{ color: var(--ink-mute); }}
+  .row-meta dd {{ margin: 0; }}
+  .row-rationale {{
+    font-size: 12px; color: var(--ink-soft); padding: 8px 10px;
+    background: var(--paper); border-left: 3px solid var(--accent);
+    margin-top: 8px; line-height: 1.5;
+  }}
+  .note {{
+    font-size: 12px; padding: 6px 10px; margin-top: 8px;
+    background: rgba(180, 83, 9, 0.06); border-left: 3px solid var(--accent);
+  }}
+  .pill {{
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    white-space: nowrap;
+  }}
+  .pill-reviewed {{ background: rgba(4,120,87,0.10); color: var(--emerald); }}
+  .pill-pending {{ background: rgba(180,83,9,0.10); color: var(--amber); }}
+  .skipped-note {{ color: var(--ink-mute); font-size: 12px; padding: 12px; border: 1px dashed var(--rule); margin: 12px 0; }}
+  footer {{ margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--ink-mute); font-size: 11px; }}
+  @media print {{
+    body {{ background: white; padding: 0; }}
+    .row {{ background: white; border: 1px solid #ccc; }}
+    header.cover {{ background: white; }}
+  }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="cover">
+    <div class="sub">AECIS HSE · Violation report</div>
+    <h1>{_esc(title_label)}</h1>
+    <div style="font-size:12px;color:var(--ink-mute);margin-bottom:14px">
+      Exported {_esc(stamp)} UTC
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Total photos</div><div class="stat-value">{total}</div></div>
+      <div class="stat"><div class="stat-label">Reviewed</div><div class="stat-value">{reviewed}</div></div>
+      <div class="stat"><div class="stat-label">Pending</div><div class="stat-value">{pending}</div></div>
+      <div class="stat"><div class="stat-label">Avg AI confidence</div><div class="stat-value">{avg_conf*100:.0f}%</div></div>
+    </div>
+    {('<div class="top-hse"><h3>Top HSE types</h3><ul>' + top_hse_html + '</ul></div>') if top_hse_rows else ''}
+  </header>
+  {skipped_note}
+  {rows_html}
+  <footer>
+    Generated by hse.aecis.ca · This file embeds the first {THUMB_CAP} photo thumbnails
+    inline as base64. View in any modern browser; print-friendly via Cmd/Ctrl+P.
+  </footer>
+</div>
+</body>
+</html>
+"""
+        return (
+            html.encode("utf-8"),
+            "text/html; charset=utf-8",
+            f"violations_{stamp}.html",
+        )
+
     if fmt == "zip":
         import csv as _csv, io as _io, zipfile
         r2 = get_r2()
@@ -3542,8 +3787,8 @@ async def export_email(
                        "Set SMTP_USER + SMTP_PASSWORD env vars to turn it on.",
         })
     fmt = fmt.lower().strip()
-    if fmt not in ("pdf", "zip", "csv", "json"):
-        raise HTTPException(400, "format must be one of: pdf, zip, csv, json")
+    if fmt not in ("pdf", "zip", "csv", "json", "html"):
+        raise HTTPException(400, "format must be one of: pdf, zip, csv, json, html")
 
     # Cheap email-syntax check. Real validation is the SMTP server's job.
     to_email = (to_email or "").strip()
@@ -3721,6 +3966,26 @@ def export_csv(limit: int = 5000, batch_id: str | None = None):
         headers={
             "Content-Disposition": f'attachment; filename="violations_{stamp}.csv"',
         },
+    )
+
+
+@app.get("/api/export/html")
+def export_html(limit: int = 5000, batch_id: str | None = None):
+    """Self-contained HTML report — cover page + summary stats + per-photo
+    rows with inlined base64 thumbnails. Opens in any browser, prints
+    cleanly via Cmd/Ctrl+P, and travels well over email (no expiring
+    presigned URLs since the photos are embedded in the file itself).
+
+    Same row collection / enrichment pipeline as the other export
+    formats; the actual HTML build lives in _build_export_blob so the
+    email-export flow gets the same output."""
+    if not DEFAULT_TENANT_ID:
+        raise HTTPException(500, "tenant not configured")
+    blob, mime, filename = _build_export_blob("html", batch_id, limit=limit)
+    return Response(
+        content=blob,
+        media_type=mime,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
