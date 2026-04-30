@@ -221,23 +221,31 @@
       <span class="text-xs text-slate-500 hidden sm:inline" data-i18n="batch_label_prefix">Batch:</span>
       <input type="text" id="batch-label-input"
              class="bg-transparent text-sm font-semibold text-slate-900 focus:outline-none focus:bg-slate-50 rounded px-1 py-0 w-40 sm:w-48"
-             placeholder="(unnamed)"
+             placeholder="Tap to name this batch"
              autocomplete="off">
     </div>
     <button id="batch-reset-reviews"
             class="border-l border-slate-200 px-3 py-2 text-xs text-slate-500 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-1 transition-colors"
+            aria-label="Reset reviews"
             title="Wipe all confirmations / corrections you made in this batch (keeps photos and AI predictions)">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.355m-2.5 9.32A8.25 8.25 0 015.25 12.045a8.25 8.25 0 0115.272-4.32m0 0V4.355"/>
       </svg>
+      <!-- Show "Reset" on mobile (short label) and "Reset reviews" on
+           desktop. Used to hide entirely on mobile via sm:inline, which
+           left a bare icon that confused first-time users. -->
+      <span class="sm:hidden" data-i18n="batch_reset_short">Reset</span>
       <span class="hidden sm:inline" data-i18n="batch_reset">Reset reviews</span>
     </button>
     <button id="batch-new"
             class="border-l border-slate-200 px-3 py-2 text-xs text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-r-lg flex items-center gap-1 transition-colors"
+            aria-label="Start new batch"
             title="Start a new batch (current photos stay on the server, this view becomes empty)">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
       </svg>
+      <!-- "New" on mobile so the + isn't a mystery icon. -->
+      <span class="sm:hidden" data-i18n="batch_new_short">New</span>
       <span class="hidden sm:inline" data-i18n="batch_new">New batch</span>
     </button>
   </div>
@@ -449,33 +457,31 @@
         </div>
 
         <form class="edit-form hidden mt-3 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-          <label class="block font-medium mb-0.5 text-slate-700" data-i18n="edit_hse_label">HSE type</label>
-          <select name="hse_type_slug" class="hse-select w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white"></select>
+          <!-- The HSE parent type is set via the unified picker below
+               (picking a sub-type auto-derives its parent; picking a
+               parent sets only this slug). The select is kept in the
+               DOM (hidden) so existing form-submit code that reads
+               `hse_type_slug` keeps working. -->
+          <select name="hse_type_slug" class="hse-select hidden"></select>
 
-          <!-- Optional AECIS-canonical sub-type, populated from
-               data/fine_hse_types_by_parent.json. The list defaults to
-               sub-types of the current parent (.hse-select), but the
-               inspector can toggle "all categories" to search across
-               every fine type when the AI picked the wrong parent. -->
-          <label class="block font-medium mb-0.5 text-slate-700" data-i18n="edit_fine_label">
-            AECIS sub-type <span class="text-slate-400 font-normal">(optional)</span>
+          <!-- Single searchable picker for the whole AECIS taxonomy.
+               Parents and fine sub-types appear together; picking
+               either populates the hidden hse_type_slug + (optionally)
+               fine_hse_type_slug. Removes the previous "first pick the
+               parent, then the sub-type" two-step flow that confused
+               users. Default scope is "all" so the inspector can search
+               by what they actually saw without first guessing the
+               parent category. -->
+          <label class="block font-medium mb-1 text-slate-700" data-i18n="edit_pick_label">
+            Pick the violation type
           </label>
-          <!-- The fine-picker is a custom searchable combobox (native
-               <select> doesn't scale to 300+ options well). The hidden
-               input is what gets posted; the visible input is the search
-               box; the dropdown is a filtered scrollable list. -->
           <div class="fine-picker relative mb-2">
             <input type="hidden" name="fine_hse_type_slug" class="fine-picker-value">
             <div class="flex items-stretch gap-1">
               <input type="text"
                      class="fine-picker-search flex-1 border border-slate-300 rounded px-2 py-1.5 bg-white"
-                     placeholder="Search sub-types…"
+                     placeholder="Type to search…"
                      autocomplete="off">
-              <button type="button"
-                      class="fine-picker-scope text-[10px] text-slate-500 hover:text-slate-900 border border-slate-300 hover:border-emerald-400 rounded px-2 bg-white transition-colors whitespace-nowrap"
-                      title="Toggle: this category only / all categories">
-                <span class="fine-picker-scope-label">in category</span>
-              </button>
               <button type="button"
                       class="fine-picker-clear hidden text-slate-400 hover:text-rose-600 border border-slate-300 rounded px-2 bg-white transition-colors"
                       title="Clear">
@@ -621,6 +627,7 @@ const I18N = {
     edit_hse_label: "HSE type",
     edit_loc_label: "Location",
     edit_fine_label: "AECIS sub-type <span class='text-slate-400 font-normal'>(optional)</span>",
+    edit_pick_label: "Pick the violation type",
     fine_search_placeholder: "Search sub-types…",
     fine_search_placeholder_all: "Search ALL 386+ sub-types…",
     fine_scope_in_category: "in category",
@@ -640,6 +647,8 @@ const I18N = {
     batch_new_toast: "Started a new batch — drop photos to begin",
     batch_new_confirm: "Start a new batch? Current photos stay on the server but disappear from this view.",
     batch_reset: "Reset reviews",
+    batch_reset_short: "Reset",
+    batch_new_short: "New",
     reset_nothing: "Nothing to reset — no reviews in this batch",
     reset_confirm: "Wipe all your confirmations and corrections in this batch? Photos + AI predictions stay; only your reviews are removed.",
     reset_done: "Reviews cleared",
@@ -768,7 +777,7 @@ const I18N = {
     summary_avg_conf: "Avg confidence",
     summary_headline: (n, r) => `${n} photos · ${r} reviewed`,
     pill_high: "Likely correct",
-    pill_medium: "Quick check",
+    pill_medium: "Please verify",
     pill_low: "Needs review",
     empty_title: "No photos yet.",
     empty_sub: "Drop some above to get started — predictions land here in a few seconds.",
@@ -808,6 +817,7 @@ const I18N = {
     edit_hse_label: "Loại vi phạm HSE",
     edit_loc_label: "Vị trí",
     edit_fine_label: "Phân loại chi tiết AECIS <span class='text-slate-400 font-normal'>(không bắt buộc)</span>",
+    edit_pick_label: "Chọn loại vi phạm",
     fine_search_placeholder: "Tìm phân loại chi tiết…",
     fine_search_placeholder_all: "Tìm trong TẤT CẢ 386+ phân loại…",
     fine_scope_in_category: "trong danh mục",
@@ -827,6 +837,8 @@ const I18N = {
     batch_new_toast: "Đã bắt đầu lô ảnh mới — thả ảnh để bắt đầu",
     batch_new_confirm: "Bắt đầu lô ảnh mới? Ảnh hiện tại vẫn ở trên máy chủ nhưng sẽ không hiển thị ở đây.",
     batch_reset: "Xóa các xét duyệt",
+    batch_reset_short: "Xóa",
+    batch_new_short: "Mới",
     reset_nothing: "Không có gì để xóa — chưa có xét duyệt trong lô này",
     reset_confirm: "Xóa tất cả xác nhận và chỉnh sửa của bạn trong lô này? Ảnh và dự đoán AI vẫn còn; chỉ các xét duyệt của bạn bị xóa.",
     reset_done: "Đã xóa các xét duyệt",
@@ -955,7 +967,7 @@ const I18N = {
     summary_avg_conf: "Độ tin cậy TB",
     summary_headline: (n, r) => `${n} ảnh · ${r} đã xét duyệt`,
     pill_high: "Có khả năng đúng",
-    pill_medium: "Cần kiểm tra nhanh",
+    pill_medium: "Vui lòng kiểm tra",
     pill_low: "Cần xét duyệt",
     empty_title: "Chưa có ảnh nào.",
     empty_sub: "Thả ảnh ở trên để bắt đầu — kết quả hiện sau vài giây.",
@@ -995,6 +1007,7 @@ const I18N = {
     edit_hse_label: "Tipo HSE",
     edit_loc_label: "Ubicación",
     edit_fine_label: "Sub-tipo AECIS <span class='text-slate-400 font-normal'>(opcional)</span>",
+    edit_pick_label: "Elige el tipo de infracción",
     fine_search_placeholder: "Buscar sub-tipos…",
     fine_search_placeholder_all: "Buscar en TODOS los 386+ sub-tipos…",
     fine_scope_in_category: "en la categoría",
@@ -1014,6 +1027,8 @@ const I18N = {
     batch_new_toast: "Nuevo lote iniciado — suelta fotos para empezar",
     batch_new_confirm: "¿Iniciar un nuevo lote? Las fotos actuales permanecen en el servidor pero desaparecerán de esta vista.",
     batch_reset: "Restablecer revisiones",
+    batch_reset_short: "Restablecer",
+    batch_new_short: "Nuevo",
     reset_nothing: "Nada que restablecer — no hay revisiones en este lote",
     reset_confirm: "¿Borrar todas tus confirmaciones y correcciones de este lote? Las fotos y predicciones de la IA permanecen; solo se eliminan tus revisiones.",
     reset_done: "Revisiones borradas",
@@ -1142,7 +1157,7 @@ const I18N = {
     summary_avg_conf: "Confianza media",
     summary_headline: (n, r) => `${n} fotos · ${r} revisadas`,
     pill_high: "Probablemente correcta",
-    pill_medium: "Verificación rápida",
+    pill_medium: "Por favor verifica",
     pill_low: "Necesita revisión",
     empty_title: "Aún no hay fotos.",
     empty_sub: "Suelta algunas arriba para empezar — las predicciones aparecerán en unos segundos.",
@@ -1182,6 +1197,7 @@ const I18N = {
     edit_hse_label: "HSE 类型",
     edit_loc_label: "位置",
     edit_fine_label: "AECIS 子类型 <span class='text-slate-400 font-normal'>（可选）</span>",
+    edit_pick_label: "选择违规类型",
     fine_search_placeholder: "搜索子类型…",
     fine_search_placeholder_all: "搜索全部 386+ 子类型…",
     fine_scope_in_category: "在该类别中",
@@ -1201,6 +1217,8 @@ const I18N = {
     batch_new_toast: "已开始新批次 — 拖入照片开始",
     batch_new_confirm: "开始新批次？当前照片仍在服务器上，但会从此视图中消失。",
     batch_reset: "重置审核",
+    batch_reset_short: "重置",
+    batch_new_short: "新建",
     reset_nothing: "无可重置 — 此批次尚无审核",
     reset_confirm: "清除你在此批次中所有的确认和更正？照片和 AI 预测保留；仅删除你的审核。",
     reset_done: "审核已清除",
@@ -1329,7 +1347,7 @@ const I18N = {
     summary_avg_conf: "平均置信度",
     summary_headline: (n, r) => `${n} 张照片 · 已审核 ${r} 张`,
     pill_high: "可能正确",
-    pill_medium: "快速核查",
+    pill_medium: "请核实",
     pill_low: "需要审核",
     empty_title: "暂无照片。",
     empty_sub: "在上方拖入照片开始 — 几秒后将显示预测结果。",
@@ -2604,19 +2622,31 @@ function updateCard(card, photo) {
 //   _finePickerGetValue(card)             — read the slug (used by correctCard)
 //   _finePickerSetValue(card, slug)       — write the slug (used by AI pre-fill)
 function _finePickerCandidates(card, parentSlug) {
-  const scope = card.dataset.fineScope || "parent";
-  if (scope === "all") {
-    const all = [];
-    for (const p in FINE_TYPES_BY_PARENT) {
-      for (const it of FINE_TYPES_BY_PARENT[p]) {
-        // Tag with parent so the dropdown can show the category subtitle
-        all.push({ ...it, _parent: p });
-      }
-    }
-    return all;
+  // Always return ALL items (parents + fines). The legacy "scope=parent"
+  // mode is gone now that we collapsed the two-list edit form into a
+  // single picker — inspectors no longer have to first guess the right
+  // parent before searching.
+  const all = [];
+  // Parents listed first so a search like "ladder" surfaces the parent
+  // category before its individual fine sub-types. Each parent is tagged
+  // _kind = "parent" so the click handler sets only hse_type_slug.
+  for (const parentSlugKey in FINE_TYPES_BY_PARENT) {
+    const meta = HSE_BY_SLUG?.[parentSlugKey];
+    all.push({
+      slug: parentSlugKey,
+      label_en: meta?.label_en || parentSlugKey.replace(/_/g, " "),
+      label_vn: meta?.label_vn || meta?.label_en || parentSlugKey.replace(/_/g, " "),
+      _kind: "parent",
+      _parent: parentSlugKey,
+    });
   }
-  const items = FINE_TYPES_BY_PARENT[parentSlug] || [];
-  return items.map(it => ({ ...it, _parent: parentSlug }));
+  // Then all fine sub-types. _kind = "fine".
+  for (const p in FINE_TYPES_BY_PARENT) {
+    for (const it of FINE_TYPES_BY_PARENT[p]) {
+      all.push({ ...it, _kind: "fine", _parent: p });
+    }
+  }
+  return all;
 }
 
 function _finePickerLabel(it) {
@@ -2635,16 +2665,6 @@ function _finePickerRender(card, parentSlug, query) {
     return lbl.includes(q) || it.slug.toLowerCase().includes(q);
   });
   list.innerHTML = "";
-  // First option: clear / none
-  const noneEl = document.createElement("button");
-  noneEl.type = "button";
-  noneEl.className = "block w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-50 italic border-b border-slate-100";
-  noneEl.textContent = LANG === "vn" ? "— không chọn —" : "— none —";
-  noneEl.addEventListener("click", () => {
-    _finePickerSetValue(card, "");
-    _finePickerHide(card);
-  });
-  list.appendChild(noneEl);
   if (!filtered.length) {
     const noResults = document.createElement("div");
     noResults.className = "px-3 py-3 text-xs text-slate-400 text-center";
@@ -2660,22 +2680,38 @@ function _finePickerRender(card, parentSlug, query) {
     btn.type = "button";
     btn.className = "block w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-50 border-b border-slate-100 last:border-0";
     const label = _finePickerLabel(it);
-    const isAllScope = (card.dataset.fineScope || "parent") === "all";
-    if (isAllScope && it._parent) {
+    if (it._kind === "parent") {
+      // Parent category — show with a subtle "category" badge so the
+      // inspector can tell at a glance whether they're picking a coarse
+      // parent or a specific sub-type.
+      btn.innerHTML =
+        `<div class="flex items-center gap-1.5">
+           <span class="inline-block px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider bg-slate-200 text-slate-600 font-semibold">${LANG === "vn" ? "Nhóm" : LANG === "es" ? "Grupo" : LANG === "zh" ? "分类" : "Category"}</span>
+           <span class="text-slate-900 font-medium flex-1">${escapeHtml(label)}</span>
+         </div>`;
+    } else {
+      // Fine sub-type — show its label and a small parent breadcrumb.
       btn.innerHTML =
         `<div class="text-slate-900">${escapeHtml(label)}</div>
          <div class="text-[10px] text-slate-400">${escapeHtml(it._parent)}</div>`;
-    } else {
-      btn.textContent = label;
     }
     btn.addEventListener("click", () => {
-      _finePickerSetValue(card, it.slug);
-      // If inspector picked from "all categories" mode, also flip the
-      // visible parent select so the form's hse_type_slug stays
-      // consistent with the fine pick.
-      if (isAllScope && it._parent) {
-        const hseSel = el(".hse-select", card);
-        if (hseSel) hseSel.value = it._parent;
+      const hseSel = el(".hse-select", card);
+      if (it._kind === "parent") {
+        // Parent-only pick: set hse_type_slug, clear fine.
+        _finePickerSetValue(card, "");
+        if (hseSel) hseSel.value = it.slug;
+        // Show the parent label in the search box so the user sees
+        // their selection persist even though no fine slug is set.
+        const search = el(".fine-picker-search", card);
+        if (search) search.value = label;
+        const clearBtn = el(".fine-picker-clear", card);
+        if (clearBtn) clearBtn.classList.remove("hidden");
+      } else {
+        // Fine pick: set both. The hidden parent select carries the
+        // parent slug for the form-submit handler.
+        _finePickerSetValue(card, it.slug);
+        if (hseSel && it._parent) hseSel.value = it._parent;
       }
       _finePickerHide(card);
     });
@@ -2712,74 +2748,67 @@ function _finePickerSetValue(card, slug) {
     search.value = it ? _finePickerLabel(it) : slug;
     if (clearBtn) clearBtn.classList.remove("hidden");
   } else {
-    search.value = "";
-    if (clearBtn) clearBtn.classList.add("hidden");
+    // No fine pick — but if a parent is set on the hidden hse-select
+    // (typical when the AI matched a coarse category but no specific
+    // sub-type), surface the parent label in the search box so the
+    // user sees what's currently selected. Without this the input
+    // looked empty even though the form would submit a parent slug.
+    const hseSel = el(".hse-select", card);
+    const parentSlug = hseSel ? hseSel.value : "";
+    if (parentSlug) {
+      const meta = HSE_BY_SLUG?.[parentSlug];
+      const lbl = meta
+        ? (LANG === "vn" && meta.label_vn ? meta.label_vn : meta.label_en)
+        : parentSlug.replace(/_/g, " ");
+      search.value = lbl;
+      if (clearBtn) clearBtn.classList.remove("hidden");
+    } else {
+      search.value = "";
+      if (clearBtn) clearBtn.classList.add("hidden");
+    }
   }
 }
 
-// Re-init the picker for a given parent. Called from updateCard, from
-// the parent <select> change handler, and from confirmCard reset paths.
-function refreshFineSelect(card, parentSlug) {
+// Re-init the picker. Wires event listeners once per card; subsequent
+// calls (e.g. when AI pre-fills a slug) just refresh the dropdown
+// content. parentSlug is now ignored — the picker always searches the
+// full taxonomy (parents + fines) so users don't have to first guess
+// the right parent before they can pick.
+function refreshFineSelect(card, parentSlug /* unused; kept for callers */) {
   const picker = el(".fine-picker", card);
   if (!picker) return;
   const search = el(".fine-picker-search", card);
-  const scopeBtn = el(".fine-picker-scope", card);
   const clearBtn = el(".fine-picker-clear", card);
   if (!search) return;
 
-  // Wire events once per card. data-fp-wired flag prevents re-binding
-  // when refreshFineSelect is called multiple times (e.g. on parent
-  // change, on AI fill).
   if (!picker.dataset.fpWired) {
     picker.dataset.fpWired = "1";
-    card.dataset.fineScope = card.dataset.fineScope || "parent";
-
     search.addEventListener("focus", () => {
-      _finePickerRender(card, el(".hse-select", card).value, search.value);
+      _finePickerRender(card, null, search.value);
       _finePickerShow(card);
     });
     search.addEventListener("input", () => {
-      _finePickerRender(card, el(".hse-select", card).value, search.value);
+      _finePickerRender(card, null, search.value);
       _finePickerShow(card);
     });
     // Click-outside dismiss
     document.addEventListener("click", (ev) => {
       if (!picker.contains(ev.target)) _finePickerHide(card);
     });
-    if (scopeBtn) scopeBtn.addEventListener("click", () => {
-      const next = (card.dataset.fineScope === "all") ? "parent" : "all";
-      card.dataset.fineScope = next;
-      const lbl = el(".fine-picker-scope-label", scopeBtn);
-      if (lbl) lbl.textContent = t(next === "all" ? "fine_scope_all" : "fine_scope_in_category");
-      search.placeholder = t(next === "all" ? "fine_search_placeholder_all" : "fine_search_placeholder");
-      _finePickerRender(card, el(".hse-select", card).value, search.value);
-      _finePickerShow(card);
-      search.focus();
-    });
     if (clearBtn) clearBtn.addEventListener("click", () => {
+      // Clear the parent FIRST so _finePickerSetValue's parent-fallback
+      // path doesn't immediately repopulate the search box from the
+      // (about-to-be-cleared) hidden select. Net effect: a single tap
+      // wipes both the fine slug and any parent-only pick.
+      const hseSel = el(".hse-select", card);
+      if (hseSel) hseSel.value = "";
       _finePickerSetValue(card, "");
       search.focus();
     });
   }
 
-  // Scope-toggle label localization
-  const lbl = el(".fine-picker-scope-label", picker);
-  const scope = card.dataset.fineScope || "parent";
-  if (lbl) lbl.textContent = t(scope === "all" ? "fine_scope_all" : "fine_scope_in_category");
-  search.placeholder = t(scope === "all" ? "fine_search_placeholder_all" : "fine_search_placeholder");
-
-  // If the current pick still belongs to the new parent, keep it.
-  // Otherwise clear (parent change invalidates the previous fine pick).
-  const cur = _finePickerGetValue(card);
-  if (cur) {
-    const parentItems = FINE_TYPES_BY_PARENT[parentSlug] || [];
-    const stillValid = parentItems.some(it => it.slug === cur);
-    if (!stillValid && scope !== "all") {
-      _finePickerSetValue(card, "");
-    }
-  }
-  // Render the dropdown content (still hidden until focus)
-  _finePickerRender(card, parentSlug, "");
+  // Render the dropdown content (still hidden until focus / input).
+  _finePickerRender(card, null, "");
 }
 
 // =================== Upload (chunked + progress + notifications) ===================
@@ -3666,7 +3695,29 @@ async function refreshBatchesList() {
     batches.forEach(b => {
       const node = tmpl.content.firstElementChild.cloneNode(true);
       node.dataset.batchId = b.batch_id;
-      el(".batch-card-label", node).textContent = b.label || (LANG === "vn" ? "(không tên)" : "(unnamed)");
+      // Friendlier fallback for batches the user didn't name. Build a
+      // date-stamped placeholder ("Inspection Apr 30") off the batch's
+      // first photo timestamp so the list isn't a wall of "(unnamed)".
+      let fallbackLabel = "";
+      if (b.created_at || b.first_photo_at) {
+        const ts = new Date(b.created_at || b.first_photo_at);
+        if (!isNaN(ts.getTime())) {
+          const opts = { month: "short", day: "numeric" };
+          const d = ts.toLocaleDateString(_BCP47[LANG] || "en", opts);
+          const prefix = LANG === "vn" ? "Lô"
+                       : LANG === "es" ? "Lote"
+                       : LANG === "zh" ? "批次"
+                       : "Batch";
+          fallbackLabel = `${prefix} · ${d}`;
+        }
+      }
+      if (!fallbackLabel) {
+        fallbackLabel = LANG === "vn" ? "Lô không tên"
+                      : LANG === "es" ? "Lote sin título"
+                      : LANG === "zh" ? "未命名批次"
+                      : "Untitled batch";
+      }
+      el(".batch-card-label", node).textContent = b.label || fallbackLabel;
       el(".batch-card-photos", node).textContent = b.photo_count + (LANG === "vn" ? " ảnh" : (b.photo_count === 1 ? " photo" : " photos"));
       el(".batch-card-reviewed", node).textContent = `${b.reviewed_count}/${b.photo_count}`;
       const pct = b.photo_count ? Math.round(b.reviewed_count / b.photo_count * 100) : 0;
