@@ -482,7 +482,7 @@
             <div class="flex items-stretch gap-1">
               <input type="text"
                      class="fine-picker-search flex-1 border border-slate-300 rounded px-2 py-1.5 bg-white"
-                     placeholder="Type to search…"
+                     placeholder="Tap a category or type to search"
                      autocomplete="off">
               <button type="button"
                       class="fine-picker-clear hidden text-slate-400 hover:text-rose-600 border border-slate-300 rounded px-2 bg-white transition-colors"
@@ -2627,108 +2627,202 @@ function updateCard(card, photo) {
 //   refreshFineSelect(card, parentSlug)   — re-init when parent changes
 //   _finePickerGetValue(card)             — read the slug (used by correctCard)
 //   _finePickerSetValue(card, slug)       — write the slug (used by AI pre-fill)
-function _finePickerCandidates(card, parentSlug) {
-  // Always return ALL items (parents + fines). The legacy "scope=parent"
-  // mode is gone now that we collapsed the two-list edit form into a
-  // single picker — inspectors no longer have to first guess the right
-  // parent before searching.
-  const all = [];
-  // Parents listed first so a search like "ladder" surfaces the parent
-  // category before its individual fine sub-types. Each parent is tagged
-  // _kind = "parent" so the click handler sets only hse_type_slug.
+// Build picker candidate sets. Three modes:
+//   "browse-parents"  — list of all parent categories (default state)
+//   "browse-children" — fine sub-types of one drilled-into parent
+//   "search"          — flat search across parents + fines (when query is non-empty)
+function _finePickerParentItems() {
+  const items = [];
   for (const parentSlugKey in FINE_TYPES_BY_PARENT) {
     const meta = HSE_BY_SLUG?.[parentSlugKey];
-    all.push({
+    items.push({
       slug: parentSlugKey,
       label_en: meta?.label_en || parentSlugKey.replace(/_/g, " "),
       label_vn: meta?.label_vn || meta?.label_en || parentSlugKey.replace(/_/g, " "),
       _kind: "parent",
       _parent: parentSlugKey,
+      _childCount: (FINE_TYPES_BY_PARENT[parentSlugKey] || []).length,
     });
   }
-  // Then all fine sub-types. _kind = "fine".
-  for (const p in FINE_TYPES_BY_PARENT) {
-    for (const it of FINE_TYPES_BY_PARENT[p]) {
-      all.push({ ...it, _kind: "fine", _parent: p });
+  // Sort alphabetically by display label so the parents are
+  // predictable to scan, not in arbitrary JSON-key order.
+  items.sort((a, b) => _finePickerLabel(a).localeCompare(_finePickerLabel(b)));
+  return items;
+}
+function _finePickerChildrenItems(parentSlug) {
+  const kids = FINE_TYPES_BY_PARENT[parentSlug] || [];
+  return kids.map(it => ({ ...it, _kind: "fine", _parent: parentSlug }));
+}
+function _finePickerSearchItems() {
+  // Parents first, then all fines. Both kinds match search.
+  return [..._finePickerParentItems(), ...(() => {
+    const fines = [];
+    for (const p in FINE_TYPES_BY_PARENT) {
+      for (const it of FINE_TYPES_BY_PARENT[p]) fines.push({ ...it, _kind: "fine", _parent: p });
     }
-  }
-  return all;
+    return fines;
+  })()];
 }
 
 function _finePickerLabel(it) {
   return LANG === "vn" && it.label_vn ? it.label_vn : it.label_en;
 }
 
-function _finePickerRender(card, parentSlug, query) {
+// Tree-style render. Mode is derived from card.dataset state:
+//   - card.dataset.fpDrilled = parent slug (browse-children mode)
+//   - card.dataset.fpDrilled = "" or unset (browse-parents mode)
+//   - non-empty `query` overrides both with flat search results
+// The search bar is always usable; typing flips into search mode and
+// clearing the input snaps back to whatever browse state was active.
+function _finePickerRender(card, _parentSlugUnused, query) {
   const list = el(".fine-picker-list", card);
   if (!list) return;
-  const candidates = _finePickerCandidates(card, parentSlug);
   const q = (query || "").trim().toLowerCase();
-  // Match either label or slug. Slug match useful when inspector knows
-  // the AECIS slug but doesn't remember exact wording.
-  const filtered = !q ? candidates : candidates.filter(it => {
-    const lbl = _finePickerLabel(it).toLowerCase();
-    return lbl.includes(q) || it.slug.toLowerCase().includes(q);
-  });
+  const drilledParent = card.dataset.fpDrilled || "";
+  const isSearch = q.length > 0;
+
+  let items;
+  if (isSearch) {
+    items = _finePickerSearchItems().filter(it => {
+      const lbl = _finePickerLabel(it).toLowerCase();
+      return lbl.includes(q) || it.slug.toLowerCase().includes(q);
+    });
+  } else if (drilledParent) {
+    items = _finePickerChildrenItems(drilledParent);
+  } else {
+    items = _finePickerParentItems();
+  }
+
   list.innerHTML = "";
-  if (!filtered.length) {
+
+  // ---- Header bar (in browse-children mode) — Back link to return to parents ----
+  if (!isSearch && drilledParent) {
+    const meta = HSE_BY_SLUG?.[drilledParent];
+    const parentLabel = meta
+      ? (LANG === "vn" && meta.label_vn ? meta.label_vn : meta.label_en)
+      : drilledParent.replace(/_/g, " ");
+    const header = document.createElement("div");
+    header.className = "sticky top-0 z-10 bg-slate-50 border-b border-slate-200 flex items-center gap-1 px-2 py-1.5";
+    header.innerHTML = `
+      <button type="button" class="fine-picker-back text-xs text-slate-600 hover:text-slate-900 px-2 py-0.5 rounded inline-flex items-center gap-1">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+        <span>${LANG === "vn" ? "Tất cả nhóm" : LANG === "es" ? "Todas las categorías" : LANG === "zh" ? "所有分类" : "All categories"}</span>
+      </button>
+      <span class="text-xs text-slate-500 truncate flex-1 text-right">${escapeHtml(parentLabel)}</span>
+      <!-- "Pick this whole category" — gives the inspector a fast path
+           to confirm just the parent without scrolling fines. -->
+      <button type="button" class="fine-picker-pick-parent text-[10px] text-emerald-700 hover:text-emerald-900 underline-offset-2 hover:underline whitespace-nowrap">
+        ${LANG === "vn" ? "Chọn nhóm này" : LANG === "es" ? "Elegir esta categoría" : LANG === "zh" ? "选择此分类" : "Pick this category"}
+      </button>`;
+    header.querySelector(".fine-picker-back").addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      card.dataset.fpDrilled = "";
+      _finePickerRender(card, null, "");
+    });
+    header.querySelector(".fine-picker-pick-parent").addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      _pickParent(card, drilledParent, parentLabel);
+      _finePickerHide(card);
+    });
+    list.appendChild(header);
+  }
+
+  if (!items.length) {
     const noResults = document.createElement("div");
     noResults.className = "px-3 py-3 text-xs text-slate-400 text-center";
     noResults.textContent = t("fine_no_results");
     list.appendChild(noResults);
     return;
   }
-  // Cap at 50 results to keep DOM lean. The user can refine the search
-  // if they don't see what they want.
-  const capped = filtered.slice(0, 50);
+
+  // Cap large search-result lists; browse modes are never more than ~400 items
+  // total but capping for safety.
+  const cap = isSearch ? 80 : 500;
+  const capped = items.slice(0, cap);
   for (const it of capped) {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "block w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-50 border-b border-slate-100 last:border-0";
+    btn.className = "block w-full text-left px-3 py-2 text-xs hover:bg-emerald-50 border-b border-slate-100 last:border-0";
     const label = _finePickerLabel(it);
     if (it._kind === "parent") {
-      // Parent category — show with a subtle "category" badge so the
-      // inspector can tell at a glance whether they're picking a coarse
-      // parent or a specific sub-type.
+      // In browse-parents mode: clicking drills in. In search mode:
+      // clicking confirms the parent as a coarse pick and closes.
+      const childLine = isSearch
+        ? `<div class="text-[10px] text-slate-400">${LANG === "vn" ? "Nhóm" : LANG === "es" ? "Categoría" : LANG === "zh" ? "分类" : "Category"} · ${it._childCount || (FINE_TYPES_BY_PARENT[it.slug] || []).length} ${LANG === "vn" ? "loại con" : LANG === "es" ? "sub-tipos" : LANG === "zh" ? "子类型" : "sub-types"}</div>`
+        : `<div class="text-[10px] text-slate-400">${it._childCount} ${LANG === "vn" ? "loại con" : LANG === "es" ? "sub-tipos" : LANG === "zh" ? "子类型" : "sub-types"}</div>`;
+      const drillIcon = isSearch
+        ? "" /* in search results, parents are picked, not drilled */
+        : `<svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>`;
       btn.innerHTML =
-        `<div class="flex items-center gap-1.5">
-           <span class="inline-block px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider bg-slate-200 text-slate-600 font-semibold">${LANG === "vn" ? "Nhóm" : LANG === "es" ? "Grupo" : LANG === "zh" ? "分类" : "Category"}</span>
-           <span class="text-slate-900 font-medium flex-1">${escapeHtml(label)}</span>
+        `<div class="flex items-center gap-2">
+           <div class="flex-1 min-w-0">
+             <div class="text-slate-900 font-medium truncate">${escapeHtml(label)}</div>
+             ${childLine}
+           </div>
+           ${drillIcon}
          </div>`;
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (isSearch) {
+          // Search-result parent: confirm as coarse pick.
+          _pickParent(card, it.slug, label);
+          _finePickerHide(card);
+        } else {
+          // Browse mode: drill into this parent.
+          card.dataset.fpDrilled = it.slug;
+          // Reset search box so it's clear we're in browse-children
+          // mode, not still searching.
+          const search = el(".fine-picker-search", card);
+          if (search) search.value = "";
+          _finePickerRender(card, null, "");
+        }
+      });
     } else {
-      // Fine sub-type — show its label and a small parent breadcrumb.
+      // Fine sub-type. In search mode, show parent breadcrumb so the
+      // user knows which category it lives under.
+      const breadcrumb = isSearch && it._parent
+        ? `<div class="text-[10px] text-slate-400 truncate">${escapeHtml(_parentLabel(it._parent))}</div>`
+        : "";
       btn.innerHTML =
         `<div class="text-slate-900">${escapeHtml(label)}</div>
-         <div class="text-[10px] text-slate-400">${escapeHtml(it._parent)}</div>`;
-    }
-    btn.addEventListener("click", () => {
-      const hseSel = el(".hse-select", card);
-      if (it._kind === "parent") {
-        // Parent-only pick: set hse_type_slug, clear fine.
-        _finePickerSetValue(card, "");
-        if (hseSel) hseSel.value = it.slug;
-        // Show the parent label in the search box so the user sees
-        // their selection persist even though no fine slug is set.
-        const search = el(".fine-picker-search", card);
-        if (search) search.value = label;
-        const clearBtn = el(".fine-picker-clear", card);
-        if (clearBtn) clearBtn.classList.remove("hidden");
-      } else {
-        // Fine pick: set both. The hidden parent select carries the
-        // parent slug for the form-submit handler.
+         ${breadcrumb}`;
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const hseSel = el(".hse-select", card);
         _finePickerSetValue(card, it.slug);
         if (hseSel && it._parent) hseSel.value = it._parent;
-      }
-      _finePickerHide(card);
-    });
+        _finePickerHide(card);
+      });
+    }
     list.appendChild(btn);
   }
-  if (filtered.length > 50) {
+  if (items.length > cap) {
     const more = document.createElement("div");
     more.className = "px-3 py-1.5 text-[10px] text-slate-400 text-center italic";
-    more.textContent = `(+${filtered.length - 50} more — refine your search)`;
+    more.textContent = `(+${items.length - cap} ${LANG === "vn" ? "kết quả nữa" : LANG === "es" ? "más resultados" : LANG === "zh" ? "更多结果" : "more"} — ${LANG === "vn" ? "thu hẹp tìm kiếm" : LANG === "es" ? "refina tu búsqueda" : LANG === "zh" ? "细化搜索" : "refine search"})`;
     list.appendChild(more);
   }
+}
+
+// Helpers used by the tree-mode render.
+function _parentLabel(parentSlug) {
+  const meta = HSE_BY_SLUG?.[parentSlug];
+  return meta
+    ? (LANG === "vn" && meta.label_vn ? meta.label_vn : meta.label_en)
+    : parentSlug.replace(/_/g, " ");
+}
+function _pickParent(card, parentSlug, parentLabel) {
+  const hseSel = el(".hse-select", card);
+  _finePickerSetValue(card, "");
+  if (hseSel) hseSel.value = parentSlug;
+  const search = el(".fine-picker-search", card);
+  if (search) search.value = parentLabel;
+  const clearBtn = el(".fine-picker-clear", card);
+  if (clearBtn) clearBtn.classList.remove("hidden");
 }
 
 function _finePickerShow(card) {
@@ -2777,9 +2871,8 @@ function _finePickerSetValue(card, slug) {
 
 // Re-init the picker. Wires event listeners once per card; subsequent
 // calls (e.g. when AI pre-fills a slug) just refresh the dropdown
-// content. parentSlug is now ignored — the picker always searches the
-// full taxonomy (parents + fines) so users don't have to first guess
-// the right parent before they can pick.
+// content. parentSlug is now ignored — the picker always operates over
+// the full taxonomy (parents drilled into fines, with a search overlay).
 function refreshFineSelect(card, parentSlug /* unused; kept for callers */) {
   const picker = el(".fine-picker", card);
   if (!picker) return;
@@ -2794,6 +2887,17 @@ function refreshFineSelect(card, parentSlug /* unused; kept for callers */) {
       _finePickerShow(card);
     });
     search.addEventListener("input", () => {
+      // Typing always exits the drilled-into-children view: a query
+      // means "look across the whole taxonomy". Snapping back to
+      // browse-parents on empty makes the back-affordance discoverable.
+      if (search.value.trim().length > 0) {
+        // search mode — don't change drilled state, but the render
+        // function flips into search-results regardless.
+      } else if (card.dataset.fpDrilled) {
+        // Empty query while drilled in: keep showing the children.
+      } else {
+        // Empty query, no drill: show parents.
+      }
       _finePickerRender(card, null, search.value);
       _finePickerShow(card);
     });
@@ -2805,15 +2909,20 @@ function refreshFineSelect(card, parentSlug /* unused; kept for callers */) {
       // Clear the parent FIRST so _finePickerSetValue's parent-fallback
       // path doesn't immediately repopulate the search box from the
       // (about-to-be-cleared) hidden select. Net effect: a single tap
-      // wipes both the fine slug and any parent-only pick.
+      // wipes both the fine slug, any parent-only pick, AND any drill state.
       const hseSel = el(".hse-select", card);
       if (hseSel) hseSel.value = "";
       _finePickerSetValue(card, "");
+      card.dataset.fpDrilled = "";
       search.focus();
     });
   }
 
-  // Render the dropdown content (still hidden until focus / input).
+  // Open the picker in browse-parents mode by default. If the form
+  // already has a fine pick, it'll be reflected in the search box via
+  // _finePickerSetValue elsewhere; we don't auto-drill into the AI's
+  // parent because that competes with the visible search box.
+  card.dataset.fpDrilled = "";
   _finePickerRender(card, null, "");
 }
 
@@ -3278,6 +3387,24 @@ async function retryClassify(card) {
   }
 }
 
+// Tombstones for photos the user has just deleted client-side. The
+// server-side `/api/pending` endpoint can keep returning a row for a
+// few seconds after the DELETE returns 200 (read-after-write replica
+// lag, queue drain, etc.), and without this set the next 4-second
+// poll happily recreates the card the user just trashed. Entries are
+// pruned after 60 s — by then the server is consistent again, and if
+// the user really did delete the photo the row is gone for good.
+const _photoTombstones = new Map();   // id -> ts(ms)
+function _isTombstoned(id) {
+  const ts = _photoTombstones.get(id);
+  if (!ts) return false;
+  if (Date.now() - ts > 60_000) {
+    _photoTombstones.delete(id);
+    return false;
+  }
+  return true;
+}
+
 async function deleteCard(card) {
   if (card.dataset.busy === "1") return;
   card.dataset.busy = "1";
@@ -3290,6 +3417,8 @@ async function deleteCard(card) {
   card.style.transform = "scale(0.95)";
   setTimeout(() => card.remove(), 200);
   photoCache.delete(id);
+  // Tombstone immediately so the next poll() doesn't resurrect it.
+  _photoTombstones.set(id, Date.now());
   applyFilter();
   refreshSummary();
 
@@ -3299,7 +3428,8 @@ async function deleteCard(card) {
     showToast(t("delete_toast"), { timeoutMs: 3000 });
   } catch (e) {
     showError("Delete failed: " + e.message);
-    // Re-mount the card from the saved HTML so the user can retry.
+    // Server rejected — un-tombstone and re-mount so the user can retry.
+    _photoTombstones.delete(id);
     cardsEl.insertAdjacentHTML("afterbegin", placeholderHTML);
     poll();
   }
@@ -3580,6 +3710,11 @@ async function poll() {
 
     let pendingNow = 0;
     (data.photos || []).forEach(p => {
+      // Skip rows the user just deleted client-side — the server can
+      // take a few seconds to reflect a DELETE in /api/pending and
+      // without this check the poll would re-create the card the user
+      // already dismissed.
+      if (_isTombstoned(p.id)) return;
       // Client-side batch filter — drops photos that don't belong to the
       // current batch. Belt-and-suspenders for the server-side filter
       // (which is a no-op when the photos.batch_id column hasn't been
@@ -3689,7 +3824,10 @@ async function refreshBatchesList() {
     if (!r.ok) throw new Error("HTTP " + r.status);
     const data = await r.json();
     grid.innerHTML = "";
-    const batches = data.batches || [];
+    // Filter out batches the user just deleted client-side. The server
+    // can return them for a few seconds after DELETE returns 200 due
+    // to read-after-write delay; without this the card resurrects.
+    const batches = (data.batches || []).filter(b => !_isBatchTombstoned(b.batch_id));
     if (!batches.length) {
       empty.classList.remove("hidden");
       grid.classList.add("hidden");
@@ -3773,6 +3911,21 @@ async function refreshBatchesList() {
   } catch (e) { /* silent */ }
 }
 
+// Tombstones for batches the user just deleted. Same race we hit with
+// photos: /api/batches can keep returning the deleted row briefly,
+// resurrecting the card if we don't filter it client-side. 2-minute
+// TTL — the server is consistent well before that.
+const _batchTombstones = new Map();
+function _isBatchTombstoned(id) {
+  const ts = _batchTombstones.get(id);
+  if (!ts) return false;
+  if (Date.now() - ts > 120_000) {
+    _batchTombstones.delete(id);
+    return false;
+  }
+  return true;
+}
+
 // Delete a whole batch (photos + R2 + classify_jobs + corrections).
 // Triggered by the trash icon on each batch card in the list view.
 // Confirms first because this is irrecoverable. If the deleted batch is
@@ -3782,6 +3935,29 @@ async function deleteBatch(batchId, photoCount, label) {
   const n = photoCount || 0;
   const confirmMsg = t("batch_delete_confirm")(n);
   if (!window.confirm(confirmMsg)) return;
+
+  // Optimistic UI: yank the card out of the grid right away so the
+  // user gets immediate feedback. Tombstone the id so the next
+  // refreshBatchesList doesn't recreate it from a stale read.
+  _batchTombstones.set(batchId, Date.now());
+  const grid = el("#batches-grid");
+  if (grid) {
+    grid.querySelectorAll(`[data-batch-id="${CSS.escape(batchId)}"]`)
+        .forEach(node => {
+          node.style.transition = "opacity 200ms, transform 200ms";
+          node.style.opacity = "0";
+          node.style.transform = "scale(0.96)";
+          setTimeout(() => node.remove(), 200);
+        });
+    // If that was the only card, surface the empty state immediately
+    // instead of waiting for the next refreshBatchesList.
+    const remaining = grid.querySelectorAll('[data-batch-id]').length - 1;
+    if (remaining <= 0) {
+      const empty = el("#batches-empty");
+      if (empty) empty.classList.remove("hidden");
+    }
+  }
+
   try {
     const r = await fetch("/api/batches/" + encodeURIComponent(batchId), {
       method: "DELETE",
@@ -3797,9 +3973,14 @@ async function deleteBatch(batchId, photoCount, label) {
       localStorage.removeItem("violation-ai-batch-label");
     }
     showToast(t("batch_delete_done")(data.deleted ?? n));
+    // Reconcile with the server. Tombstones in the render path will
+    // hide the deleted batch even if it briefly appears in the read.
     refreshBatchesList();
   } catch (e) {
     showError(`${t("batch_delete_failed")}: ${e.message}`);
+    // Server rejected — un-tombstone and restore the visible list.
+    _batchTombstones.delete(batchId);
+    refreshBatchesList();
   }
 }
 
