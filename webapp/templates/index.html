@@ -2495,6 +2495,31 @@ function applyQualityFlag(card, photoId) {
 }
 
 function updateCard(card, photo) {
+  // Cheap content fingerprint of the fields the render reads. If the
+  // poll returns the same photo unchanged (the typical case once the
+  // batch is fully classified — every 4 s the server sent identical
+  // rows we still re-rendered), skip the DOM work entirely. Saves
+  // tens to hundreds of ms per poll on 50+-photo batches and
+  // measurably reduces the "scrolling feels janky" complaint.
+  const cls = photo.classification || {};
+  const fingerprint = [
+    photo.thumb_url || "",
+    photo.reviewed ? 1 : 0,
+    photo.review_action || "",
+    photo.review_note || "",
+    cls.id || "",
+    cls.hse_type_slug || "",
+    cls.fine_hse_type_slug || "",
+    photo.classify_status || "",
+    photo.quality_reason || "",
+    LANG,   // language switch should re-render the card text
+  ].join("|");
+  const cached0 = photoCache.get(photo.id);
+  if (cached0 && cached0.fingerprint === fingerprint && cached0.card === card) {
+    cached0.photo = photo;   // keep the latest object reference
+    return;
+  }
+
   const predEl = el(".state-predicted", card);
   const pendEl = el(".state-pending", card);
   const revEl  = el(".state-reviewed", card);
@@ -2521,6 +2546,8 @@ function updateCard(card, photo) {
 
   const cached = photoCache.get(photo.id) || { status: "pending", conf: 0 };
   cached.photo = photo;
+  cached.fingerprint = fingerprint;   // short-circuit key for next poll
+  cached.card = card;
 
   if (photo.reviewed) {
     pendEl.classList.add("hidden");
@@ -3628,15 +3655,40 @@ async function retryClassify(card) {
 // server-side `/api/pending` endpoint can keep returning a row for a
 // few seconds after the DELETE returns 200 (read-after-write replica
 // lag, queue drain, etc.), and without this set the next 4-second
-// poll happily recreates the card the user just trashed. Entries are
-// pruned after 60 s — by then the server is consistent again, and if
-// the user really did delete the photo the row is gone for good.
-const _photoTombstones = new Map();   // id -> ts(ms)
+// poll happily recreates the card the user just trashed.
+//
+// Persisted in sessionStorage so a pull-to-refresh / Cmd-R / phone
+// background-tab kill doesn't lose the tombstone and resurrect the
+// deleted photo on the very next render. Pruned by TTL; sessionStorage
+// scope means tombstones disappear when the tab does, which is fine —
+// by then the server is consistent.
+const _PHOTO_TOMB_TTL_MS = 60_000;
+const _photoTombstones = (() => {
+  const m = new Map();
+  try {
+    const raw = sessionStorage.getItem("vai-photo-tombs");
+    if (raw) {
+      const obj = JSON.parse(raw);
+      const now = Date.now();
+      for (const [id, ts] of Object.entries(obj)) {
+        if (now - Number(ts) <= _PHOTO_TOMB_TTL_MS) m.set(id, Number(ts));
+      }
+    }
+  } catch (_) {}
+  return m;
+})();
+function _persistPhotoTombs() {
+  try {
+    sessionStorage.setItem("vai-photo-tombs",
+      JSON.stringify(Object.fromEntries(_photoTombstones)));
+  } catch (_) {}
+}
 function _isTombstoned(id) {
   const ts = _photoTombstones.get(id);
   if (!ts) return false;
-  if (Date.now() - ts > 60_000) {
+  if (Date.now() - ts > _PHOTO_TOMB_TTL_MS) {
     _photoTombstones.delete(id);
+    _persistPhotoTombs();
     return false;
   }
   return true;
@@ -3656,6 +3708,7 @@ async function deleteCard(card) {
   photoCache.delete(id);
   // Tombstone immediately so the next poll() doesn't resurrect it.
   _photoTombstones.set(id, Date.now());
+  _persistPhotoTombs();
   applyFilter();
   refreshSummary();
 
@@ -3667,6 +3720,7 @@ async function deleteCard(card) {
     showError("Delete failed: " + e.message);
     // Server rejected — un-tombstone and re-mount so the user can retry.
     _photoTombstones.delete(id);
+    _persistPhotoTombs();
     cardsEl.insertAdjacentHTML("afterbegin", placeholderHTML);
     poll();
   }
@@ -3942,7 +3996,24 @@ el("#kbd-help").addEventListener("click", e => {
 });
 
 // =================== Poll ===================
-async function poll() {
+// Tracks how many consecutive polls returned no pending photos. Used
+// to back off the poll cadence when the batch is fully classified —
+// no point re-fetching the same finished list every 4 s.
+let _pollIdleStreak = 0;
+let _lastPollAt = 0;
+async function poll(opts = {}) {
+  // Skip when the tab is hidden — there's nothing to render so the
+  // network round-trip is pure waste of battery + bandwidth.
+  if (document.hidden) return;
+  // Skip when the user is on the all-batches list view; poll() only
+  // refreshes the detail view's photo cards. The batches list has its
+  // own refresh path (refreshBatchesList).
+  if (typeof currentView !== "undefined" && currentView === VIEW_LIST) return;
+  // Adaptive backoff: after 5 consecutive idle polls, only run every
+  // ~16 s instead of every 4 s. Manual triggers (opts.force) bypass.
+  const now = Date.now();
+  if (!opts.force && _pollIdleStreak >= 5 && (now - _lastPollAt) < 16_000) return;
+  _lastPollAt = now;
   try {
     const resp = await fetch(`/api/pending?limit=40&batch_id=${encodeURIComponent(CURRENT_BATCH_ID)}`);
     if (!resp.ok) return;
@@ -3979,6 +4050,12 @@ async function poll() {
     }
     maybeFireCompletionNotification(pendingNow);
 
+    // Update the idle-streak counter that the adaptive backoff uses.
+    // Anything still pending = stay aggressive; everything classified =
+    // back off so the network goes quiet.
+    if (pendingNow > 0) _pollIdleStreak = 0;
+    else _pollIdleStreak++;
+
     if (!els(".card", cardsEl).length) {
       el("#empty-state").classList.remove("hidden");
       toolbar.classList.add("hidden");
@@ -3990,6 +4067,17 @@ async function poll() {
     }
   } catch (e) { /* silent */ }
 }
+
+// Listen for tab visibility changes — fire one immediate poll when
+// the tab comes back to the foreground so the user doesn't see stale
+// state. Without this, a returning user has to wait up to 16 s
+// (idle-backoff window) for the next refresh.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    _pollIdleStreak = 0;
+    poll({ force: true });
+  }
+});
 
 // =================== Batch indicator wiring ===================
 const batchInput = el("#batch-label-input");
@@ -4057,13 +4145,22 @@ function switchView(v) {
   }
 }
 
+// Guard against concurrent refreshBatchesList calls that interleaved
+// their innerHTML writes and rendered duplicates. We tag each call
+// with an incrementing token; only the latest token is allowed to
+// commit its render to the grid. Any earlier in-flight calls are
+// dropped on arrival. Net effect: rapid-fire delete + reload + view
+// switches no longer leave the user staring at a doubled list.
+let _refreshBatchesToken = 0;
 async function refreshBatchesList() {
+  const myToken = ++_refreshBatchesToken;
   const grid = el("#batches-grid");
   const empty = el("#batches-empty");
   try {
     const r = await fetch("/api/batches?limit=100");
     if (!r.ok) throw new Error("HTTP " + r.status);
     const data = await r.json();
+    if (myToken !== _refreshBatchesToken) return;   // a newer call already rendered
     grid.innerHTML = "";
     // Filter out batches the user just deleted client-side. The server
     // can return them for a few seconds after DELETE returns 200 due
@@ -4156,12 +4253,38 @@ async function refreshBatchesList() {
 // photos: /api/batches can keep returning the deleted row briefly,
 // resurrecting the card if we don't filter it client-side. 2-minute
 // TTL — the server is consistent well before that.
-const _batchTombstones = new Map();
+//
+// Persisted to sessionStorage so a pull-to-refresh / page reload
+// during the read-after-write window doesn't drop the tombstone and
+// resurrect the deleted batch on the very next render. (This was the
+// observed "drag the page and the deleted batch comes back" bug.)
+const _BATCH_TOMB_TTL_MS = 120_000;
+const _batchTombstones = (() => {
+  const m = new Map();
+  try {
+    const raw = sessionStorage.getItem("vai-batch-tombs");
+    if (raw) {
+      const obj = JSON.parse(raw);
+      const now = Date.now();
+      for (const [id, ts] of Object.entries(obj)) {
+        if (now - Number(ts) <= _BATCH_TOMB_TTL_MS) m.set(id, Number(ts));
+      }
+    }
+  } catch (_) {}
+  return m;
+})();
+function _persistBatchTombs() {
+  try {
+    sessionStorage.setItem("vai-batch-tombs",
+      JSON.stringify(Object.fromEntries(_batchTombstones)));
+  } catch (_) {}
+}
 function _isBatchTombstoned(id) {
   const ts = _batchTombstones.get(id);
   if (!ts) return false;
-  if (Date.now() - ts > 120_000) {
+  if (Date.now() - ts > _BATCH_TOMB_TTL_MS) {
     _batchTombstones.delete(id);
+    _persistBatchTombs();
     return false;
   }
   return true;
@@ -4181,6 +4304,7 @@ async function deleteBatch(batchId, photoCount, label) {
   // user gets immediate feedback. Tombstone the id so the next
   // refreshBatchesList doesn't recreate it from a stale read.
   _batchTombstones.set(batchId, Date.now());
+  _persistBatchTombs();
   const grid = el("#batches-grid");
   if (grid) {
     grid.querySelectorAll(`[data-batch-id="${CSS.escape(batchId)}"]`)
@@ -4221,6 +4345,7 @@ async function deleteBatch(batchId, photoCount, label) {
     showError(`${t("batch_delete_failed")}: ${e.message}`);
     // Server rejected — un-tombstone and restore the visible list.
     _batchTombstones.delete(batchId);
+    _persistBatchTombs();
     refreshBatchesList();
   }
 }

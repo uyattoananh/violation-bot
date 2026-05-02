@@ -3418,6 +3418,14 @@ def _build_export_blob(
                             (r.get("sha256") or "?")[:10], e)
 
         def _row_html(r: dict, idx: int) -> str:
+            """Each row uses plain semantic HTML — <h2>, <p>, <img>,
+            <strong>, <em> — so that "select all + copy + paste into
+            Word / Google Docs" carries everything across cleanly:
+            the violation name lands as a Heading 2 paragraph, the
+            description text lands as body paragraphs, and the
+            embedded base64 image lands as a real inline image. CSS
+            below paints it as a labelled-photo block in the browser,
+            but the underlying markup is editor-friendly."""
             fine_lbl = (r.get("final_fine_hse_type_label_en")
                         or r.get("final_fine_hse_type_slug") or "")
             hse_lbl = (r.get("final_hse_type_label_en")
@@ -3426,56 +3434,45 @@ def _build_export_blob(
                       or r.get("ai_hse_type_slug") or "—")
             conf = float(r.get("ai_hse_confidence") or 0) * 100
             headline = _esc(fine_lbl) if fine_lbl else _esc(hse_lbl)
-            subhead = _esc(hse_lbl) if fine_lbl else ""
-            reviewed_pill = (
-                f'<span class="pill pill-reviewed">Reviewed · {_esc(r.get("review_action") or "")}</span>'
-                if r.get("reviewed") else
-                '<span class="pill pill-pending">Pending review</span>'
-            )
-            note_html = (
-                f'<div class="note"><strong>Note:</strong> {_esc(r.get("review_note") or "")}</div>'
-                if r.get("review_note") else ""
+            # Always include the parent category in the meta line so
+            # context survives a copy-paste even when the headline
+            # alone is the fine sub-type.
+            parent_for_meta = _esc(hse_lbl)
+            review_status = (
+                f'Reviewed ({_esc(r.get("review_action") or "")})'
+                if r.get("reviewed") else "Pending review"
             )
             rationale = _esc(r.get("ai_rationale") or "")
+            note = _esc(r.get("review_note") or "")
             uploaded = _esc((r.get("uploaded_at") or "")[:19].replace("T", " "))
             filename = _esc(r.get("original_filename") or "(no name)")
+            n = idx + 1
+            row_id = f"photo-{n:03d}"
+            alt = f"#{n:03d} — {headline}"
+
             b64 = photo_b64.get(r["id"])
-            # Index badge gives the recipient a quick "photo 12 of 47"
-            # reference when discussing a specific row.
-            idx_badge = f'<div class="idx-badge">#{idx + 1:03d}</div>'
-            photo_block = (
-                f'<figure class="labelled-photo">'
-                f'  {idx_badge}'
-                f'  <img alt="" src="data:image/jpeg;base64,{b64}">'
-                f'  <figcaption>'
-                f'    <div class="cap-headline">{headline}</div>'
-                + (f'    <div class="cap-sub">{subhead}</div>' if subhead else '')
-                + f'    <div class="cap-meta">{reviewed_pill}<span class="cap-conf">AI: {_esc(ai_lbl)} · {conf:.0f}%</span></div>'
-                f'  </figcaption>'
-                f'</figure>'
+            img_html = (
+                f'<img src="data:image/jpeg;base64,{b64}" alt="{alt}" />'
                 if b64 else
-                f'<figure class="labelled-photo no-thumb">'
-                f'  {idx_badge}'
-                f'  <div class="thumb-placeholder">photo not embedded (cap reached)</div>'
-                f'  <figcaption>'
-                f'    <div class="cap-headline">{headline}</div>'
-                + (f'    <div class="cap-sub">{subhead}</div>' if subhead else '')
-                + f'    <div class="cap-meta">{reviewed_pill}<span class="cap-conf">AI: {_esc(ai_lbl)} · {conf:.0f}%</span></div>'
-                f'  </figcaption>'
-                f'</figure>'
+                '<p class="thumb-placeholder"><em>(thumbnail not embedded — beyond the cap)</em></p>'
             )
-            return f"""
-<article class="row">
-  {photo_block}
-  <aside class="row-side">
-    <dl class="row-meta">
-      <dt>Original file</dt><dd>{filename}</dd>
-      <dt>Uploaded</dt><dd>{uploaded}</dd>
-    </dl>
-    {('<div class="row-rationale"><strong>AI rationale:</strong> ' + rationale + '</div>') if rationale else ''}
-    {note_html}
-  </aside>
-</article>"""
+
+            return f'''
+<section class="row" id="{row_id}">
+  <h2 class="row-headline">
+    <span class="idx-badge">#{n:03d}</span>
+    {headline}
+  </h2>
+  <p class="row-meta-line">
+    <strong>Category:</strong> {parent_for_meta} ·
+    <strong>AI confidence:</strong> {conf:.0f}% ·
+    <strong>Status:</strong> {review_status}
+  </p>
+  <div class="row-photo">{img_html}</div>
+  {('<p class="row-rationale"><strong>AI rationale:</strong> ' + rationale + '</p>') if rationale else ''}
+  {('<p class="row-note"><strong>Inspector note:</strong> ' + note + '</p>') if note else ''}
+  <p class="row-meta-foot"><em>{filename} · uploaded {uploaded}</em></p>
+</section>'''
 
         rows_html = "\n".join(_row_html(r, i) for i, r in enumerate(rows))
         skipped = max(0, total - THUMB_CAP)
@@ -3537,99 +3534,68 @@ def _build_export_blob(
     border-bottom: 1px solid var(--rule); font-size: 13px;
   }}
   .top-hse .th-count {{ font-variant-numeric: tabular-nums; color: var(--ink-mute); }}
-  /* Each row is now a "labelled exhibit": photo gets the full row
-     width (or 60% on desktop) with the classification label glued
-     directly underneath as a caption strip — exactly how a museum
-     or inspection report ties an image to its identification. The
-     side column carries metadata that's secondary (filename,
-     timestamp, AI rationale, inspector note). */
-  .row {{
-    display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px;
-    border: 1px solid var(--rule); padding: 18px; margin-bottom: 16px;
-    background: var(--paper-soft); page-break-inside: avoid;
-  }}
-  @media (max-width: 700px) {{
-    .row {{ grid-template-columns: 1fr; }}
-    .stats {{ grid-template-columns: repeat(2, 1fr); }}
-    .stat {{ border-right: none; border-bottom: 1px solid var(--rule); }}
-    .stat:nth-child(2) {{ border-right: 0; }}
-  }}
-  /* Labelled photo — the photo with its caption strip glued to it. */
-  .labelled-photo {{
-    margin: 0; position: relative;
-    border: 1px solid var(--ink); background: var(--ink);
-    overflow: hidden; display: flex; flex-direction: column;
-  }}
-  .labelled-photo img {{
-    display: block; width: 100%; height: auto;
-    max-height: 480px; object-fit: contain;
-    background: #1c1c1c;
-  }}
-  .labelled-photo .thumb-placeholder {{
-    width: 100%; min-height: 220px; display: grid; place-items: center;
-    background: #1c1c1c; color: #b9b4a4; font-size: 12px; font-style: italic;
-  }}
-  /* Caption strip, directly attached to the photo with no gap. The
-     visual contract: image and label are ONE unit — the photo is
-     "labelled". */
-  .labelled-photo figcaption {{
-    background: var(--ink); color: var(--paper);
-    padding: 12px 14px; border-top: 2px solid var(--accent);
-  }}
-  .labelled-photo .cap-headline {{
-    font-size: 16px; font-weight: 600; line-height: 1.3;
-    letter-spacing: -0.01em;
-  }}
-  .labelled-photo .cap-sub {{
-    font-size: 11px; color: rgba(245,243,235,0.65);
-    text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px;
-  }}
-  .labelled-photo .cap-meta {{
-    display: flex; justify-content: space-between; align-items: center;
-    margin-top: 10px; gap: 10px; flex-wrap: wrap;
-  }}
-  .labelled-photo .cap-conf {{
-    font-size: 11px; color: rgba(245,243,235,0.6);
-    font-variant-numeric: tabular-nums;
-  }}
-  /* Index badge — top-right corner of the photo, "#001" style. */
-  .idx-badge {{
-    position: absolute; top: 8px; right: 8px;
-    background: rgba(245,243,235,0.92); color: var(--ink);
-    padding: 3px 8px; border-radius: 4px;
-    font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
-    font-variant-numeric: tabular-nums;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-  }}
-  /* Side column — secondary metadata. */
-  .row-side {{ font-size: 12px; }}
-  .row-meta {{
-    display: grid; grid-template-columns: 90px 1fr; gap: 4px 12px;
-    margin: 0 0 10px; font-size: 12px;
-  }}
-  .row-meta dt {{ color: var(--ink-mute); }}
-  .row-meta dd {{ margin: 0; word-break: break-word; }}
-  .row-rationale {{
-    font-size: 12px; color: var(--ink-soft); padding: 10px 12px;
-    background: var(--paper); border-left: 3px solid var(--accent);
-    margin-top: 10px; line-height: 1.5;
-  }}
-  .row-rationale strong {{ color: var(--ink); }}
-  .note {{
-    font-size: 12px; padding: 8px 12px; margin-top: 8px;
-    background: rgba(180, 83, 9, 0.08); border-left: 3px solid var(--accent);
+  /* "Tip" callout at the top — explains that this report is built
+     to be select-all + copy + paste into Word / Google Docs. */
+  .copy-tip {{
+    background: rgba(180, 83, 9, 0.06); border-left: 3px solid var(--accent);
+    padding: 10px 14px; margin-bottom: 24px; font-size: 12px;
     color: var(--ink-soft); line-height: 1.5;
   }}
-  .note strong {{ color: var(--ink); }}
-  /* Pills for the caption-meta line — sit on the dark caption strip
-     so they need lighter colours than on the paper bg. */
-  .pill {{
-    display: inline-block; padding: 3px 10px; border-radius: 999px;
-    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-    white-space: nowrap;
+  .copy-tip strong {{ color: var(--ink); }}
+
+  /* The per-row markup is intentionally semantic (h2 + p + img) so
+     it pastes into Word/Google Docs cleanly. The CSS below paints
+     it as a labelled-photo card in the browser — picture, headline
+     directly above, supporting text below. None of the visual
+     polish matters when pasted: the structure is what survives
+     editor paste, and that's what the inspector actually wants. */
+  .row {{
+    border: 1px solid var(--rule); padding: 20px;
+    margin-bottom: 22px;
+    background: var(--paper-soft);
+    page-break-inside: avoid;
   }}
-  .pill-reviewed {{ background: rgba(16,185,129,0.20); color: #6ee7b7; }}
-  .pill-pending {{ background: rgba(245,158,11,0.20); color: #fcd34d; }}
+  .row-headline {{
+    margin: 0 0 6px; font-size: 18px; font-weight: 600;
+    letter-spacing: -0.01em; color: var(--ink);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }}
+  .idx-badge {{
+    display: inline-block; flex-shrink: 0;
+    background: var(--ink); color: var(--paper);
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+  }}
+  .row-meta-line {{
+    margin: 0 0 14px; color: var(--ink-mute); font-size: 12px;
+  }}
+  .row-meta-line strong {{ color: var(--ink-soft); font-weight: 600; }}
+  .row-photo {{ margin: 0 0 14px; }}
+  .row-photo img {{
+    display: block; width: 100%; max-width: 720px;
+    height: auto; max-height: 520px; object-fit: contain;
+    border: 1px solid var(--rule); background: #1c1c1c;
+    margin: 0;
+  }}
+  .row-photo .thumb-placeholder {{
+    margin: 0; padding: 24px; text-align: center;
+    color: var(--ink-mute); border: 1px dashed var(--rule);
+  }}
+  .row-rationale {{
+    margin: 0 0 10px; padding: 10px 12px;
+    background: var(--paper); border-left: 3px solid var(--accent);
+    font-size: 13px; color: var(--ink-soft); line-height: 1.55;
+  }}
+  .row-rationale strong, .row-note strong {{ color: var(--ink); }}
+  .row-note {{
+    margin: 0 0 10px; padding: 10px 12px;
+    background: rgba(180, 83, 9, 0.08); border-left: 3px solid var(--accent);
+    font-size: 13px; color: var(--ink-soft); line-height: 1.55;
+  }}
+  .row-meta-foot {{
+    margin: 8px 0 0; color: var(--ink-mute); font-size: 11px;
+  }}
   .skipped-note {{ color: var(--ink-mute); font-size: 12px; padding: 12px; border: 1px dashed var(--rule); margin: 12px 0; }}
   footer {{ margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--ink-mute); font-size: 11px; }}
   @media print {{
@@ -3655,6 +3621,15 @@ def _build_export_blob(
     </div>
     {('<div class="top-hse"><h3>Top HSE types</h3><ul>' + top_hse_html + '</ul></div>') if top_hse_rows else ''}
   </header>
+
+  <div class="copy-tip">
+    <strong>Tip:</strong> Select everything (<kbd>Ctrl</kbd>+<kbd>A</kbd> on
+    Windows / <kbd>Cmd</kbd>+<kbd>A</kbd> on Mac) and copy
+    (<kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>C</kbd>), then paste into a
+    Word / Google Docs / email body. Headings, paragraphs, and
+    embedded photos all carry over.
+  </div>
+
   {skipped_note}
   {rows_html}
   <footer>
