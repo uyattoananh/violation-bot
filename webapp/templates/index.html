@@ -2501,15 +2501,18 @@ function updateCard(card, photo) {
   // rows we still re-rendered), skip the DOM work entirely. Saves
   // tens to hundreds of ms per poll on 50+-photo batches and
   // measurably reduces the "scrolling feels janky" complaint.
-  const cls = photo.classification || {};
+  // (Note: `cls` can't be reused as the local name here because two
+  // later branches of this function each redeclare it as `const cls`.
+  // Use `_fpCls` for the fingerprint-only read.)
+  const _fpCls = photo.classification || {};
   const fingerprint = [
     photo.thumb_url || "",
     photo.reviewed ? 1 : 0,
     photo.review_action || "",
     photo.review_note || "",
-    cls.id || "",
-    cls.hse_type_slug || "",
-    cls.fine_hse_type_slug || "",
+    _fpCls.id || "",
+    _fpCls.hse_type_slug || "",
+    _fpCls.fine_hse_type_slug || "",
     photo.classify_status || "",
     photo.quality_reason || "",
     LANG,   // language switch should re-render the card text
