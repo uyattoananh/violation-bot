@@ -19,6 +19,20 @@
     </button>
   </div>
 
+  <!-- Quick-create dropzone (UX backlog D4). Tap → starts a new
+       batch with an auto-generated date-stamped name and immediately
+       opens the camera. Saves the user from clicking "Start new
+       batch" then waiting for the detail view to load before they
+       can shoot. The `id` is reused as the click target. -->
+  <button id="btn-quick-batch" type="button"
+          class="w-full mb-3 flex items-center justify-center gap-2 border-2 border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/40 active:bg-emerald-100/60 rounded-2xl px-4 py-5 text-sm font-medium text-emerald-700 transition-colors">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
+      <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/>
+    </svg>
+    <span data-i18n="quick_batch_label">Take a photo to start a new batch</span>
+  </button>
+
   <div id="batches-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
     <!-- batch cards inserted by JS -->
   </div>
@@ -648,16 +662,27 @@
        data-batch-id="">
     <!-- Delete batch (top-right). stopPropagation in handler so the
          outer card's open-batch click doesn't also fire. -->
-    <button type="button"
-            class="batch-card-delete absolute top-2 right-2 bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors z-10"
-            aria-label="Delete batch"
-            title="Delete batch">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round"
-              d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
-      </svg>
-    </button>
-    <div class="flex items-start justify-between gap-2 pr-8">
+    <!-- Top-right action strip: rename then delete (UX backlog D3). -->
+    <div class="absolute top-2 right-2 z-10 flex items-center gap-1">
+      <button type="button"
+              class="batch-card-rename bg-white/95 hover:bg-emerald-50 active:bg-emerald-100 text-slate-400 hover:text-emerald-600 border border-slate-200 hover:border-emerald-300 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors"
+              aria-label="Rename batch"
+              title="Rename this batch">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
+        </svg>
+      </button>
+      <button type="button"
+              class="batch-card-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors"
+              aria-label="Delete batch"
+              title="Delete batch">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+        </svg>
+      </button>
+    </div>
+    <div class="flex items-start justify-between gap-2 pr-16">
       <div class="font-semibold text-slate-900 batch-card-label flex-1 truncate"></div>
       <div class="text-[10px] uppercase tracking-wider text-slate-400 batch-card-when whitespace-nowrap"></div>
     </div>
@@ -749,6 +774,10 @@ const I18N = {
     list_empty_sub: "Start a new batch to upload and label your first set of photos.",
     back_to_list: "All batches",
     batch_delete: "Delete batch",
+    batch_rename: "Rename batch",
+    batch_rename_prompt: "Rename batch:",
+    batch_rename_done: "Batch renamed",
+    quick_batch_label: "Take a photo to start a new batch",
     batch_delete_confirm: (n) =>
       `Delete this batch and all ${n} of its photo${n === 1 ? "" : "s"}? This cannot be undone.`,
     batch_delete_done: (n) => `Deleted batch (${n} photo${n === 1 ? "" : "s"})`,
@@ -885,6 +914,7 @@ const I18N = {
     footer_corrected: "corrected",
     footer_tagline: "every confirmation trains the AI",
     footer_today: "today:",
+    quota_label_suffix: "photos today",
     kbd_title: "Keyboard shortcuts",
     kbd_confirm: "Confirm focused card",
     kbd_edit: "Edit focused card",
@@ -947,6 +977,10 @@ const I18N = {
     list_empty_sub: "Bắt đầu lô mới để tải lên và gán nhãn các ảnh đầu tiên.",
     back_to_list: "Tất cả các lô",
     batch_delete: "Xóa lô ảnh",
+    batch_rename: "Đổi tên lô",
+    batch_rename_prompt: "Đổi tên lô:",
+    batch_rename_done: "Đã đổi tên lô",
+    quick_batch_label: "Chụp ảnh để bắt đầu lô mới",
     batch_delete_confirm: (n) =>
       `Xóa lô này và toàn bộ ${n} ảnh trong đó? Hành động này không thể hoàn tác.`,
     batch_delete_done: (n) => `Đã xóa lô (${n} ảnh)`,
@@ -1083,6 +1117,7 @@ const I18N = {
     footer_corrected: "đã sửa",
     footer_tagline: "mỗi lần xác nhận giúp AI học",
     footer_today: "hôm nay:",
+    quota_label_suffix: "ảnh hôm nay",
     kbd_title: "Phím tắt",
     kbd_confirm: "Xác nhận thẻ đang chọn",
     kbd_edit: "Sửa thẻ đang chọn",
@@ -1145,6 +1180,10 @@ const I18N = {
     list_empty_sub: "Inicia un nuevo lote para subir y etiquetar tus primeras fotos.",
     back_to_list: "Todos los lotes",
     batch_delete: "Eliminar lote",
+    batch_rename: "Renombrar lote",
+    batch_rename_prompt: "Renombrar lote:",
+    batch_rename_done: "Lote renombrado",
+    quick_batch_label: "Toma una foto para iniciar un nuevo lote",
     batch_delete_confirm: (n) =>
       `¿Eliminar este lote y sus ${n} foto${n === 1 ? "" : "s"}? Esta acción no se puede deshacer.`,
     batch_delete_done: (n) => `Lote eliminado (${n} foto${n === 1 ? "" : "s"})`,
@@ -1281,6 +1320,7 @@ const I18N = {
     footer_corrected: "corregidas",
     footer_tagline: "cada confirmación entrena a la IA",
     footer_today: "hoy:",
+    quota_label_suffix: "fotos hoy",
     kbd_title: "Atajos de teclado",
     kbd_confirm: "Confirmar tarjeta enfocada",
     kbd_edit: "Editar tarjeta enfocada",
@@ -1343,6 +1383,10 @@ const I18N = {
     list_empty_sub: "开始一个新批次以上传并标注你的第一组照片。",
     back_to_list: "所有批次",
     batch_delete: "删除批次",
+    batch_rename: "重命名批次",
+    batch_rename_prompt: "重命名批次：",
+    batch_rename_done: "批次已重命名",
+    quick_batch_label: "拍一张照片以开始新批次",
     batch_delete_confirm: (n) =>
       `删除此批次及其全部 ${n} 张照片？此操作无法撤销。`,
     batch_delete_done: (n) => `批次已删除（${n} 张照片）`,
@@ -1479,6 +1523,7 @@ const I18N = {
     footer_corrected: "已更正",
     footer_tagline: "每次确认都训练 AI",
     footer_today: "今日：",
+    quota_label_suffix: "张今日",
     kbd_title: "键盘快捷键",
     kbd_confirm: "确认聚焦的卡片",
     kbd_edit: "编辑聚焦的卡片",
@@ -4473,11 +4518,46 @@ async function refreshBatchesList() {
           deleteBatch(b.batch_id, b.photo_count, b.label);
         });
       }
+      // Inline rename (UX backlog D3). One tap pops a window.prompt
+      // pre-filled with the current label; Enter saves via the new
+      // PATCH /api/batches/{id} endpoint, Esc/empty cancels. Optimistic
+      // UI: we update the visible label immediately and roll back on
+      // error.
+      const renameBtn = el(".batch-card-rename", node);
+      if (renameBtn) {
+        renameBtn.title = t("batch_rename") || "Rename batch";
+        renameBtn.setAttribute("aria-label", renameBtn.title);
+        renameBtn.addEventListener("click", async (ev) => {
+          ev.stopPropagation();
+          const labelEl = el(".batch-card-label", node);
+          const current = b.label || labelEl.textContent || "";
+          const next = window.prompt(t("batch_rename_prompt") || "Rename batch:", current);
+          if (next === null) return;             // user cancelled
+          const trimmed = next.trim().slice(0, 80);
+          if (trimmed === current) return;       // no change
+          const prev = labelEl.textContent;
+          labelEl.textContent = trimmed || (LANG === "vn" ? "Lô không tên" : LANG === "es" ? "Lote sin título" : LANG === "zh" ? "未命名批次" : "Untitled batch");
+          try {
+            const fd = new FormData();
+            fd.append("label", trimmed);
+            const resp = await fetch("/api/batches/" + encodeURIComponent(b.batch_id), {
+              method: "PATCH", body: fd,
+            });
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            b.label = trimmed;   // keep local copy in sync
+            showToast(t("batch_rename_done") || "Batch renamed", { timeoutMs: 2500 });
+          } catch (e) {
+            labelEl.textContent = prev;
+            showError("Rename failed: " + e.message);
+          }
+        });
+      }
       // Whole-card click = open the batch, but ONLY if the click didn't
-      // originate inside the delete button (defensive — stopPropagation
-      // above should already block it).
+      // originate inside one of the action buttons in the top-right
+      // strip (defensive — stopPropagation above should already block).
       node.addEventListener("click", (ev) => {
         if (ev.target.closest(".batch-card-delete")) return;
+        if (ev.target.closest(".batch-card-rename")) return;
         openBatch(b.batch_id, b.label);
       });
       node.addEventListener("keydown", e => {
@@ -4615,6 +4695,48 @@ el("#btn-new-batch-from-list").addEventListener("click", () => {
   startNewBatch();
   switchView(VIEW_DETAIL);
 });
+
+// Quick-create dropzone (UX backlog D4). Tap to:
+//   1. Start a new batch
+//   2. Auto-name it with the current date so it doesn't show as
+//      "Untitled batch" in the list (date is what the user told us
+//      to use; full GPS-based site naming is in the P3 backlog)
+//   3. Switch to the detail view
+//   4. Trigger the camera input directly so the inspector goes
+//      straight into capture mode without a second tap
+const _quickBatchBtn = el("#btn-quick-batch");
+if (_quickBatchBtn) {
+  _quickBatchBtn.addEventListener("click", () => {
+    startNewBatch();
+    // Auto-generate a "<date>" label per UX backlog D5 (date-only
+    // half — GPS site name is a deeper integration). Date format
+    // matches the locale-aware short date used on batch cards.
+    try {
+      const localeMap = { en: "en", vn: "vi", es: "es", zh: "zh-CN" };
+      const opts = { month: "short", day: "numeric" };
+      const ds = new Date().toLocaleDateString(localeMap[LANG] || "en", opts);
+      const prefix = LANG === "vn" ? "Lô"
+                   : LANG === "es" ? "Lote"
+                   : LANG === "zh" ? "批次"
+                   : "Batch";
+      CURRENT_BATCH_LABEL = `${prefix} · ${ds}`;
+      localStorage.setItem("violation-ai-batch-label", CURRENT_BATCH_LABEL);
+      const labelInput = el("#batch-label-input");
+      if (labelInput) labelInput.value = CURRENT_BATCH_LABEL;
+    } catch (_) { /* if Intl chokes, fall back to empty label */ }
+    switchView(VIEW_DETAIL);
+    // Defer the camera trigger so view-detail is rendered + measurable
+    // before .click() fires. iOS in particular needs a real user
+    // gesture chain to open the camera; our click handler IS that
+    // gesture, and a 0-tick setTimeout still keeps us inside it.
+    setTimeout(() => {
+      const camIn = document.getElementById("camera-input");
+      if (camIn) {
+        try { camIn.click(); } catch (_) {}
+      }
+    }, 0);
+  });
+}
 
 // =================== Boot ===================
 applyLang();

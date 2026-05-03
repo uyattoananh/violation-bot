@@ -2394,6 +2394,35 @@ def api_batches(limit: int = 100):
     return {"batches": batches[:limit]}
 
 
+@app.patch("/api/batches/{batch_id}")
+def patch_batch(request: Request, batch_id: str, label: str = Form(...)):
+    """Rename a batch (UX backlog D3). Batches are virtual — no
+    `batches` table, just an aggregation over photos.batch_id. So
+    rename means updating the `batch_label` column on every photo
+    that belongs to the batch.
+
+    The label is capped at 80 chars (matches the front-end limit) and
+    trimmed; empty after trim → batch becomes "untitled" (the
+    /api/batches list will fall back to its date-stamped placeholder).
+    """
+    if not _is_uuid(batch_id):
+        raise HTTPException(400, "invalid batch id")
+    new_label = (label or "").strip()[:80]
+    db = get_db()
+    try:
+        result = (
+            db.table("photos").update({"batch_label": new_label or None})
+              .eq("batch_id", batch_id)
+              .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("patch_batch label update failed for %s: %s", batch_id, e)
+        raise HTTPException(500, f"could not rename batch: {e}")
+    n = len(result.data or [])
+    log.info("renamed batch %s -> %r (%d photos)", batch_id, new_label, n)
+    return {"ok": True, "batch_id": batch_id, "label": new_label, "updated": n}
+
+
 @app.post("/api/batches/{batch_id}/clear-reviews")
 def clear_batch_reviews(batch_id: str, request: Request):
     """Delete every correction (confirm + correct) the user made in this
