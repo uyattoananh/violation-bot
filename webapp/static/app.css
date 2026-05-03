@@ -167,6 +167,52 @@ input:focus-visible {
   touch-action: pan-y;
 }
 
+/* Bottom-sheet variant — applied by _finePickerPosition when the
+   viewport is mobile-narrow (vw < 640). Anchors the picker to the
+   bottom of the screen, rounds only the top corners, slides up
+   from below, and pairs with the .fine-picker-backdrop overlay
+   below. The grabber-dot pseudo-element is the iOS/Android visual
+   convention for "this is a draggable sheet" (we don't actually
+   drag-to-dismiss; the close bar handles that). */
+.fine-picker-list.is-sheet {
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: 0;
+  box-shadow: 0 -8px 32px -4px rgba(0, 0, 0, 0.25);
+  /* Clip the sticky close-bar at the top to the rounded corners.
+     Without this, its full-bleed background extends past the rounded
+     corners and visually breaks the sheet. overflow-y stays auto so
+     the list still scrolls. */
+  overflow-x: hidden;
+  /* Slide-up entrance. Re-applies on every show because we toggle
+     `hidden` -> visible; CSS animations replay on each unhide. */
+  animation: fpSheetSlideUp 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes fpSheetSlideUp {
+  from { transform: translateY(16%); opacity: 0.6; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Backdrop overlay sits between the page and the sheet. One
+   shared element on document.body, toggled visible/hidden as the
+   picker opens/closes. Click anywhere on it to dismiss the
+   picker — the JS wires the listener once at create time. */
+#fine-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 49;            /* one below .fine-picker-list (z-50) */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease-out;
+}
+#fine-picker-backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Stat number that pops on update */
 @keyframes statBump {
   0%   { transform: scale(1); }

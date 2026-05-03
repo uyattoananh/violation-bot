@@ -3222,22 +3222,36 @@ function _finePickerPosition(card) {
   if (!list || !trigger) return;
   const rect = trigger.getBoundingClientRect();
   const vw = window.innerWidth;
-  const vh = window.innerHeight;
+  // Use visualViewport.height when available — on iOS/Android the
+  // soft keyboard shrinks the visual viewport but NOT window.innerHeight,
+  // so without this the bottom-sheet would sit underneath the keyboard.
+  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
   const sideInset = 8;
   const gap = 6;
   const isMobile = vw < 640;
 
-  // Width: full viewport (minus margins) on phones; anchored to the
-  // trigger but capped on wider screens.
-  let left, width;
+  // ---- Bottom-sheet mode (narrow viewports) ----
+  // Anchored to the bottom of the visual viewport instead of the
+  // trigger. Reads as a sheet, not a tooltip — addresses UX backlog
+  // C2. The backdrop element (toggled by _finePickerShow) handles
+  // dim + click-to-dismiss.
   if (isMobile) {
-    left = sideInset;
-    width = vw - sideInset * 2;
-  } else {
-    width = Math.max(rect.width, 360);
-    left = Math.min(rect.left, vw - width - sideInset);
-    left = Math.max(sideInset, left);
+    list.classList.add("is-sheet");
+    const maxH = Math.floor(vh * 0.78);
+    const top = vh - maxH;
+    list.style.left = `${sideInset}px`;
+    list.style.top = `${top}px`;
+    list.style.width = `${vw - sideInset * 2}px`;
+    list.style.maxHeight = `${maxH}px`;
+    return;
   }
+  list.classList.remove("is-sheet");
+
+  // ---- Desktop / tablet — anchored dropdown ----
+  let left, width;
+  width = Math.max(rect.width, 360);
+  left = Math.min(rect.left, vw - width - sideInset);
+  left = Math.max(sideInset, left);
 
   // Top + maxHeight: prefer placing below the trigger, fall back to
   // above if that gives more room. Crucially, we DO NOT force a
@@ -3278,12 +3292,36 @@ function _finePickerPosition(card) {
   list.style.maxHeight = `${maxH}px`;
 }
 
+// Lazily-created shared backdrop element for bottom-sheet picker
+// mode. One per document, attached to body the first time the
+// picker opens. Clicking it dismisses whichever picker is open.
+let _finePickerActiveCard = null;
+function _ensureFinePickerBackdrop() {
+  let bd = document.getElementById("fine-picker-backdrop");
+  if (bd) return bd;
+  bd = document.createElement("div");
+  bd.id = "fine-picker-backdrop";
+  bd.addEventListener("click", () => {
+    if (_finePickerActiveCard) _finePickerHide(_finePickerActiveCard);
+  });
+  document.body.appendChild(bd);
+  return bd;
+}
+
 function _finePickerShow(card) {
   const list = el(".fine-picker-list", card);
   if (!list) return;
   if (!list.classList.contains("hidden")) return;   // already shown
   list.classList.remove("hidden");
   _finePickerPosition(card);
+  _finePickerActiveCard = card;
+  // Show the backdrop only in sheet mode (mobile). On desktop the
+  // anchored dropdown coexists with a normal page; dimming the page
+  // there would feel heavy. _finePickerPosition decides via the
+  // is-sheet class which we mirror here.
+  if (list.classList.contains("is-sheet")) {
+    _ensureFinePickerBackdrop().classList.add("is-visible");
+  }
   // Earlier we tried locking body scroll while the picker was open.
   // That hurt iOS Safari more than it helped: with `body { overflow:
   // hidden }`, touch events on inner scrollable elements got eaten,
@@ -3294,16 +3332,37 @@ function _finePickerShow(card) {
   // app.css keeps the dropdown's scroll from chaining into the
   // page when the user reaches the top/bottom of the list.)
   if (!card._finePickerReflow) {
-    card._finePickerReflow = () => _finePickerPosition(card);
+    card._finePickerReflow = () => {
+      _finePickerPosition(card);
+      // Re-evaluate backdrop visibility on resize / orientation
+      // change — a tablet rotated to landscape may cross the 640
+      // px threshold and switch out of sheet mode.
+      const bd = document.getElementById("fine-picker-backdrop");
+      if (!bd) return;
+      if (list.classList.contains("is-sheet")) bd.classList.add("is-visible");
+      else bd.classList.remove("is-visible");
+    };
     window.addEventListener("resize", card._finePickerReflow, { passive: true });
+    // visualViewport tracks the soft keyboard; without listening
+    // to it the sheet stays anchored to the wrong bottom edge
+    // when the keyboard shows up.
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", card._finePickerReflow, { passive: true });
+    }
   }
 }
 function _finePickerHide(card) {
   const list = el(".fine-picker-list", card);
   if (!list || list.classList.contains("hidden")) return;   // already hidden
   list.classList.add("hidden");
+  const bd = document.getElementById("fine-picker-backdrop");
+  if (bd) bd.classList.remove("is-visible");
+  if (_finePickerActiveCard === card) _finePickerActiveCard = null;
   if (card._finePickerReflow) {
     window.removeEventListener("resize", card._finePickerReflow);
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener("resize", card._finePickerReflow);
+    }
     card._finePickerReflow = null;
   }
 }
