@@ -2429,10 +2429,14 @@ async def upload(
 
 
 @app.get("/api/batches")
-def api_batches(limit: int = 100):
-    """List the batches in the default tenant, with stats per batch.
+def api_batches(request: Request, limit: int = 100):
+    """List the batches belonging to the current user, with stats per batch.
     Used by the landing-page batches list. NULL-batch photos (e.g. legacy
     auto-seeded data) are excluded — they aren't user-created batches.
+
+    Scoped to the requesting user (by user_id OR user_key) so inspectors
+    only see their own batches and never hit 403 on delete.  Admins see
+    all batches in the tenant.
 
     Returns batches sorted newest-first by latest_uploaded_at.
     """
@@ -2440,15 +2444,37 @@ def api_batches(limit: int = 100):
     if not DEFAULT_TENANT_ID:
         return {"batches": []}
     db = get_db()
+
+    # Build an ownership filter so each user only sees their own batches.
+    # Admins bypass the filter and see everything in the tenant.
+    is_admin = _admin_authed(request)
+    user = _get_session_user(request)
+    user_id = user.get("id") if user else None
+    cookie_key = request.cookies.get(_USER_COOKIE_NAME)
+
     # Pull every photo's batch_id + uploaded_at; aggregate in Python (Supabase's
     # PostgREST doesn't expose GROUP BY directly without RPCs).
     try:
-        rows = (
+        q = (
             db.table("photos")
               .select("id, batch_id, batch_label, uploaded_at")
               .eq("tenant_id", DEFAULT_TENANT_ID)
               .not_.is_("batch_id", "null")
-              .order("uploaded_at", desc=True)
+        )
+        # Scope to current user unless admin
+        if not is_admin:
+            or_parts = []
+            if user_id:
+                or_parts.append(f"user_id.eq.{user_id}")
+            if cookie_key:
+                or_parts.append(f"user_key.eq.{cookie_key}")
+            if or_parts:
+                q = q.or_(",".join(or_parts))
+            else:
+                # No identity at all — return empty
+                return {"batches": [], "photo_expiry_days": _PHOTO_EXPIRY_DAYS}
+        rows = (
+            q.order("uploaded_at", desc=True)
               .limit(5000)
               .execute().data or []
         )
