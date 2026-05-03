@@ -524,12 +524,12 @@
                always see what's currently chosen. -->
           <div class="fine-picker relative mb-2">
             <input type="hidden" name="fine_hse_type_slug" class="fine-picker-value">
-            <div class="fine-picker-trigger flex items-stretch gap-1 border border-slate-300 rounded px-1.5 py-1 bg-white cursor-pointer">
-              <div class="flex items-center gap-1.5 px-1">
-                <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
-                </svg>
-              </div>
+            <!-- Search icon on the right per UX backlog C4 — the
+                 left-side icon was reading as a label, not as
+                 "you can type to search here". With the icon on the
+                 right (the standard browser search affordance) the
+                 input is more obviously a typeable field. -->
+            <div class="fine-picker-trigger flex items-stretch gap-1 border border-slate-300 rounded px-2 py-1 bg-white cursor-pointer">
               <input type="text"
                      class="fine-picker-search flex-1 bg-transparent outline-none text-slate-900 placeholder-slate-400 px-1 py-0.5"
                      placeholder="Tap to choose or type to search"
@@ -541,6 +541,11 @@
                       title="Clear">
                 ×
               </button>
+              <div class="flex items-center px-1 text-slate-400">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+                </svg>
+              </div>
             </div>
             <!-- Dropdown is `position: fixed` (positioned via JS in
                  _finePickerShow) so it escapes the card's overflow:hidden
@@ -573,22 +578,33 @@
               Cancel
             </button>
           </div>
-          <!-- Last-resort tool: when the AI got the photo wrong, the
-               inspector marks just the hazard region and re-runs. The
-               classifier sees only the cropped region, so the output
-               isn't biased by other equipment in the same scene. -->
-          <button type="button" class="btn-markup mt-2 w-full text-[11px] text-slate-500 hover:text-emerald-700 underline-offset-2 hover:underline transition-colors"
-                  title="Mark the hazard region and let the AI re-detect">
-            <span data-i18n="markup_link">Mark region & re-detect</span>
-          </button>
-          <!-- When none of the existing fine sub-types fits, the
-               inspector can propose a new one. The proposal queues for
-               admin review at /admin/proposals; the inspector keeps a
-               'pending:<slug>' tag on the correction in the meantime. -->
-          <button type="button" class="btn-propose mt-1 w-full text-[11px] text-slate-500 hover:text-emerald-700 underline-offset-2 hover:underline transition-colors"
-                  title="Suggest a new fine sub-type for admin review">
-            <span data-i18n="propose_link">None fit? Propose a new sub-type</span>
-          </button>
+          <!-- "More tools" row — UX backlog C7 + C8. Previously these
+               were tiny grey underline links that users didn't notice.
+               Now they're proper outlined buttons with icons + a
+               muted "or" caption above so the user reads them as
+               alternative paths when none of the listed sub-types
+               fit. -->
+          <div class="mt-3 pt-2 border-t border-slate-200">
+            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1.5 text-center" data-i18n="more_tools_label">
+              Or, if none fit:
+            </div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button type="button" class="btn-markup inline-flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-700 bg-white hover:bg-emerald-50 active:bg-emerald-100 border border-slate-300 hover:border-emerald-400 rounded px-2 py-1.5 transition-colors"
+                      title="Crop the hazard region and let the AI re-classify on just that area">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z"/>
+                </svg>
+                <span data-i18n="markup_link">Mark region & re-detect</span>
+              </button>
+              <button type="button" class="btn-propose inline-flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-700 bg-white hover:bg-emerald-50 active:bg-emerald-100 border border-slate-300 hover:border-emerald-400 rounded px-2 py-1.5 transition-colors"
+                      title="Suggest a new fine sub-type for admin review">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                </svg>
+                <span data-i18n="propose_link">Propose new sub-type</span>
+              </button>
+            </div>
+          </div>
         </form>
       </div>
 
@@ -745,7 +761,8 @@ const I18N = {
     markup_done: (label) => `Re-detected: ${label}`,
     markup_failed: "Re-detect failed",
     markup_no_region: "Drag a rectangle on the photo first",
-    propose_link: "None fit? Propose a new sub-type",
+    propose_link: "Propose new sub-type",
+    more_tools_label: "Or, if none fit:",
     propose_title: "Propose new sub-type",
     propose_help: "None of the existing sub-types fit? Propose a new one. An admin reviews each proposal; on approval it joins the live taxonomy and we backfill any photos you tagged with this proposal.",
     propose_parent: "Under category",
@@ -941,7 +958,8 @@ const I18N = {
     markup_done: (label) => `Nhận diện lại: ${label}`,
     markup_failed: "Nhận diện lại thất bại",
     markup_no_region: "Hãy vẽ hình chữ nhật trên ảnh trước",
-    propose_link: "Không thấy phù hợp? Đề xuất loại mới",
+    propose_link: "Đề xuất loại mới",
+    more_tools_label: "Hoặc, nếu không có loại nào phù hợp:",
     propose_title: "Đề xuất loại HSE mới",
     propose_help: "Không có loại nào phù hợp? Đề xuất loại mới. Quản trị viên sẽ duyệt từng đề xuất; nếu được duyệt, loại đó sẽ được thêm vào hệ thống và các ảnh bạn đã gán đề xuất này sẽ được cập nhật tự động.",
     propose_parent: "Thuộc nhóm",
@@ -1137,7 +1155,8 @@ const I18N = {
     markup_done: (label) => `Re-detectada: ${label}`,
     markup_failed: "Falló la re-detección",
     markup_no_region: "Primero arrastra un rectángulo en la foto",
-    propose_link: "¿Ninguna encaja? Propón un sub-tipo nuevo",
+    propose_link: "Proponer sub-tipo nuevo",
+    more_tools_label: "O, si ninguna encaja:",
     propose_title: "Proponer sub-tipo nuevo",
     propose_help: "¿Ningún sub-tipo encaja? Propón uno nuevo. Un administrador revisa cada propuesta; al aprobarse se añade a la taxonomía y rellenamos retroactivamente las fotos que etiquetaste con esta propuesta.",
     propose_parent: "Bajo la categoría",
@@ -1333,7 +1352,8 @@ const I18N = {
     markup_done: (label) => `重新检测：${label}`,
     markup_failed: "重新检测失败",
     markup_no_region: "请先在照片上拖动一个矩形",
-    propose_link: "都不合适？提议新的子类型",
+    propose_link: "提议新的子类型",
+    more_tools_label: "如果都不合适：",
     propose_title: "提议新子类型",
     propose_help: "现有子类型都不合适？提议一个新的。管理员会审核每条提议；批准后将加入正式分类，并自动回填你用此提议标注的照片。",
     propose_parent: "所属类别",
@@ -2890,6 +2910,37 @@ function _finePickerRender(card, _parentSlugUnused, query) {
   }
 
   list.innerHTML = "";
+
+  // Sticky red CLOSE bar at the very top of the picker (UX backlog C3).
+  // Users reported it wasn't obvious how to dismiss the tree when
+  // they're deep inside browse-children. A high-contrast bar pinned at
+  // top-0 / z-30 with an unmistakable Close button + Esc hint solves
+  // that. Sits above any drill-mode header (which uses z-20).
+  const closeBar = document.createElement("div");
+  closeBar.className = "sticky top-0 z-30 bg-rose-50 border-b border-rose-200 flex items-center justify-between gap-2 px-3 py-2";
+  const closeLabel = LANG === "vn" ? "Đóng"
+                   : LANG === "es" ? "Cerrar"
+                   : LANG === "zh" ? "关闭"
+                   : "Close";
+  closeBar.innerHTML = `
+    <span class="text-[11px] text-rose-700 font-medium">
+      ${LANG === "vn" ? "Chọn loại vi phạm"
+       : LANG === "es" ? "Elige el tipo de infracción"
+       : LANG === "zh" ? "选择违规类型"
+       : "Pick violation type"}
+    </span>
+    <button type="button" class="fine-picker-close inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold px-3 py-1 rounded-full transition-colors">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+      <span>${closeLabel}</span>
+    </button>`;
+  closeBar.querySelector(".fine-picker-close").addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    _finePickerHide(card);
+  });
+  list.appendChild(closeBar);
 
   // ---- Header bar (in browse-children mode) — Back link + breadcrumb ----
   if (!isSearch && drilledParent) {
