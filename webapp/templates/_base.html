@@ -97,15 +97,33 @@
     /* Drop-down version (mobile or 4+ langs) */
     .lang-select {
       border: 1px solid var(--ink); background: var(--paper); color: var(--ink);
-      border-radius: 999px; padding: 5px 24px 5px 12px;
+      border-radius: 999px; padding: 5px 22px 5px 10px;
       font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
       cursor: pointer; appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%230a0a0a' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
-      background-position: right 8px center;
+      background-position: right 6px center;
       background-size: 10px 10px;
     }
     .lang-select:hover { background-color: var(--paper-warm); }
+
+    /* Responsive utilities used across the app shell. Width-based,
+       not media-query-based, because the same shell renders into a
+       250-px-wide foldable AND a 1920-px desktop. clamp() + a single
+       narrow-* class set works for every device — no per-model hacks.
+
+       narrow-hide        — content hidden below 360px
+       narrow-very-hide   — content hidden below 320px (e.g. fold-folded)
+       narrow-only        — content shown only below 360px (mobile fallback) */
+    @media (max-width: 359.98px) {
+      .narrow-hide { display: none !important; }
+    }
+    @media (max-width: 319.98px) {
+      .narrow-very-hide { display: none !important; }
+    }
+    @media (min-width: 360px) {
+      .narrow-only { display: none !important; }
+    }
 
     /* Auth pill / install button accent harmonised with paper theme */
     body.theme-paper #pwa-install-btn {
@@ -466,13 +484,20 @@
 </head>
 <body class="theme-paper antialiased min-h-screen flex flex-col">
 
-  <!-- Header -->
+  <!-- Header. Fluid sizing so the chrome holds together on a 280-px
+       fold-folded display the same way it does on desktop:
+         - Brand font size shrinks via clamp.
+         - The optional chrome (model pill, kbd help, install-button
+           text) hides progressively as space gets tight via the
+           narrow-* utility classes added in the <style> overlay.
+         - gap collapses from 2 -> 1 on narrow.  -->
   <header class="sticky top-0 z-30 backdrop-blur">
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-      <a href="/" class="brand-link flex items-center font-semibold text-base sm:text-[17px]">
+    <div class="max-w-6xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-4">
+      <a href="/" class="brand-link flex items-center font-semibold whitespace-nowrap"
+         style="font-size: clamp(15px, 4.2vw, 17px)">
         HSE&nbsp;<span class="em">Detector</span>
       </a>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5 sm:gap-2 min-w-0">
         <div class="hidden sm:flex items-center gap-1.5 text-xs text-slate-600 rounded-full px-3 py-1"
              style="background: var(--paper-warm); border: 1px solid var(--rule-strong); color: var(--ink-mute);">
           <span class="w-1.5 h-1.5 rounded-full pulse-dot" style="background: var(--accent);"></span>
@@ -501,13 +526,17 @@
              Stays hidden if the page is already running standalone (i.e.
              the user already installed it) or on desktop where install is
              not the primary use case. -->
+        <!-- Install-app — text label hidden on very narrow screens
+             (icon stays visible) so the header doesn't wrap on a
+             280-px fold-folded display. The .narrow-icon-only class
+             is defined in the theme overlay below. -->
         <button id="pwa-install-btn" type="button"
-                class="hidden items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 hover:border-emerald-300 rounded-full px-3 py-1.5 transition-colors"
+                class="hidden items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 hover:border-emerald-300 rounded-full px-2.5 sm:px-3 py-1.5 transition-colors"
                 title="Install app to home screen">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v12m0 0l-4-4m4 4l4-4M4.5 19.5h15"/>
           </svg>
-          <span data-i18n="pwa_install">Install app</span>
+          <span class="narrow-hide" data-i18n="pwa_install">Install app</span>
         </button>
 
         <!-- Auth pill: shows sign-in button when logged out, the user's
