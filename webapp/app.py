@@ -186,6 +186,15 @@ async def lifespan(app: FastAPI):
                  DEFAULT_TENANT_ID, DEFAULT_PROJECT_ID)
     except Exception as e:  # noqa: BLE001
         log.error("Failed to resolve default tenant/project: %s", e)
+
+    # Cleanup expired photos on startup (best-effort).
+    if _PHOTO_EXPIRY_DAYS > 0:
+        try:
+            n = _cleanup_expired_photos()
+            if n:
+                log.info("startup cleanup: removed %d expired photos", n)
+        except Exception as e:  # noqa: BLE001
+            log.warning("startup cleanup failed: %s", e)
     yield
 
 
@@ -234,6 +243,7 @@ except ImportError:
 _USER_COOKIE_NAME = "vai_uid"
 _USER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365   # 1 year
 _DAILY_QUOTA = int(os.environ.get("QUOTA_FREE_PER_DAY", "100"))
+_PHOTO_EXPIRY_DAYS = int(os.environ.get("PHOTO_EXPIRY_DAYS", "2"))
 _ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")    # None = admin disabled
 _ADMIN_COOKIE_NAME = "vai_admin"
 _ADMIN_COOKIE_MAX_AGE = 60 * 60 * 12   # 12 hours
@@ -425,6 +435,65 @@ def _quota_bonus_from_reviews(user_key: str) -> int:
         # query fails, just return 0 bonus. Never block uploads.
         log.warning("bonus review count failed: %s", e)
         return 0
+
+
+# ---------- photo expiry / auto-cleanup ----------
+
+_last_cleanup_ts: float = 0.0
+
+def _cleanup_expired_photos() -> int:
+    """Delete photos (+ R2 objects) older than _PHOTO_EXPIRY_DAYS.
+    Cascading FKs in Postgres auto-remove classifications, corrections
+    and classify_jobs.  Returns count deleted."""
+    global _last_cleanup_ts
+    if _PHOTO_EXPIRY_DAYS <= 0:
+        return 0
+    from datetime import datetime, timezone, timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=_PHOTO_EXPIRY_DAYS)).isoformat()
+    db = get_db()
+    try:
+        expired = (
+            db.table("photos")
+              .select("id, storage_key")
+              .lt("uploaded_at", cutoff)
+              .limit(500)
+              .execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("expired photo query failed: %s", e)
+        return 0
+    if not expired:
+        _last_cleanup_ts = __import__("time").time()
+        return 0
+    deleted = 0
+    r2 = get_r2()
+    for p in expired:
+        try:
+            r2.delete_object(Bucket=R2_BUCKET, Key=p["storage_key"])
+        except Exception as e:  # noqa: BLE001
+            log.warning("R2 delete failed for %s: %s", p["storage_key"], e)
+        try:
+            db.table("photos").delete().eq("id", p["id"]).execute()
+            deleted += 1
+        except Exception as e:  # noqa: BLE001
+            log.warning("DB delete failed for photo %s: %s", p["id"], e)
+    log.info("cleanup: deleted %d/%d expired photos (older than %s)",
+             deleted, len(expired), cutoff)
+    _last_cleanup_ts = __import__("time").time()
+    return deleted
+
+
+def _maybe_cleanup():
+    """Run cleanup at most once per hour (best-effort, non-blocking)."""
+    import time
+    if _PHOTO_EXPIRY_DAYS <= 0:
+        return
+    if time.time() - _last_cleanup_ts < 3600:
+        return
+    try:
+        _cleanup_expired_photos()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _admin_authed(request: Request) -> bool:
@@ -2367,6 +2436,7 @@ def api_batches(limit: int = 100):
 
     Returns batches sorted newest-first by latest_uploaded_at.
     """
+    _maybe_cleanup()   # expire old photos at most once/hour
     if not DEFAULT_TENANT_ID:
         return {"batches": []}
     db = get_db()
@@ -2430,8 +2500,22 @@ def api_batches(limit: int = 100):
                 pass
         by_batch[bid]["reviewed_count"] = reviewed_count
 
+    # Compute per-batch expiry from the EARLIEST photo's uploaded_at.
+    if _PHOTO_EXPIRY_DAYS > 0:
+        from datetime import datetime, timezone, timedelta
+        for b in by_batch.values():
+            try:
+                earliest = datetime.fromisoformat(
+                    b["earliest_uploaded_at"].replace("Z", "+00:00"))
+                b["expires_at"] = (earliest + timedelta(days=_PHOTO_EXPIRY_DAYS)).isoformat()
+            except Exception:  # noqa: BLE001
+                b["expires_at"] = None
+
     batches = sorted(by_batch.values(), key=lambda b: b["latest_uploaded_at"], reverse=True)
-    return {"batches": batches[:limit]}
+    return {
+        "batches": batches[:limit],
+        "photo_expiry_days": _PHOTO_EXPIRY_DAYS,
+    }
 
 
 @app.patch("/api/batches/{batch_id}")
@@ -2966,6 +3050,12 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
         latest_correction.setdefault(c["photo_id"], c)
 
     r2 = get_r2()
+    # Pre-compute expiry helper
+    _expiry_delta = None
+    if _PHOTO_EXPIRY_DAYS > 0:
+        from datetime import timedelta
+        _expiry_delta = timedelta(days=_PHOTO_EXPIRY_DAYS)
+
     out: list[dict] = []
     for p in photos:
         thumb = r2.generate_presigned_url(
@@ -3032,9 +3122,19 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
                 or (cls.get("fine_hse_type_slug") if cls else None)
             ),
         })
+        # Attach per-photo expiry timestamp
+        if _expiry_delta and p.get("uploaded_at"):
+            try:
+                from datetime import datetime
+                upl = datetime.fromisoformat(
+                    p["uploaded_at"].replace("Z", "+00:00"))
+                out[-1]["expires_at"] = (upl + _expiry_delta).isoformat()
+            except Exception:  # noqa: BLE001
+                out[-1]["expires_at"] = None
     return {
         "photos": out,
         "training_set_size": _training_set_size(),
+        "photo_expiry_days": _PHOTO_EXPIRY_DAYS,
     }
 
 
