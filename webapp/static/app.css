@@ -225,7 +225,7 @@ body.fp-modal-open {
   text-align: left;
   /* 44 px hits Apple's HIG minimum touch target */
   min-height: 48px;
-  padding: 12px 14px;
+  padding: 14px 14px 16px;
   border: 1px solid rgb(226 232 240);   /* slate-200 box */
   border-radius: 10px;
   background: rgb(248 250 252);         /* slate-50 */
@@ -256,7 +256,7 @@ body.fp-modal-open {
   display: block;
   font-size: 11px;
   color: rgb(100 116 139);             /* slate-500 */
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 /* Stat number that pops on update */
