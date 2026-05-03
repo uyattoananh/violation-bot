@@ -468,6 +468,8 @@
             redirect: "manual",
           });
         } catch (err) { /* network error — proceed anyway */ }
+        // Clear auth pre-paint cache so next visit shows "Sign in".
+        try { localStorage.removeItem("vai-auth-me-cache"); } catch (_) {}
         // Clear every Cache Storage entry — covers shell + runtime caches.
         try {
           if ("caches" in window) {
@@ -1022,9 +1024,25 @@
       // pages where the user is already authenticated.
       pill.classList.remove("hidden");
 
+      // Instant pre-paint: if we've seen a logged-in user before,
+      // show their cached avatar+name immediately so the pill doesn't
+      // flash "Sign in" while the network request is in flight.
+      const AUTH_CACHE_KEY = "vai-auth-me-cache";
+      try {
+        const cached = JSON.parse(localStorage.getItem(AUTH_CACHE_KEY) || "null");
+        if (cached && cached.authed) {
+          const first = (cached.name || cached.email || "").split(/\s+/)[0] || "You";
+          username.textContent = first;
+          if (cached.picture_url) avatar.src = cached.picture_url;
+          show(userBtn);
+        }
+      } catch (_) {}
+
       fetch("/auth/me", { credentials: "same-origin" })
         .then((r) => r.ok ? r.json() : { authed: false })
         .then((d) => {
+          // Persist auth state for instant pre-paint on next visit.
+          try { localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(d)); } catch (_) {}
           if (!d.authed) {
             // Hide the pill entirely if neither OAuth provider is
             // configured — no point teasing a button that 503s on click.

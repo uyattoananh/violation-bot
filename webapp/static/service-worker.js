@@ -29,7 +29,7 @@
 // cache name in `activate`. Phase 5 added the auth-pill markup
 // + JS — without this bump, returning users keep seeing the
 // pre-Phase-5 shell.
-const CACHE_VERSION = "v62-ios-scroll-lock";
+const CACHE_VERSION = "v63-auth-cache-scroll-cards";
 const SHELL_CACHE = `violation-ai-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `violation-ai-runtime-${CACHE_VERSION}`;
 
@@ -98,6 +98,13 @@ self.addEventListener("fetch", (event) => {
   // Detect by the typical R2 URL shape: *.r2.cloudflarestorage.com
   if (url.hostname.endsWith(".r2.cloudflarestorage.com")) {
     event.respondWith(_staleWhileRevalidate(req));
+    return;
+  }
+
+  // /auth/me — network-first so PWA offline opens show the last-known
+  // auth state (avatar+name) instead of flashing "Sign in".
+  if (isSameOrigin && url.pathname === "/auth/me") {
+    event.respondWith(_networkFirst(req));
     return;
   }
 
