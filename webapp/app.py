@@ -3025,6 +3025,63 @@ def confirm(request: Request, photo_id: str, fine_hse_type_slug: str | None = Fo
     return {"ok": True}
 
 
+@app.post("/api/photos/{photo_id}/uncorrect")
+def uncorrect(request: Request, photo_id: str):
+    """Undo the most recent correction on a photo so it returns to the
+    pending / predicted state.
+
+    UX backlog B7: the inline "Undo" toast and the per-card undo
+    button both call this. Without it the previous "undo" handler
+    only flipped the UI locally, which the next poll() tick
+    overwrote because the server still had the correction row →
+    users perceived undo as broken.
+
+    Implementation: delete the most recently inserted corrections
+    row for this photo (scoped to the photo's current batch so we
+    don't accidentally wipe a correction the user made in a prior
+    batch they later switched away from). Idempotent: deleting a
+    non-existent row is a no-op.
+    """
+    if not _is_uuid(photo_id):
+        raise HTTPException(400, "invalid photo id")
+    db = get_db()
+    # Look up the photo's batch so we scope the delete properly.
+    batch_id_for_corr: str | None = None
+    try:
+        rows = db.table("photos").select("batch_id").eq("id", photo_id).execute().data or []
+        if rows: batch_id_for_corr = rows[0].get("batch_id")
+    except Exception:  # noqa: BLE001
+        pass
+    # Find the latest correction id within that batch (so we can also
+    # remove its embedding row).
+    try:
+        q = db.table("corrections").select("id, hse_type_slug, fine_hse_type_slug").eq("photo_id", photo_id)
+        if batch_id_for_corr: q = q.eq("batch_id", batch_id_for_corr)
+        rows = q.order("created_at", desc=True).limit(1).execute().data or []
+    except Exception as e:  # noqa: BLE001
+        if "batch_id" in str(e):
+            rows = (db.table("corrections").select("id, hse_type_slug, fine_hse_type_slug")
+                      .eq("photo_id", photo_id)
+                      .order("created_at", desc=True).limit(1).execute().data or [])
+        else:
+            raise
+    if not rows:
+        return {"ok": True, "deleted": 0}
+    cid = rows[0]["id"]
+    try:
+        db.table("corrections").delete().eq("id", cid).execute()
+    except Exception as e:  # noqa: BLE001
+        log.warning("uncorrect: corrections.delete failed for %s: %s", photo_id, e)
+        raise HTTPException(500, f"could not delete correction: {e}")
+    # Best-effort: drop the matching photo_embeddings row too so the
+    # CLIP RAG index doesn't keep treating this as a confirmed label.
+    try:
+        db.table("photo_embeddings").delete().eq("photo_id", photo_id).execute()
+    except Exception:  # noqa: BLE001
+        pass
+    return {"ok": True, "deleted": 1, "correction_id": cid}
+
+
 @app.post("/api/photos/{photo_id}/correct")
 def correct(
     request: Request,

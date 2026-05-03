@@ -614,7 +614,18 @@
             <path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clip-rule="evenodd"/>
           </svg>
           <span class="reviewed-label"></span>
-          <button type="button" class="btn-history ml-auto text-[11px] text-slate-400 hover:text-emerald-700 underline-offset-2 hover:underline transition-colors"
+          <!-- Inline undo button on every reviewed card (UX backlog
+               B7a). Was previously only reachable via a toast that
+               disappeared after 5 s; users complained that an
+               accidental confirm was hard to roll back later. -->
+          <button type="button" class="btn-undo ml-auto inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-0.5 rounded transition-colors"
+                  title="Undo this review and return the photo to pending">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/>
+            </svg>
+            <span data-i18n="undo">Undo</span>
+          </button>
+          <button type="button" class="btn-history text-[11px] text-slate-400 hover:text-emerald-700 underline-offset-2 hover:underline transition-colors"
                   title="View history">
             <span data-i18n="history_link">history</span>
           </button>
@@ -816,6 +827,7 @@ const I18N = {
     quality_tiny: "too small",
     quality_low_conf: "Low confidence — please verify",
     undo: "Undo",
+    undo_done: "Review undone — back to pending",
     undo_local: "Undid your last action — locally only (re-confirm to persist)",
     bulk_confirming: "Confirming high-confidence photos…",
     bulk_done: "confirmed",
@@ -1013,6 +1025,7 @@ const I18N = {
     quality_tiny: "quá nhỏ",
     quality_low_conf: "Độ tin cậy thấp — vui lòng kiểm tra",
     undo: "Hoàn tác",
+    undo_done: "Đã hoàn tác — quay lại chờ xét duyệt",
     undo_local: "Đã hoàn tác — chỉ ở giao diện (xác nhận lại để lưu)",
     bulk_confirming: "Đang xác nhận hàng loạt ảnh độ tin cậy cao…",
     bulk_done: "đã xác nhận",
@@ -1210,6 +1223,7 @@ const I18N = {
     quality_tiny: "demasiado pequeña",
     quality_low_conf: "Baja confianza — verifica por favor",
     undo: "Deshacer",
+    undo_done: "Revisión deshecha — vuelve a pendiente",
     undo_local: "Acción deshecha — solo localmente (vuelve a confirmar para guardar)",
     bulk_confirming: "Confirmando fotos de alta confianza…",
     bulk_done: "confirmadas",
@@ -1407,6 +1421,7 @@ const I18N = {
     quality_tiny: "过小",
     quality_low_conf: "置信度低 — 请核实",
     undo: "撤销",
+    undo_done: "已撤销 — 回到待处理",
     undo_local: "已撤销 — 仅在本地（重新确认才能保存）",
     bulk_confirming: "正在批量确认高置信度照片…",
     bulk_done: "已确认",
@@ -2451,6 +2466,24 @@ function getOrCreateCard(photo) {
     historyBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       openHistoryModal(photo.id);
+    });
+  }
+  // Inline Undo on every reviewed card (UX backlog B7a). Builds a
+  // "go back to predicted" state object compatible with
+  // restoreState(); undoReview then calls the server to delete the
+  // correction so the next poll doesn't resurrect the reviewed state.
+  const undoBtn = el(".btn-undo", card);
+  if (undoBtn) {
+    undoBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const prev = {
+        predHidden: false,   // show predicted
+        revHidden:  true,    // hide reviewed
+        revLabel:   "",
+        revIconCls: "reviewed-icon w-4 h-4 text-emerald-500",
+        status:     "predicted",
+      };
+      undoReview(card, prev);
     });
   }
   // "Mark region & re-detect" — opens the markup modal with the photo's
@@ -3753,10 +3786,24 @@ function maybeFireCompletionNotification(currentPending) {
 
 // =================== Confirm / Correct ===================
 async function confirmCard(card, opts = {}) {
-  // Guard against double-clicks / rapid-fire button mashing — without this,
-  // each click fires another POST + another feedback-loop CLIP embed.
+  // Guard against double-clicks / rapid-fire button mashing — without
+  // this, each click fires another POST + another feedback-loop CLIP
+  // embed. Visually disable the button too so the user sees their tap
+  // landed (was a UX backlog B4 complaint that "confirm clicks feel
+  // buggy" — partly that was no immediate visual feedback if the tap
+  // happened a moment after a poll re-render).
   if (card.dataset.status === "reviewed" || card.dataset.busy === "1") return;
   card.dataset.busy = "1";
+  const confirmBtn = el(".btn-confirm", card);
+  if (confirmBtn) confirmBtn.disabled = true;
+  // Invalidate the perf cache fingerprint so the next updateCard
+  // tick (might fire mid-await from a parallel poll) won't short-
+  // circuit and try to "fix" the optimistic reviewed state we just
+  // set below. Without this guard a poll racing the confirm fetch
+  // can flip the card back to predicted briefly, which the user
+  // perceives as the button "not working".
+  const cached = photoCache.get(card.dataset.photoId);
+  if (cached) cached.fingerprint = "_confirming_";
 
   const id = card.dataset.photoId;
   const prevState = captureState(card);
@@ -3770,16 +3817,22 @@ async function confirmCard(card, opts = {}) {
     SESSION.confirmed++;
     updateStats();
     if (!opts.silent) {
+      // Post-confirm undo toast (UX backlog B7b). Action handler now
+      // routes through the real undoReview which calls the server's
+      // /uncorrect endpoint, so undoing from the toast actually
+      // sticks across polls.
       showToast(t("confirm_toast"), {
+        timeoutMs: 6000,
         action: { label: t("undo"), handler: () => undoReview(card, prevState) },
       });
     }
-    poll();
+    poll({ force: true });
   } catch (e) {
     restoreState(card, prevState);
     showError("Confirmation failed: " + e.message);
   } finally {
     delete card.dataset.busy;
+    if (confirmBtn) confirmBtn.disabled = false;
   }
 }
 
@@ -3960,9 +4013,43 @@ function restoreState(card, st) {
   card.dataset.status = st.status;
   applyFilter();
 }
+// Real undo: optimistically flips the card back to predicted, then
+// calls POST /api/photos/{id}/uncorrect to delete the correction
+// row. Without the server call (the previous behaviour) the next
+// poll() tick would resurrect the reviewed state from the still-
+// present correction row, making undo look broken. UX backlog B7.
 async function undoReview(card, prev) {
+  if (card.dataset.busy === "1") return;
+  card.dataset.busy = "1";
+  // Fingerprint reset so the next updateCard isn't short-circuited
+  // by the perf cache thinking nothing changed.
+  const cached = photoCache.get(card.dataset.photoId);
+  if (cached) cached.fingerprint = "";
+  // Tombstone the photo briefly so a /api/pending tick that fires
+  // before our DELETE round-trips doesn't re-render the photo as
+  // reviewed-still.
+  _photoTombstones.set(card.dataset.photoId, Date.now());
+  _persistPhotoTombs();
   restoreState(card, prev);
-  showToast(t("undo_local"), { timeoutMs: 4500 });
+  try {
+    const id = card.dataset.photoId;
+    const resp = await fetch(`/api/photos/${id}/uncorrect`, { method: "POST" });
+    if (!resp.ok) throw new Error("server returned " + resp.status);
+    SESSION.confirmed = Math.max(0, (SESSION.confirmed || 0) - 1);
+    SESSION.corrected = Math.max(0, (SESSION.corrected || 0) - 1);
+    updateStats();
+    showToast(t("undo_done") || "Undone", { timeoutMs: 3000 });
+    // Lift the tombstone so future legitimate state changes flow
+    // through; by now the server is consistent.
+    setTimeout(() => {
+      _photoTombstones.delete(card.dataset.photoId);
+      _persistPhotoTombs();
+    }, 5000);
+  } catch (e) {
+    showError("Undo failed: " + e.message);
+  } finally {
+    delete card.dataset.busy;
+  }
 }
 
 // =================== Filter / Sort / Bulk ===================

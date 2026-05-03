@@ -29,7 +29,7 @@
 // cache name in `activate`. Phase 5 added the auth-pill markup
 // + JS — without this bump, returning users keep seeing the
 // pre-Phase-5 shell.
-const CACHE_VERSION = "v48-ux-phase3";
+const CACHE_VERSION = "v49-ux-phase4-bugs";
 const SHELL_CACHE = `violation-ai-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `violation-ai-runtime-${CACHE_VERSION}`;
 

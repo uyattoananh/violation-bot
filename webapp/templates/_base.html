@@ -385,21 +385,48 @@
     (function () {
       const _origFetch = window.fetch;
       let _redirecting = false;
+      // Hardened 401 handling (UX backlog F1). The previous version
+      // redirected to /auth/signin on the FIRST 401 from any /api/*
+      // request, which made transient blips (server restart during
+      // deploy, brief network hiccup, race during SW activation) look
+      // like spontaneous logouts. Now we:
+      //   1. Confirm with a single /auth/me probe before redirecting,
+      //      so a transient 401 from a background poll doesn't yank
+      //      a still-authed user to signin.
+      //   2. Throttle: at most one verify-and-maybe-redirect per
+      //      sliding 10 s window. Removes spam-redirect from a burst
+      //      of failing parallel polls.
+      let _lastVerifyAt = 0;
       window.fetch = async function (...args) {
         const resp = await _origFetch.apply(this, args);
         if (resp.status === 401 && !_redirecting) {
-          // Only redirect for our own /api/* — third-party fetches
-          // (R2, OpenRouter direct from browser, etc.) are out of
-          // scope and might 401 for unrelated reasons.
           let url = "";
           try { url = typeof args[0] === "string" ? args[0] : (args[0] && args[0].url) || ""; } catch (_) {}
           const isOurApi = url.startsWith("/api/") || url.includes(window.location.host + "/api/");
-          if (isOurApi) {
-            _redirecting = true;
-            const next = encodeURIComponent(window.location.pathname + window.location.search);
-            // Use replace so the back button doesn't bring them to
-            // a broken signed-out app shell.
-            window.location.replace("/auth/signin?next=" + next);
+          // Skip the verify path for /auth/me itself (we'd loop) and
+          // for the one-shot probes we issue from below.
+          const isAuthMe = url.includes("/auth/me");
+          if (isOurApi && !isAuthMe) {
+            const now = Date.now();
+            if (now - _lastVerifyAt < 10_000) return resp;   // throttled
+            _lastVerifyAt = now;
+            try {
+              const probe = await _origFetch("/auth/me", {
+                credentials: "same-origin",
+                cache: "no-store",
+              });
+              if (!probe.ok) return resp;   // probe itself failed — server flake, not auth issue
+              const body = await probe.json().catch(() => ({}));
+              if (body.authed) return resp;   // user IS authed; the 401 was a transient
+              // Confirmed not authed — redirect.
+              _redirecting = true;
+              const next = encodeURIComponent(window.location.pathname + window.location.search);
+              window.location.replace("/auth/signin?next=" + next);
+            } catch (_) {
+              // Network error during the probe — treat as transient,
+              // don't yank the user away.
+              return resp;
+            }
           }
         }
         return resp;
