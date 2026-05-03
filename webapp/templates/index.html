@@ -7,7 +7,7 @@
      so the user can pick one to review, or start a new one. -->
 <section id="view-list" class="hidden">
   <div class="flex items-center justify-between gap-2 mb-4">
-    <h1 class="font-semibold text-slate-900 truncate min-w-0" style="font-size: clamp(18px, 5vw, 22px);" data-i18n="list_title">Your batches</h1>
+    <h1 class="font-semibold text-slate-900 truncate min-w-0" style="font-size: clamp(18px, 5vw, 22px);" data-i18n="list_title">Your inspections</h1>
     <!-- Start-new-batch CTA collapses to icon-only on the narrowest
          screens (UX backlog A1 unified-responsive approach). The
          label hides via .narrow-hide; the icon stays so the action
@@ -16,12 +16,12 @@
             class="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white
                    text-sm font-medium rounded-lg px-3 sm:px-4 py-2 shadow-sm
                    flex items-center gap-1.5 transition-colors"
-            aria-label="Start new batch"
-            title="Start a new batch">
+            aria-label="Start new inspection"
+            title="Start a new inspection">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
       </svg>
-      <span class="narrow-hide" data-i18n="batch_new_full">Start new batch</span>
+      <span class="narrow-hide" data-i18n="batch_new_full">Start new inspection</span>
     </button>
   </div>
 
@@ -36,7 +36,7 @@
       <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
       <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/>
     </svg>
-    <span data-i18n="quick_batch_label">Take a photo to start a new batch</span>
+    <span data-i18n="quick_batch_label">Take a photo to start a new inspection</span>
   </button>
 
   <div id="batches-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -50,8 +50,8 @@
               d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/>
       </svg>
     </div>
-    <div class="font-medium text-slate-700" data-i18n="list_empty_title">No batches yet.</div>
-    <div class="text-xs text-slate-500 mt-1" data-i18n="list_empty_sub">Start a new batch to upload and label your first set of photos.</div>
+    <div class="font-medium text-slate-700" data-i18n="list_empty_title">No inspections yet.</div>
+    <div class="text-xs text-slate-500 mt-1" data-i18n="list_empty_sub">Start a new inspection to upload and classify your first set of photos.</div>
   </div>
 </section>
 
@@ -65,7 +65,7 @@
   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
   </svg>
-  <span data-i18n="back_to_list">All batches</span>
+  <span data-i18n="back_to_list">All inspections</span>
 </button>
 
 <!-- Hero / Dropzone. Padding scales fluidly via clamp() so the box
@@ -219,7 +219,7 @@
         </svg>
       </div>
       <div>
-        <div class="font-semibold text-slate-900" data-i18n="summary_title">Batch summary</div>
+        <div class="font-semibold text-slate-900" data-i18n="summary_title">Inspection summary</div>
         <div id="summary-headline" class="text-xs text-slate-500"></div>
       </div>
     </div>
@@ -227,24 +227,13 @@
       <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
     </svg>
   </summary>
-  <div class="px-4 pb-4 pt-1 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-    <div>
-      <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1" data-i18n="summary_top_hse">Top HSE types</div>
-      <ul id="summary-top-hse" class="space-y-1"></ul>
-    </div>
-    <div>
-      <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1" data-i18n="summary_top_loc">Top locations</div>
-      <ul id="summary-top-loc" class="space-y-1"></ul>
-    </div>
-    <div>
-      <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1" data-i18n="summary_stats">Stats</div>
-      <ul class="space-y-1 text-slate-700">
-        <li class="flex justify-between"><span data-i18n="summary_total">Total</span><span id="summary-total" class="tabular-nums font-semibold">0</span></li>
-        <li class="flex justify-between"><span data-i18n="summary_reviewed">Reviewed</span><span id="summary-reviewed" class="tabular-nums font-semibold text-emerald-700">0</span></li>
-        <li class="flex justify-between"><span data-i18n="summary_pending">Pending</span><span id="summary-pending" class="tabular-nums font-semibold text-amber-700">0</span></li>
-        <li class="flex justify-between"><span data-i18n="summary_avg_conf">Avg confidence</span><span id="summary-conf" class="tabular-nums font-semibold">—</span></li>
-      </ul>
-    </div>
+  <div class="px-4 pb-3 pt-1 text-sm">
+    <ul class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-slate-700">
+      <li class="flex justify-between"><span data-i18n="summary_total">Total</span><span id="summary-total" class="tabular-nums font-semibold">0</span></li>
+      <li class="flex justify-between"><span data-i18n="summary_reviewed">Reviewed</span><span id="summary-reviewed" class="tabular-nums font-semibold text-emerald-700">0</span></li>
+      <li class="flex justify-between"><span data-i18n="summary_pending">Pending</span><span id="summary-pending" class="tabular-nums font-semibold text-amber-700">0</span></li>
+      <li class="flex justify-between"><span data-i18n="summary_avg_conf">Avg confidence</span><span id="summary-conf" class="tabular-nums font-semibold">—</span></li>
+    </ul>
   </div>
 </details>
 
@@ -262,13 +251,13 @@
     </svg>
     <input type="text" id="batch-label-input"
            class="flex-1 min-w-0 bg-transparent text-sm font-semibold text-slate-900 focus:outline-none focus:bg-slate-50 rounded px-1 py-0"
-           placeholder="Tap to name this batch"
+           placeholder="Tap to name this inspection"
            autocomplete="off">
     <span class="hidden sm:inline-flex items-center text-xs text-slate-400 italic" id="batch-count-hint"></span>
     <button id="batch-reset-reviews"
             class="text-xs text-slate-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded flex items-center gap-1 transition-colors"
             aria-label="Reset reviews"
-            title="Wipe all confirmations / corrections you made in this batch (keeps photos and AI predictions)">
+            title="Wipe all confirmations / corrections you made in this inspection (keeps photos and AI predictions)">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.355m-2.5 9.32A8.25 8.25 0 015.25 12.045a8.25 8.25 0 0115.272-4.32m0 0V4.355"/>
       </svg>
@@ -680,16 +669,16 @@
     <div class="absolute top-2 right-2 z-10 flex items-center gap-1">
       <button type="button"
               class="batch-card-rename bg-white/95 hover:bg-emerald-50 active:bg-emerald-100 text-slate-400 hover:text-emerald-600 border border-slate-200 hover:border-emerald-300 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors"
-              aria-label="Rename batch"
-              title="Rename this batch">
+              aria-label="Rename inspection"
+              title="Rename this inspection">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
         </svg>
       </button>
       <button type="button"
               class="batch-card-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors"
-              aria-label="Delete batch"
-              title="Delete batch">
+              aria-label="Delete inspection"
+              title="Delete inspection">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round"
                 d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
@@ -747,7 +736,7 @@ const I18N = {
     upload_resizing: "Optimising for upload…",
     upload_uploading: "Uploading…",
     upload_classifying: "Photos uploaded — classifying in background",
-    upload_done_notif: "Batch finished classifying",
+    upload_done_notif: "Inspection finished classifying",
     upload_failed: "Upload failed",
     quota_reached: (limit, reset) => `Daily limit of ${limit} photos reached. Resets at ${reset}.`,
     quota_partial_cutoff: (n, limit) => `${n} photo${n === 1 ? "" : "s"} skipped — daily limit of ${limit} reached.`,
@@ -776,29 +765,29 @@ const I18N = {
     confirm_toast: "Confirmed — added to training set",
     correct_toast: "Correction saved — added to training set",
     delete_toast: "Photo deleted",
-    batch_label_prefix: "Batch:",
-    batch_new: "New batch",
-    batch_new_full: "Start new batch",
-    batch_new_toast: "Started a new batch — drop photos to begin",
-    batch_new_confirm: "Start a new batch? Current photos stay on the server but disappear from this view.",
+    batch_label_prefix: "Inspection:",
+    batch_new: "New inspection",
+    batch_new_full: "Start new inspection",
+    batch_new_toast: "Started a new inspection — drop photos to begin",
+    batch_new_confirm: "Start a new inspection? Current photos stay on the server but disappear from this view.",
     batch_reset: "Reset reviews",
     batch_reset_short: "Reset",
     batch_new_short: "New",
-    reset_nothing: "Nothing to reset — no reviews in this batch",
-    reset_confirm: "Wipe all your confirmations and corrections in this batch? Photos + AI predictions stay; only your reviews are removed.",
+    reset_nothing: "Nothing to reset — no reviews in this inspection",
+    reset_confirm: "Wipe all your confirmations and corrections in this inspection? Photos + AI predictions stay; only your reviews are removed.",
     reset_done: "Reviews cleared",
-    list_title: "Your batches",
-    list_empty_title: "No batches yet.",
-    list_empty_sub: "Start a new batch to upload and label your first set of photos.",
-    back_to_list: "All batches",
-    batch_delete: "Delete batch",
-    batch_rename: "Rename batch",
-    batch_rename_prompt: "Rename batch:",
-    batch_rename_done: "Batch renamed",
-    quick_batch_label: "Take a photo to start a new batch",
+    list_title: "Your inspections",
+    list_empty_title: "No inspections yet.",
+    list_empty_sub: "Start a new inspection to upload and classify your first set of photos.",
+    back_to_list: "All inspections",
+    batch_delete: "Delete inspection",
+    batch_rename: "Rename inspection",
+    batch_rename_prompt: "Rename inspection:",
+    batch_rename_done: "Inspection renamed",
+    quick_batch_label: "Take a photo to start a new inspection",
     batch_delete_confirm: (n) =>
-      `Delete this batch and all ${n} of its photo${n === 1 ? "" : "s"}? This cannot be undone.`,
-    batch_delete_done: (n) => `Deleted batch (${n} photo${n === 1 ? "" : "s"})`,
+      `Delete this inspection and all ${n} of its photo${n === 1 ? "" : "s"}? This cannot be undone.`,
+    batch_delete_done: (n) => `Deleted inspection (${n} photo${n === 1 ? "" : "s"})`,
     batch_delete_failed: "Delete failed",
     state_failed: "Classification failed",
     state_retry: "Retry classification",
@@ -889,7 +878,7 @@ const I18N = {
     export_btn: "Download",
     email_btn_title: "Email it",
     email_btn_desc: "Send the export to a recipient. Files >20 MB get a 7-day download link instead.",
-    email_title: "Email this batch",
+    email_title: "Email this inspection",
     email_format: "Format",
     email_to: "Recipient email",
     email_advanced: "Custom subject / message (optional)",
@@ -911,7 +900,7 @@ const I18N = {
     export_csv_desc: "All photos + AI prediction + final label. Open in Excel.",
     export_json_title: "JSON (programmatic)",
     export_json_desc: "Full structured data for downstream pipelines.",
-    summary_title: "Batch summary",
+    summary_title: "Inspection summary",
     summary_top_hse: "Top HSE types",
     summary_top_loc: "Top locations",
     summary_stats: "Stats",
@@ -940,7 +929,7 @@ const I18N = {
     kbd_move: "Move focus next/prev",
     kbd_upload: "Upload (open file picker)",
     kbd_close: "Close dialog",
-    notif_done_title: "Batch complete",
+    notif_done_title: "Inspection complete",
     notif_done_body: (n) => `${n} photos finished classifying. Open the tab to review.`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
   },
@@ -950,7 +939,7 @@ const I18N = {
     upload_resizing: "Đang tối ưu trước khi tải lên…",
     upload_uploading: "Đang tải lên…",
     upload_classifying: "Đã tải xong — AI đang phân loại trong nền",
-    upload_done_notif: "Phân loại lô ảnh đã xong",
+    upload_done_notif: "Đợt kiểm tra đã phân loại xong",
     upload_failed: "Tải lên thất bại",
     quota_reached: (limit, reset) => `Đã đạt giới hạn ${limit} ảnh/ngày. Đặt lại lúc ${reset}.`,
     quota_partial_cutoff: (n, limit) => `${n} ảnh bị bỏ qua — đã đạt giới hạn ${limit} ảnh/ngày.`,
@@ -979,29 +968,29 @@ const I18N = {
     confirm_toast: "Đã xác nhận — thêm vào tập huấn luyện",
     correct_toast: "Đã lưu chỉnh sửa — thêm vào tập huấn luyện",
     delete_toast: "Đã xóa ảnh",
-    batch_label_prefix: "Lô ảnh:",
-    batch_new: "Lô mới",
-    batch_new_full: "Bắt đầu lô mới",
-    batch_new_toast: "Đã bắt đầu lô ảnh mới — thả ảnh để bắt đầu",
-    batch_new_confirm: "Bắt đầu lô ảnh mới? Ảnh hiện tại vẫn ở trên máy chủ nhưng sẽ không hiển thị ở đây.",
+    batch_label_prefix: "Đợt kiểm tra:",
+    batch_new: "Đợt mới",
+    batch_new_full: "Bắt đầu đợt kiểm tra mới",
+    batch_new_toast: "Đã bắt đầu đợt kiểm tra mới — thả ảnh để bắt đầu",
+    batch_new_confirm: "Bắt đầu đợt kiểm tra mới? Ảnh hiện tại vẫn ở trên máy chủ nhưng sẽ không hiển thị ở đây.",
     batch_reset: "Xóa các xét duyệt",
     batch_reset_short: "Xóa",
     batch_new_short: "Mới",
-    reset_nothing: "Không có gì để xóa — chưa có xét duyệt trong lô này",
-    reset_confirm: "Xóa tất cả xác nhận và chỉnh sửa của bạn trong lô này? Ảnh và dự đoán AI vẫn còn; chỉ các xét duyệt của bạn bị xóa.",
+    reset_nothing: "Không có gì để xóa — chưa có xét duyệt trong đợt này",
+    reset_confirm: "Xóa tất cả xác nhận và chỉnh sửa của bạn trong đợt kiểm tra này? Ảnh và dự đoán AI vẫn còn; chỉ các xét duyệt của bạn bị xóa.",
     reset_done: "Đã xóa các xét duyệt",
-    list_title: "Các lô ảnh của bạn",
-    list_empty_title: "Chưa có lô nào.",
-    list_empty_sub: "Bắt đầu lô mới để tải lên và gán nhãn các ảnh đầu tiên.",
-    back_to_list: "Tất cả các lô",
-    batch_delete: "Xóa lô ảnh",
-    batch_rename: "Đổi tên lô",
-    batch_rename_prompt: "Đổi tên lô:",
-    batch_rename_done: "Đã đổi tên lô",
-    quick_batch_label: "Chụp ảnh để bắt đầu lô mới",
+    list_title: "Các đợt kiểm tra",
+    list_empty_title: "Chưa có đợt kiểm tra nào.",
+    list_empty_sub: "Bắt đầu đợt kiểm tra mới để tải lên và phân loại các ảnh đầu tiên.",
+    back_to_list: "Tất cả đợt kiểm tra",
+    batch_delete: "Xóa đợt kiểm tra",
+    batch_rename: "Đổi tên đợt kiểm tra",
+    batch_rename_prompt: "Đổi tên đợt kiểm tra:",
+    batch_rename_done: "Đã đổi tên đợt kiểm tra",
+    quick_batch_label: "Chụp ảnh để bắt đầu đợt kiểm tra mới",
     batch_delete_confirm: (n) =>
-      `Xóa lô này và toàn bộ ${n} ảnh trong đó? Hành động này không thể hoàn tác.`,
-    batch_delete_done: (n) => `Đã xóa lô (${n} ảnh)`,
+      `Xóa đợt kiểm tra này và toàn bộ ${n} ảnh trong đó? Hành động này không thể hoàn tác.`,
+    batch_delete_done: (n) => `Đã xóa đợt kiểm tra (${n} ảnh)`,
     batch_delete_failed: "Xóa thất bại",
     state_failed: "Phân loại thất bại",
     state_retry: "Thử phân loại lại",
@@ -1092,7 +1081,7 @@ const I18N = {
     export_btn: "Tải về",
     email_btn_title: "Gửi email",
     email_btn_desc: "Gửi báo cáo cho người nhận. Tệp >20 MB sẽ gửi liên kết tải (hết hạn sau 7 ngày).",
-    email_title: "Gửi báo cáo qua email",
+    email_title: "Gửi đợt kiểm tra qua email",
     email_format: "Định dạng",
     email_to: "Email người nhận",
     email_advanced: "Chủ đề / nội dung tùy chỉnh (không bắt buộc)",
@@ -1114,7 +1103,7 @@ const I18N = {
     export_csv_desc: "Toàn bộ ảnh + AI dự đoán + nhãn cuối cùng. Mở bằng Excel.",
     export_json_title: "JSON (lập trình)",
     export_json_desc: "Dữ liệu cấu trúc đầy đủ cho hệ thống khác.",
-    summary_title: "Tổng kết lô ảnh",
+    summary_title: "Tổng kết đợt kiểm tra",
     summary_top_hse: "Loại HSE phổ biến",
     summary_top_loc: "Vị trí phổ biến",
     summary_stats: "Thống kê",
@@ -1143,7 +1132,7 @@ const I18N = {
     kbd_move: "Di chuyển trước/sau",
     kbd_upload: "Tải ảnh lên (mở hộp thoại chọn tệp)",
     kbd_close: "Đóng hộp thoại",
-    notif_done_title: "Hoàn tất lô ảnh",
+    notif_done_title: "Đợt kiểm tra hoàn tất",
     notif_done_body: (n) => `${n} ảnh đã phân loại xong. Mở tab để xét duyệt.`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
   },
@@ -1153,7 +1142,7 @@ const I18N = {
     upload_resizing: "Optimizando antes de subir…",
     upload_uploading: "Subiendo…",
     upload_classifying: "Fotos subidas — clasificando en segundo plano",
-    upload_done_notif: "Lote terminado de clasificar",
+    upload_done_notif: "Inspección terminada de clasificar",
     upload_failed: "Falló la subida",
     quota_reached: (limit, reset) => `Se alcanzó el límite diario de ${limit} fotos. Se restablece a las ${reset}.`,
     quota_partial_cutoff: (n, limit) => `${n} foto${n === 1 ? "" : "s"} omitida${n === 1 ? "" : "s"} — se alcanzó el límite diario de ${limit}.`,
@@ -1182,29 +1171,29 @@ const I18N = {
     confirm_toast: "Confirmada — añadida al conjunto de entrenamiento",
     correct_toast: "Corrección guardada — añadida al conjunto de entrenamiento",
     delete_toast: "Foto eliminada",
-    batch_label_prefix: "Lote:",
-    batch_new: "Nuevo lote",
-    batch_new_full: "Iniciar nuevo lote",
-    batch_new_toast: "Nuevo lote iniciado — suelta fotos para empezar",
-    batch_new_confirm: "¿Iniciar un nuevo lote? Las fotos actuales permanecen en el servidor pero desaparecerán de esta vista.",
+    batch_label_prefix: "Inspección:",
+    batch_new: "Nueva inspección",
+    batch_new_full: "Iniciar nueva inspección",
+    batch_new_toast: "Nueva inspección iniciada — suelta fotos para empezar",
+    batch_new_confirm: "¿Iniciar una nueva inspección? Las fotos actuales permanecen en el servidor pero desaparecerán de esta vista.",
     batch_reset: "Restablecer revisiones",
     batch_reset_short: "Restablecer",
-    batch_new_short: "Nuevo",
-    reset_nothing: "Nada que restablecer — no hay revisiones en este lote",
-    reset_confirm: "¿Borrar todas tus confirmaciones y correcciones de este lote? Las fotos y predicciones de la IA permanecen; solo se eliminan tus revisiones.",
+    batch_new_short: "Nueva",
+    reset_nothing: "Nada que restablecer — no hay revisiones en esta inspección",
+    reset_confirm: "¿Borrar todas tus confirmaciones y correcciones de esta inspección? Las fotos y predicciones de la IA permanecen; solo se eliminan tus revisiones.",
     reset_done: "Revisiones borradas",
-    list_title: "Tus lotes",
-    list_empty_title: "Aún no hay lotes.",
-    list_empty_sub: "Inicia un nuevo lote para subir y etiquetar tus primeras fotos.",
-    back_to_list: "Todos los lotes",
-    batch_delete: "Eliminar lote",
-    batch_rename: "Renombrar lote",
-    batch_rename_prompt: "Renombrar lote:",
-    batch_rename_done: "Lote renombrado",
-    quick_batch_label: "Toma una foto para iniciar un nuevo lote",
+    list_title: "Tus inspecciones",
+    list_empty_title: "Aún no hay inspecciones.",
+    list_empty_sub: "Inicia una nueva inspección para subir y clasificar tus primeras fotos.",
+    back_to_list: "Todas las inspecciones",
+    batch_delete: "Eliminar inspección",
+    batch_rename: "Renombrar inspección",
+    batch_rename_prompt: "Renombrar inspección:",
+    batch_rename_done: "Inspección renombrada",
+    quick_batch_label: "Toma una foto para iniciar una nueva inspección",
     batch_delete_confirm: (n) =>
-      `¿Eliminar este lote y sus ${n} foto${n === 1 ? "" : "s"}? Esta acción no se puede deshacer.`,
-    batch_delete_done: (n) => `Lote eliminado (${n} foto${n === 1 ? "" : "s"})`,
+      `¿Eliminar esta inspección y sus ${n} foto${n === 1 ? "" : "s"}? Esta acción no se puede deshacer.`,
+    batch_delete_done: (n) => `Inspección eliminada (${n} foto${n === 1 ? "" : "s"})`,
     batch_delete_failed: "Error al eliminar",
     state_failed: "Falló la clasificación",
     state_retry: "Reintentar clasificación",
@@ -1295,7 +1284,7 @@ const I18N = {
     export_btn: "Descargar",
     email_btn_title: "Enviar por email",
     email_btn_desc: "Envía la exportación a un destinatario. Los archivos >20 MB reciben un enlace de descarga válido por 7 días.",
-    email_title: "Enviar este lote por email",
+    email_title: "Enviar esta inspección por email",
     email_format: "Formato",
     email_to: "Email del destinatario",
     email_advanced: "Asunto / mensaje personalizado (opcional)",
@@ -1317,7 +1306,7 @@ const I18N = {
     export_csv_desc: "Todas las fotos + predicción de la IA + etiqueta final. Ábrelo en Excel.",
     export_json_title: "JSON (programático)",
     export_json_desc: "Datos estructurados completos para canalizaciones posteriores.",
-    summary_title: "Resumen del lote",
+    summary_title: "Resumen de inspección",
     summary_top_hse: "Tipos HSE principales",
     summary_top_loc: "Ubicaciones principales",
     summary_stats: "Estadísticas",
@@ -1346,7 +1335,7 @@ const I18N = {
     kbd_move: "Mover foco siguiente/anterior",
     kbd_upload: "Subir (abrir selector de archivos)",
     kbd_close: "Cerrar diálogo",
-    notif_done_title: "Lote completado",
+    notif_done_title: "Inspección completada",
     notif_done_body: (n) => `${n} fotos terminaron de clasificarse. Abre la pestaña para revisar.`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
   },
@@ -1356,7 +1345,7 @@ const I18N = {
     upload_resizing: "上传前优化中…",
     upload_uploading: "上传中…",
     upload_classifying: "已上传 — 正在后台分类",
-    upload_done_notif: "批次分类完成",
+    upload_done_notif: "检查分类完成",
     upload_failed: "上传失败",
     quota_reached: (limit, reset) => `已达每日 ${limit} 张照片上限。${reset} 重置。`,
     quota_partial_cutoff: (n, limit) => `已跳过 ${n} 张照片 — 已达每日上限 ${limit}。`,
@@ -1385,29 +1374,29 @@ const I18N = {
     confirm_toast: "已确认 — 加入训练集",
     correct_toast: "更正已保存 — 加入训练集",
     delete_toast: "照片已删除",
-    batch_label_prefix: "批次：",
-    batch_new: "新批次",
-    batch_new_full: "开始新批次",
-    batch_new_toast: "已开始新批次 — 拖入照片开始",
-    batch_new_confirm: "开始新批次？当前照片仍在服务器上，但会从此视图中消失。",
+    batch_label_prefix: "检查：",
+    batch_new: "新检查",
+    batch_new_full: "开始新检查",
+    batch_new_toast: "已开始新检查 — 拖入照片开始",
+    batch_new_confirm: "开始新检查？当前照片仍在服务器上，但会从此视图中消失。",
     batch_reset: "重置审核",
     batch_reset_short: "重置",
     batch_new_short: "新建",
-    reset_nothing: "无可重置 — 此批次尚无审核",
-    reset_confirm: "清除你在此批次中所有的确认和更正？照片和 AI 预测保留；仅删除你的审核。",
+    reset_nothing: "无可重置 — 此检查尚无审核",
+    reset_confirm: "清除你在此检查中所有的确认和更正？照片和 AI 预测保留；仅删除你的审核。",
     reset_done: "审核已清除",
-    list_title: "你的批次",
-    list_empty_title: "尚无批次。",
-    list_empty_sub: "开始一个新批次以上传并标注你的第一组照片。",
-    back_to_list: "所有批次",
-    batch_delete: "删除批次",
-    batch_rename: "重命名批次",
-    batch_rename_prompt: "重命名批次：",
-    batch_rename_done: "批次已重命名",
-    quick_batch_label: "拍一张照片以开始新批次",
+    list_title: "你的检查",
+    list_empty_title: "尚无检查。",
+    list_empty_sub: "开始一个新检查以上传并分类你的第一组照片。",
+    back_to_list: "所有检查",
+    batch_delete: "删除检查",
+    batch_rename: "重命名检查",
+    batch_rename_prompt: "重命名检查：",
+    batch_rename_done: "检查已重命名",
+    quick_batch_label: "拍一张照片以开始新检查",
     batch_delete_confirm: (n) =>
-      `删除此批次及其全部 ${n} 张照片？此操作无法撤销。`,
-    batch_delete_done: (n) => `批次已删除（${n} 张照片）`,
+      `删除此检查及其全部 ${n} 张照片？此操作无法撤销。`,
+    batch_delete_done: (n) => `检查已删除（${n} 张照片）`,
     batch_delete_failed: "删除失败",
     state_failed: "分类失败",
     state_retry: "重试分类",
@@ -1498,7 +1487,7 @@ const I18N = {
     export_btn: "下载",
     email_btn_title: "发送邮件",
     email_btn_desc: "将导出发送给收件人。文件 >20 MB 会改为 7 天有效的下载链接。",
-    email_title: "通过邮件发送此批次",
+    email_title: "通过邮件发送此检查",
     email_format: "格式",
     email_to: "收件人邮箱",
     email_advanced: "自定义主题 / 内容（可选）",
@@ -1520,7 +1509,7 @@ const I18N = {
     export_csv_desc: "全部照片 + AI 预测 + 最终标签。用 Excel 打开。",
     export_json_title: "JSON（程序化）",
     export_json_desc: "供下游流程使用的完整结构化数据。",
-    summary_title: "批次摘要",
+    summary_title: "检查摘要",
     summary_top_hse: "主要 HSE 类型",
     summary_top_loc: "主要位置",
     summary_stats: "统计",
@@ -1549,7 +1538,7 @@ const I18N = {
     kbd_move: "上一张/下一张",
     kbd_upload: "上传（打开文件选择器）",
     kbd_close: "关闭对话框",
-    notif_done_title: "批次完成",
+    notif_done_title: "检查完成",
     notif_done_body: (n) => `${n} 张照片分类完成。打开标签页审核。`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
   },
@@ -1690,7 +1679,7 @@ function startNewBatch() {
   // Re-poll so any in-flight photos that DO match the new batch (shouldn't be
   // any, but be defensive) show up.
   poll();
-  showToast(t("batch_new_toast") || "Started a new batch");
+  showToast(t("batch_new_toast") || "Started a new inspection");
 }
 
 // Tab-title bookkeeping
@@ -2052,7 +2041,7 @@ async function openHistoryModal(photoId) {
       const noteHtml = h.note
         ? `<div class="text-xs text-slate-500 mt-1 italic">"${escapeHtml(h.note)}"</div>`
         : "";
-      const batchHint = h.batch_id ? `<div class="text-[10px] text-slate-400 mt-0.5 font-mono">batch ${h.batch_id.slice(0,8)}</div>` : "";
+      const batchHint = h.batch_id ? `<div class="text-[10px] text-slate-400 mt-0.5 font-mono">inspection ${h.batch_id.slice(0,8)}</div>` : "";
       return `
         <li class="py-2.5 border-b border-slate-100 last:border-0">
           <div class="flex items-baseline justify-between gap-3">
@@ -4237,19 +4226,8 @@ async function refreshSummary() {
     el("#summary-conf").textContent = s.avg_confidence
       ? Math.round(s.avg_confidence * 100) + "%"
       : "—";
-    const renderTopList = (parentSel, lookup, items) => {
-      const ul = el(parentSel);
-      ul.innerHTML = "";
-      items.forEach(([slug, n]) => {
-        const li = document.createElement("li");
-        li.className = "flex justify-between items-baseline";
-        li.innerHTML = `<span class="text-slate-700 truncate pr-2">${displayLabel(lookup, slug)}</span>
-                        <span class="text-slate-400 tabular-nums text-xs">${n}</span>`;
-        ul.appendChild(li);
-      });
-    };
-    renderTopList("#summary-top-hse", HSE_BY_SLUG, s.top_hse_types);
-    renderTopList("#summary-top-loc", LOC_BY_SLUG, s.top_locations);
+    // Top HSE types + top locations moved to export-only (PDF/email)
+    // to declutter the in-app review screen.
   } catch (e) { /* silent */ }
 }
 
@@ -4424,11 +4402,11 @@ batchInput.addEventListener("keydown", e => {
 el("#batch-reset-reviews").addEventListener("click", async () => {
   const reviewedCount = document.querySelectorAll(".card[data-status='reviewed']").length;
   if (reviewedCount === 0) {
-    showToast(t("reset_nothing") || "Nothing to reset — no reviews in this batch", { timeoutMs: 3000 });
+    showToast(t("reset_nothing") || "Nothing to reset — no reviews in this inspection", { timeoutMs: 3000 });
     return;
   }
   const ok = window.confirm(
-    (t("reset_confirm") || "Wipe all your confirmations and corrections in this batch? Photos + AI predictions stay; only your reviews are removed.") +
+    (t("reset_confirm") || "Wipe all your confirmations and corrections in this inspection? Photos + AI predictions stay; only your reviews are removed.") +
     `\n\n(${reviewedCount} review${reviewedCount === 1 ? "" : "s"} will be removed)`);
   if (!ok) return;
   try {
@@ -4459,7 +4437,7 @@ function switchView(v) {
   localStorage.setItem("violation-ai-view", v);
   viewListEl.classList.toggle("hidden", v !== VIEW_LIST);
   viewDetailEl.classList.toggle("hidden", v !== VIEW_DETAIL);
-  document.title = v === VIEW_LIST ? "HSE Detector · batches" : "HSE Detector · upload";
+  document.title = v === VIEW_LIST ? "HSE Detector · inspections" : "HSE Detector · upload";
   if (v === VIEW_LIST) {
     refreshBatchesList();
   } else {
@@ -4508,18 +4486,18 @@ async function refreshBatchesList() {
         if (!isNaN(ts.getTime())) {
           const opts = { month: "short", day: "numeric" };
           const d = ts.toLocaleDateString(_BCP47[LANG] || "en", opts);
-          const prefix = LANG === "vn" ? "Lô"
-                       : LANG === "es" ? "Lote"
-                       : LANG === "zh" ? "批次"
-                       : "Batch";
+          const prefix = LANG === "vn" ? "Kiểm tra"
+                       : LANG === "es" ? "Inspección"
+                       : LANG === "zh" ? "检查"
+                       : "Inspection";
           fallbackLabel = `${prefix} · ${d}`;
         }
       }
       if (!fallbackLabel) {
-        fallbackLabel = LANG === "vn" ? "Lô không tên"
-                      : LANG === "es" ? "Lote sin título"
-                      : LANG === "zh" ? "未命名批次"
-                      : "Untitled batch";
+        fallbackLabel = LANG === "vn" ? "Chưa đặt tên"
+                      : LANG === "es" ? "Sin título"
+                      : LANG === "zh" ? "���命名检查"
+                      : "Untitled inspection";
       }
       el(".batch-card-label", node).textContent = b.label || fallbackLabel;
       el(".batch-card-photos", node).textContent = b.photo_count + (LANG === "vn" ? " ảnh" : (b.photo_count === 1 ? " photo" : " photos"));
@@ -4564,18 +4542,18 @@ async function refreshBatchesList() {
       // error.
       const renameBtn = el(".batch-card-rename", node);
       if (renameBtn) {
-        renameBtn.title = t("batch_rename") || "Rename batch";
+        renameBtn.title = t("batch_rename") || "Rename inspection";
         renameBtn.setAttribute("aria-label", renameBtn.title);
         renameBtn.addEventListener("click", async (ev) => {
           ev.stopPropagation();
           const labelEl = el(".batch-card-label", node);
           const current = b.label || labelEl.textContent || "";
-          const next = window.prompt(t("batch_rename_prompt") || "Rename batch:", current);
+          const next = window.prompt(t("batch_rename_prompt") || "Rename inspection:", current);
           if (next === null) return;             // user cancelled
           const trimmed = next.trim().slice(0, 80);
           if (trimmed === current) return;       // no change
           const prev = labelEl.textContent;
-          labelEl.textContent = trimmed || (LANG === "vn" ? "Lô không tên" : LANG === "es" ? "Lote sin título" : LANG === "zh" ? "未命名批次" : "Untitled batch");
+          labelEl.textContent = trimmed || (LANG === "vn" ? "Chưa đặt tên" : LANG === "es" ? "Sin título" : LANG === "zh" ? "未命名检查" : "Untitled inspection");
           try {
             const fd = new FormData();
             fd.append("label", trimmed);
@@ -4584,7 +4562,7 @@ async function refreshBatchesList() {
             });
             if (!resp.ok) throw new Error("HTTP " + resp.status);
             b.label = trimmed;   // keep local copy in sync
-            showToast(t("batch_rename_done") || "Batch renamed", { timeoutMs: 2500 });
+            showToast(t("batch_rename_done") || "Inspection renamed", { timeoutMs: 2500 });
           } catch (e) {
             labelEl.textContent = prev;
             showError("Rename failed: " + e.message);
@@ -4754,10 +4732,10 @@ if (_quickBatchBtn) {
       const localeMap = { en: "en", vn: "vi", es: "es", zh: "zh-CN" };
       const opts = { month: "short", day: "numeric" };
       const ds = new Date().toLocaleDateString(localeMap[LANG] || "en", opts);
-      const prefix = LANG === "vn" ? "Lô"
-                   : LANG === "es" ? "Lote"
-                   : LANG === "zh" ? "批次"
-                   : "Batch";
+      const prefix = LANG === "vn" ? "Kiểm tra"
+                   : LANG === "es" ? "Inspección"
+                   : LANG === "zh" ? "检查"
+                   : "Inspection";
       CURRENT_BATCH_LABEL = `${prefix} · ${ds}`;
       localStorage.setItem("violation-ai-batch-label", CURRENT_BATCH_LABEL);
       const labelInput = el("#batch-label-input");
