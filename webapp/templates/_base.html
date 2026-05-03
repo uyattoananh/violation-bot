@@ -659,6 +659,84 @@
   <!-- Toast container -->
   <div id="toast" class="toast bg-slate-900 text-white text-sm rounded-full px-4 py-2.5 shadow-lg flex items-center gap-3"></div>
 
+  <!-- ===========================================================
+       Global violation-type picker modal.
+       Lives directly under <body> on purpose: the per-card .card
+       articles get a CSS animation that leaves transform:translateY(0)
+       on them, which silently turns each card into a containing
+       block for any position:fixed descendant. A picker rendered
+       INSIDE a card therefore positions relative to the card —
+       not the viewport — and on a scrolled page lands offscreen
+       or cut off on one side.
+       Putting the modal here, as a body child, avoids the entire
+       containing-block problem class and lets the picker behave
+       like a true overlay: full-screen on mobile, centered card
+       on tablet/desktop.
+       Pick semantics: tapping an item updates the active card's
+       hidden value + visible label, then closes the modal.
+       It does NOT submit — the inspector clicks "Save correction"
+       to commit (UX request: "replace the title first, don't
+       confirm right away").
+       =========================================================== -->
+  <div id="fp-modal" class="fp-modal hidden fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Pick violation type">
+    <div class="fp-backdrop absolute inset-0 bg-slate-900/55"></div>
+    <div class="fp-sheet relative bg-white shadow-2xl flex flex-col
+                h-full sm:h-auto sm:max-h-[78vh] sm:max-w-[480px]
+                sm:mx-auto sm:my-12 sm:rounded-2xl overflow-hidden">
+
+      <!-- Header: title + currently-selected hint + close X -->
+      <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-200 flex-shrink-0">
+        <div class="flex-1 min-w-0">
+          <div class="text-[11px] uppercase tracking-wider font-semibold text-slate-500" data-i18n="picker_title">
+            Pick violation type
+          </div>
+          <div class="fp-current text-xs text-emerald-700 truncate mt-0.5"></div>
+        </div>
+        <button type="button" class="fp-close bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-full p-2 flex-shrink-0 transition-colors" aria-label="Close">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Search row -->
+      <div class="px-4 py-2 border-b border-slate-200 bg-slate-50/70 flex-shrink-0">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+          </svg>
+          <input type="search"
+                 class="fp-search w-full bg-white border border-slate-300 rounded-lg pl-9 pr-9 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                 style="font-size: 16px"
+                 placeholder="Search all categories…"
+                 data-i18n-placeholder="picker_search_ph"
+                 autocomplete="off"
+                 enterkeyhint="search"
+                 aria-label="Search violation types">
+          <button type="button"
+                  class="fp-search-clear hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 px-1.5 py-1 transition-colors"
+                  aria-label="Clear search"
+                  title="Clear">×</button>
+        </div>
+      </div>
+
+      <!-- Drilled-into-parent breadcrumb (hidden in browse-parents and search modes) -->
+      <div class="fp-crumb hidden px-4 py-2 border-b border-slate-200 bg-emerald-50/40 flex-shrink-0">
+        <button type="button" class="fp-back text-[11px] text-slate-600 hover:text-slate-900 inline-flex items-center gap-1 -ml-1 px-1 py-0.5 rounded">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
+          </svg>
+          <span data-i18n="picker_back">All categories</span>
+        </button>
+        <div class="fp-crumb-label text-xs font-medium text-slate-900 mt-0.5 truncate"></div>
+      </div>
+
+      <!-- Item list (scrollable) -->
+      <div class="fp-list flex-1 overflow-y-auto"></div>
+
+    </div>
+  </div>
+
   <!-- Email export modal: inspector picks a format + recipient,
        server generates the export and emails it. Falls back to a
        presigned R2 link when the file is too big to attach. -->

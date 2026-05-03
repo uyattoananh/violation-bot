@@ -577,15 +577,13 @@
                 </svg>
               </div>
             </div>
-            <!-- Dropdown is `position: fixed` (positioned via JS in
-                 _finePickerShow) so it escapes the card's overflow:hidden
-                 — without that, fines at the bottom of a long list got
-                 clipped by the photo card frame. JS sets top/left/width
-                 each time it opens; closes on click-outside. -->
-            <div class="fine-picker-list hidden fixed bg-white border border-slate-200 rounded-lg shadow-xl overflow-y-auto z-50"
-                 style="max-height: 60vh">
-              <!-- options rendered by JS -->
-            </div>
+            <!-- The actual picker dropdown lives in body as #fp-modal
+                 (defined in _base.html). A per-card list inside this
+                 article would be position-trapped by the .card's
+                 transform (added by the slideIn animation), causing
+                 the "cut off on the right" bug. The trigger above
+                 opens the global modal; tap on it routes through
+                 refreshFineSelect's wiring. -->
           </div>
 
           <!-- Location is determined by the AI internally and stored, but not
@@ -2623,6 +2621,46 @@ function toggleEdit(card) {
   // opens on user tap, not on form open.)
 }
 
+// Stage a candidate-chip pick on the card. Does NOT submit — just
+// updates the form so the inspector sees the proposed classification
+// in context. They review and tap "Save correction" to commit.
+// (UX request: "when choosing other hse types, replace the title
+// first, don't confirm right away".)
+function _stageCandidatePick(card, slug) {
+  if (!slug) return;
+  // Open the edit form so the user sees the staged classification
+  // and the Save / Cancel buttons.
+  const editForm = el(".edit-form", card);
+  if (editForm && editForm.classList.contains("hidden")) toggleEdit(card);
+
+  // Stage the parent class on the hidden select. Clear the fine
+  // sub-type — the candidate chip carries only the parent. The
+  // inspector can pick a fine via the picker if they want
+  // refinement, otherwise Save commits a parent-only correction.
+  const hseSel = el(".hse-select", card);
+  if (hseSel) hseSel.value = slug;
+  _finePickerSetValue(card, "");
+
+  // Mirror the stage in the AI-suggests label so the chosen
+  // classification visibly replaces the AI's original guess.
+  const primary = el(".primary-hse", card);
+  if (primary) primary.textContent = _parentLabel(slug);
+
+  // Ring highlight on the picked chip; clear ring on the others.
+  const allChips = card.querySelectorAll(".alt-chip");
+  allChips.forEach(c => {
+    if (c.dataset.altSlug === slug) {
+      c.classList.add("ring-2", "ring-amber-500", "ring-offset-1", "bg-amber-100");
+    } else {
+      c.classList.remove("ring-2", "ring-amber-500", "ring-offset-1", "bg-amber-100");
+    }
+  });
+
+  // Scroll the Save button into view so the next step is obvious.
+  const saveBtn = card.querySelector(".edit-form button[type='submit']");
+  if (saveBtn) saveBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 function setConfidenceRing(card, conf, band) {
   const ring = el(".conf-ring", card);
   const colors = bandColors(band);
@@ -2900,9 +2938,9 @@ function updateCard(card, photo) {
   // currently interacting with the picker, late polls would clobber
   // their in-progress selection. Only sync these from the AI's
   // prediction when the picker is closed (i.e. the user isn't
-  // actively choosing).
-  const _pickerListEl = el(".fine-picker-list", card);
-  const _pickerOpen = _pickerListEl && !_pickerListEl.classList.contains("hidden");
+  // actively choosing). With the global #fp-modal we just check
+  // whether THIS card is the modal's active binding.
+  const _pickerOpen = _fp && _fp.activeCard === card;
   if (!_pickerOpen) {
     el(".hse-select", card).value = cls.hse_type_slug;
     refreshFineSelect(card, cls.hse_type_slug);
@@ -2930,9 +2968,16 @@ function updateCard(card, photo) {
     // Pill-style runner-up button. Per UX backlog B6 the redundant
     // amber "hse" prefix tag was dropped — the whole app is HSE so
     // tagging each option with "hse" was noise.
-    b.className = "inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-200 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors";
+    b.className = "alt-chip inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-200 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors";
+    b.dataset.altSlug = a.slug;
     b.innerHTML = `${displayLabel(HSE_BY_SLUG, a.slug)} <span class="text-amber-600 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
-    b.addEventListener("click", () => correctCard(card, { hse_type_slug: a.slug }));
+    // STAGE — no auto-submit (UX request: "replace the title first,
+    // don't confirm right away"). Opens the edit form and stages
+    // this candidate as the proposed pick. The inspector reviews
+    // the form (can pick a fine sub-type via the picker) and then
+    // taps "Save correction" to commit. Tapping a different chip
+    // re-stages without submitting.
+    b.addEventListener("click", () => _stageCandidatePick(card, a.slug));
     hseRow.appendChild(b);
   });
 
@@ -2997,18 +3042,149 @@ function _finePickerLabel(it) {
   return LANG === "vn" && it.label_vn ? it.label_vn : it.label_en;
 }
 
-// Tree-style render. Mode is derived from card.dataset state:
-//   - card.dataset.fpDrilled = parent slug (browse-children mode)
-//   - card.dataset.fpDrilled = "" or unset (browse-parents mode)
-//   - non-empty `query` overrides both with flat search results
-// The search bar is always usable; typing flips into search mode and
-// clearing the input snaps back to whatever browse state was active.
-function _finePickerRender(card, _parentSlugUnused, query) {
-  const list = el(".fine-picker-list", card);
-  if (!list) return;
-  const q = (query || "").trim().toLowerCase();
-  const drilledParent = card.dataset.fpDrilled || "";
+// =================== Global picker modal driver (#fp-modal) ===================
+// One modal in the DOM, defined in _base.html as a body child. We bind
+// it to whichever card is currently being edited, populate the list,
+// and show. Putting the modal at body level avoids the per-card
+// containing-block trap: each .card article gets a CSS animation that
+// leaves transform:translateY(0) on the element, which silently turns
+// each card into a containing block for any position:fixed descendant.
+// A picker rendered INSIDE a card therefore positioned relative to the
+// CARD, not the viewport, leading to the "cut off on the right" /
+// "appears at top of screen" symptoms users were reporting on real
+// devices (the smoke harness missed it because synthetic cards never
+// ran the slideIn animation).
+//
+// Pick semantics: tapping an item updates the active card's hidden
+// value + visible label, then closes the modal. It does NOT submit
+// (UX request: "replace the title first, don't confirm right away").
+// The inspector reviews the form and clicks Save correction to commit.
+//
+// Public API kept name-compatible with the old per-card picker so
+// callers don't need to change:
+//   _finePickerShow(card)         — open the modal bound to card
+//   _finePickerHide(card)         — close the modal
+//   _finePickerSetValue(card, s)  — write the slug + reflect in trigger
+//   _finePickerGetValue(card)     — read the slug
+//   _finePickerRender(card, _, q) — bridge for old callers; sets query
+const _fp = {
+  modal: null, sheet: null, searchEl: null, listEl: null,
+  crumbEl: null, crumbLabelEl: null, currentEl: null,
+  searchClearBtn: null, closeBtn: null, backBtn: null, backdrop: null,
+  activeCard: null, drilledParent: "", query: "", wired: false,
+};
+
+function _fpEnsure() {
+  if (_fp.modal) return _fp.modal;
+  const m = document.getElementById("fp-modal");
+  if (!m) return null;
+  _fp.modal = m;
+  _fp.sheet = m.querySelector(".fp-sheet");
+  _fp.searchEl = m.querySelector(".fp-search");
+  _fp.listEl = m.querySelector(".fp-list");
+  _fp.crumbEl = m.querySelector(".fp-crumb");
+  _fp.crumbLabelEl = m.querySelector(".fp-crumb-label");
+  _fp.currentEl = m.querySelector(".fp-current");
+  _fp.searchClearBtn = m.querySelector(".fp-search-clear");
+  _fp.closeBtn = m.querySelector(".fp-close");
+  _fp.backBtn = m.querySelector(".fp-back");
+  _fp.backdrop = m.querySelector(".fp-backdrop");
+  if (!_fp.wired) _fpWireOnce();
+  return m;
+}
+
+function _fpWireOnce() {
+  _fp.wired = true;
+  _fp.closeBtn.addEventListener("click", () => _fpClose());
+  _fp.backdrop.addEventListener("click", () => _fpClose());
+  _fp.backBtn.addEventListener("click", () => {
+    _fp.drilledParent = "";
+    _fpRender();
+    _fp.listEl.scrollTop = 0;
+  });
+  _fp.searchEl.addEventListener("input", () => {
+    _fp.query = _fp.searchEl.value;
+    _fp.searchClearBtn.classList.toggle("hidden", !_fp.query);
+    _fpRender();
+    _fp.listEl.scrollTop = 0;
+  });
+  _fp.searchClearBtn.addEventListener("click", () => {
+    _fp.searchEl.value = "";
+    _fp.query = "";
+    _fp.searchClearBtn.classList.add("hidden");
+    _fp.searchEl.focus();
+    _fpRender();
+  });
+  // Esc closes whether focus is in the modal or on the page.
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && _fp.activeCard) {
+      ev.preventDefault();
+      _fpClose();
+    }
+  });
+}
+
+function _fpOpen(card) {
+  if (!_fpEnsure()) return;
+  _fp.activeCard = card;
+  // ALWAYS open in browse-parents mode with an empty search so the
+  // user sees the full tree, not a list filtered by their previous
+  // selection. The previously-picked label is shown in the header
+  // hint instead — separating "what's currently chosen" from "what
+  // can I pick".
+  _fp.drilledParent = "";
+  _fp.query = "";
+  _fp.searchEl.value = "";
+  _fp.searchClearBtn.classList.add("hidden");
+
+  // Header hint: what's currently picked, in user's language.
+  const currentSlug = _finePickerGetValue(card);
+  const hseSel = el(".hse-select", card);
+  const parentSlug = hseSel?.value || "";
+  const prefix = LANG === "vn" ? "Hiện tại"
+              : LANG === "es" ? "Actual"
+              : LANG === "zh" ? "当前"
+              : "Currently";
+  let currentText = "";
+  if (currentSlug && FINE_BY_SLUG[currentSlug]) {
+    currentText = `${prefix}: ${_finePickerLabel(FINE_BY_SLUG[currentSlug])}`;
+  } else if (parentSlug && parentSlug !== "") {
+    currentText = `${prefix}: ${_parentLabel(parentSlug)}`;
+  }
+  _fp.currentEl.textContent = currentText;
+  _fp.currentEl.classList.toggle("hidden", !currentText);
+
+  _fpRender();
+  _fp.listEl.scrollTop = 0;
+  _fp.modal.classList.remove("hidden");
+  document.body.classList.add("fp-modal-open");
+  // Don't auto-focus the search input — that would pop the soft
+  // keyboard on every open even when the user just wants to scroll
+  // the parent list. They tap the search field themselves to type.
+}
+
+function _fpClose() {
+  if (!_fp.modal) return;
+  _fp.modal.classList.add("hidden");
+  document.body.classList.remove("fp-modal-open");
+  _fp.activeCard = null;
+}
+
+function _fpRender() {
+  const list = _fp.listEl;
+  const card = _fp.activeCard;
+  if (!list || !card) return;
+  const q = _fp.query.trim().toLowerCase();
   const isSearch = q.length > 0;
+  const drilledParent = _fp.drilledParent;
+
+  // Breadcrumb visible only in browse-children mode (drilled, no search).
+  if (!isSearch && drilledParent) {
+    _fp.crumbEl.classList.remove("hidden");
+    _fp.crumbLabelEl.textContent = _parentLabel(drilledParent);
+  } else {
+    _fp.crumbEl.classList.add("hidden");
+  }
 
   let items;
   if (isSearch) {
@@ -3024,176 +3200,126 @@ function _finePickerRender(card, _parentSlugUnused, query) {
 
   list.innerHTML = "";
 
-  // Sticky red CLOSE bar at the very top of the picker (UX backlog C3).
-  // Users reported it wasn't obvious how to dismiss the tree when
-  // they're deep inside browse-children. A high-contrast bar pinned at
-  // top-0 / z-30 with an unmistakable Close button + Esc hint solves
-  // that. Sits above any drill-mode header (which uses z-20).
-  const closeBar = document.createElement("div");
-  closeBar.className = "sticky top-0 z-30 bg-rose-50 border-b border-rose-200 flex items-center justify-between gap-2 px-3 py-2";
-  const closeLabel = LANG === "vn" ? "Đóng"
-                   : LANG === "es" ? "Cerrar"
-                   : LANG === "zh" ? "关闭"
-                   : "Close";
-  closeBar.innerHTML = `
-    <span class="text-[11px] text-rose-700 font-medium">
-      ${LANG === "vn" ? "Chọn loại vi phạm"
-       : LANG === "es" ? "Elige el tipo de infracción"
-       : LANG === "zh" ? "选择违规类型"
-       : "Pick violation type"}
-    </span>
-    <button type="button" class="fine-picker-close inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold px-3 py-1 rounded-full transition-colors">
-      <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-      </svg>
-      <span>${closeLabel}</span>
-    </button>`;
-  closeBar.querySelector(".fine-picker-close").addEventListener("click", (ev) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    _finePickerHide(card);
-  });
-  list.appendChild(closeBar);
-
-  // ---- Header bar (in browse-children mode) — Back link + breadcrumb ----
+  // "Pick this whole category" pill at top of drilled view — fast
+  // path for inspectors who want the parent without scrolling fines.
   if (!isSearch && drilledParent) {
-    const meta = HSE_BY_SLUG?.[drilledParent];
-    const parentLabel = meta
-      ? (LANG === "vn" && meta.label_vn ? meta.label_vn : meta.label_en)
-      : drilledParent.replace(/_/g, " ");
-    const header = document.createElement("div");
-    // Two-line layout so the breadcrumb gets full width and doesn't
-    // collide with the action buttons on narrow phones. The previous
-    // single-line layout fit "All categories", parent label, and
-    // "Pick this category" all on one row — the "Pick this category"
-    // text got clipped off the right edge of the dropdown on a 360px
-    // viewport.
-    header.className = "sticky top-0 z-20 bg-white border-b border-slate-200 shadow-sm px-3 py-1.5";
-    header.innerHTML = `
-      <button type="button" class="fine-picker-back text-xs text-slate-600 hover:text-slate-900 inline-flex items-center gap-1 -ml-1 px-1 py-0.5 rounded">
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
-        <span>${LANG === "vn" ? "Tất cả nhóm" : LANG === "es" ? "Todas las categorías" : LANG === "zh" ? "所有分类" : "All categories"}</span>
-      </button>
-      <div class="text-[11px] font-medium text-slate-900 mt-0.5 truncate">${escapeHtml(parentLabel)}</div>`;
-    header.querySelector(".fine-picker-back").addEventListener("click", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      card.dataset.fpDrilled = "";
-      _finePickerRender(card, null, "");
-    });
-    list.appendChild(header);
-
-    // First child item: "Pick this whole category" — fast path for
-    // inspectors who want the parent without scrolling fines. Sits
-    // INSIDE the scrollable list (not in the sticky header) so it
-    // doesn't compete with breadcrumb space on narrow phones.
     const pickAllBtn = document.createElement("button");
     pickAllBtn.type = "button";
-    pickAllBtn.className = "block w-full text-left px-3 py-2 text-xs bg-emerald-50/60 hover:bg-emerald-100/70 border-b border-slate-200";
+    pickAllBtn.className = "fp-item is-pickall";
+    pickAllBtn.style.background = "rgb(236 253 245)";
+    const pickAllLabel = LANG === "vn" ? "Chọn cả nhóm này"
+                      : LANG === "es" ? "Elegir esta categoría"
+                      : LANG === "zh" ? "选择整个分类"
+                      : "Pick this whole category";
     pickAllBtn.innerHTML = `
       <div class="flex items-center gap-2">
         <svg class="w-4 h-4 text-emerald-700 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
         </svg>
         <div class="flex-1 min-w-0">
-          <div class="text-emerald-800 font-medium truncate">
-            ${LANG === "vn" ? "Chọn cả nhóm này"
-            : LANG === "es" ? "Elegir esta categoría"
-            : LANG === "zh" ? "选择整个分类"
-            : "Pick this whole category"}
-          </div>
-          <div class="text-[10px] text-emerald-700/80 truncate">${escapeHtml(parentLabel)}</div>
+          <div class="text-emerald-800 font-medium truncate">${pickAllLabel}</div>
+          <div class="fp-meta text-emerald-700/80 truncate">${escapeHtml(_parentLabel(drilledParent))}</div>
         </div>
       </div>`;
-    pickAllBtn.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      _pickParent(card, drilledParent, parentLabel);
-      _finePickerHide(card);
+    pickAllBtn.addEventListener("click", () => {
+      _pickParent(card, drilledParent, _parentLabel(drilledParent));
+      _fpClose();
     });
     list.appendChild(pickAllBtn);
   }
 
   if (!items.length) {
     const noResults = document.createElement("div");
-    noResults.className = "px-3 py-3 text-xs text-slate-400 text-center";
+    noResults.className = "px-4 py-6 text-xs text-slate-400 text-center";
     noResults.textContent = t("fine_no_results");
     list.appendChild(noResults);
     return;
   }
 
-  // Cap large search-result lists; browse modes are never more than ~400 items
-  // total but capping for safety.
+  // Cap large result sets — browse modes never exceed ~400 total but
+  // safety net for the search-all-fines code path.
   const cap = isSearch ? 80 : 500;
   const capped = items.slice(0, cap);
+  const currentSlug = _finePickerGetValue(card);
+  const hseSel = el(".hse-select", card);
+  const currentParent = hseSel?.value || "";
+
+  const subtypesLabel = LANG === "vn" ? "loại con" : LANG === "es" ? "sub-tipos" : LANG === "zh" ? "子类型" : "sub-types";
+  const categoryLabel = LANG === "vn" ? "Nhóm" : LANG === "es" ? "Categoría" : LANG === "zh" ? "分类" : "Category";
+
   for (const it of capped) {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "block w-full text-left px-3 py-2 text-xs hover:bg-emerald-50 border-b border-slate-100 last:border-0";
+    btn.className = "fp-item";
     const label = _finePickerLabel(it);
+
     if (it._kind === "parent") {
-      // In browse-parents mode: clicking drills in. In search mode:
-      // clicking confirms the parent as a coarse pick and closes.
+      const childCount = it._childCount || (FINE_TYPES_BY_PARENT[it.slug] || []).length;
       const childLine = isSearch
-        ? `<div class="text-[10px] text-slate-400">${LANG === "vn" ? "Nhóm" : LANG === "es" ? "Categoría" : LANG === "zh" ? "分类" : "Category"} · ${it._childCount || (FINE_TYPES_BY_PARENT[it.slug] || []).length} ${LANG === "vn" ? "loại con" : LANG === "es" ? "sub-tipos" : LANG === "zh" ? "子类型" : "sub-types"}</div>`
-        : `<div class="text-[10px] text-slate-400">${it._childCount} ${LANG === "vn" ? "loại con" : LANG === "es" ? "sub-tipos" : LANG === "zh" ? "子类型" : "sub-types"}</div>`;
+        ? `<div class="fp-meta">${categoryLabel} · ${childCount} ${subtypesLabel}</div>`
+        : `<div class="fp-meta">${childCount} ${subtypesLabel}</div>`;
       const drillIcon = isSearch
-        ? "" /* in search results, parents are picked, not drilled */
-        : `<svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>`;
+        ? ""
+        : `<svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>`;
       btn.innerHTML =
         `<div class="flex items-center gap-2">
            <div class="flex-1 min-w-0">
-             <div class="text-slate-900 font-medium truncate">${escapeHtml(label)}</div>
+             <div class="font-medium truncate">${escapeHtml(label)}</div>
              ${childLine}
            </div>
            ${drillIcon}
          </div>`;
-      btn.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+      if (currentParent === it.slug && !currentSlug) btn.classList.add("is-current");
+      btn.addEventListener("click", () => {
         if (isSearch) {
-          // Search-result parent: confirm as coarse pick.
+          // Search-result parent: take it as a coarse pick + close.
+          // Drill-in from search would lose the user's query context.
           _pickParent(card, it.slug, label);
-          _finePickerHide(card);
+          _fpClose();
         } else {
-          // Browse mode: drill into this parent.
-          card.dataset.fpDrilled = it.slug;
-          // Reset search box so it's clear we're in browse-children
-          // mode, not still searching.
-          const search = el(".fine-picker-search", card);
-          if (search) search.value = "";
-          _finePickerRender(card, null, "");
+          // Browse mode: drill in.
+          _fp.drilledParent = it.slug;
+          _fp.query = "";
+          _fp.searchEl.value = "";
+          _fp.searchClearBtn.classList.add("hidden");
+          _fpRender();
+          _fp.listEl.scrollTop = 0;
         }
       });
     } else {
-      // Fine sub-type. In search mode, show parent breadcrumb so the
-      // user knows which category it lives under.
+      // Fine sub-type. In search mode, show the parent breadcrumb so
+      // the inspector knows which category the fine lives under.
       const breadcrumb = isSearch && it._parent
-        ? `<div class="text-[10px] text-slate-400 truncate">${escapeHtml(_parentLabel(it._parent))}</div>`
+        ? `<div class="fp-meta truncate">${escapeHtml(_parentLabel(it._parent))}</div>`
         : "";
       btn.innerHTML =
-        `<div class="text-slate-900">${escapeHtml(label)}</div>
+        `<div class="truncate">${escapeHtml(label)}</div>
          ${breadcrumb}`;
-      btn.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        const hseSel = el(".hse-select", card);
-        _finePickerSetValue(card, it.slug);
+      if (currentSlug === it.slug) btn.classList.add("is-current");
+      btn.addEventListener("click", () => {
         if (hseSel && it._parent) hseSel.value = it._parent;
-        _finePickerHide(card);
+        _finePickerSetValue(card, it.slug);
+        // Also update the AI-suggests label so the user sees their
+        // pick reflected in the form before they tap Save correction.
+        const primary = el(".primary-hse", card);
+        if (primary && it._parent) primary.textContent = _parentLabel(it._parent);
+        _fpClose();
       });
     }
     list.appendChild(btn);
   }
+
   if (items.length > cap) {
     const more = document.createElement("div");
-    more.className = "px-3 py-1.5 text-[10px] text-slate-400 text-center italic";
-    more.textContent = `(+${items.length - cap} ${LANG === "vn" ? "kết quả nữa" : LANG === "es" ? "más resultados" : LANG === "zh" ? "更多结果" : "more"} — ${LANG === "vn" ? "thu hẹp tìm kiếm" : LANG === "es" ? "refina tu búsqueda" : LANG === "zh" ? "细化搜索" : "refine search"})`;
+    more.className = "px-4 py-2 text-[10px] text-slate-400 text-center italic";
+    const moreLabel = LANG === "vn" ? "kết quả nữa" : LANG === "es" ? "más resultados" : LANG === "zh" ? "更多结果" : "more";
+    const refineLabel = LANG === "vn" ? "thu hẹp tìm kiếm" : LANG === "es" ? "refina tu búsqueda" : LANG === "zh" ? "细化搜索" : "refine search";
+    more.textContent = `(+${items.length - cap} ${moreLabel} — ${refineLabel})`;
     list.appendChild(more);
   }
 }
 
-// Helpers used by the tree-mode render.
+// Helpers used by the picker render.
 function _parentLabel(parentSlug) {
   const meta = HSE_BY_SLUG?.[parentSlug];
   return meta
@@ -3213,158 +3339,25 @@ function _pickParent(card, parentSlug, parentLabel) {
   // is set on hseSel.
 }
 
-// Position the (fixed) dropdown relative to the trigger. position:fixed
-// so the dropdown escapes the card's overflow:hidden — otherwise long
-// lists got clipped at the bottom of the photo card frame.
-function _finePickerPosition(card) {
-  const list = el(".fine-picker-list", card);
-  const trigger = el(".fine-picker-trigger", card);
-  if (!list || !trigger) return;
-  const rect = trigger.getBoundingClientRect();
-  const vw = window.innerWidth;
-  // Use visualViewport.height when available — on iOS/Android the
-  // soft keyboard shrinks the visual viewport but NOT window.innerHeight,
-  // so without this the bottom-sheet would sit underneath the keyboard.
-  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-  const sideInset = 8;
-  const gap = 6;
-  const isMobile = vw < 640;
-
-  // ---- Bottom-sheet mode (narrow viewports) ----
-  // Anchored to the bottom of the visual viewport instead of the
-  // trigger. Reads as a sheet, not a tooltip — addresses UX backlog
-  // C2. The backdrop element (toggled by _finePickerShow) handles
-  // dim + click-to-dismiss.
-  if (isMobile) {
-    list.classList.add("is-sheet");
-    const maxH = Math.floor(vh * 0.78);
-    const top = vh - maxH;
-    list.style.left = `${sideInset}px`;
-    list.style.top = `${top}px`;
-    list.style.width = `${vw - sideInset * 2}px`;
-    list.style.maxHeight = `${maxH}px`;
-    return;
-  }
-  list.classList.remove("is-sheet");
-
-  // ---- Desktop / tablet — anchored dropdown ----
-  let left, width;
-  width = Math.max(rect.width, 360);
-  left = Math.min(rect.left, vw - width - sideInset);
-  left = Math.max(sideInset, left);
-
-  // Top + maxHeight: prefer placing below the trigger, fall back to
-  // above if that gives more room. Crucially, we DO NOT force a
-  // minimum height — a 200px floor would push the dropdown's top
-  // off-screen when there's only ~120px of space above. The result
-  // before this fix: the top of the dropdown (and its sticky header)
-  // got clipped by the viewport and scrolled out of reach.
-  const spaceBelow = vh - rect.bottom - gap - sideInset;
-  const spaceAbove = rect.top - gap - sideInset;
-  let top, maxH;
-  if (spaceBelow >= spaceAbove || spaceBelow >= 280) {
-    // Place below.
-    top = rect.bottom + gap;
-    maxH = Math.min(Math.max(spaceBelow, 0), Math.floor(vh * 0.75));
-  } else {
-    // Place above. maxH is bounded by spaceAbove so the dropdown
-    // never overflows the top of the viewport.
-    maxH = Math.min(Math.max(spaceAbove, 0), Math.floor(vh * 0.75));
-    top = rect.top - gap - maxH;
-  }
-  // Final clamp: never let the dropdown start above the viewport.
-  // If clamping reduces top, also shrink maxH so the bottom still
-  // fits inside the viewport.
-  if (top < sideInset) {
-    maxH -= sideInset - top;
-    top = sideInset;
-  }
-  // Or extend below.
-  if (top + maxH > vh - sideInset) {
-    maxH = vh - sideInset - top;
-  }
-  // Keep the dropdown at least minimally usable.
-  if (maxH < 120) maxH = 120;
-
-  list.style.left = `${left}px`;
-  list.style.top = `${top}px`;
-  list.style.width = `${width}px`;
-  list.style.maxHeight = `${maxH}px`;
-}
-
-// Lazily-created shared backdrop element for bottom-sheet picker
-// mode. One per document, attached to body the first time the
-// picker opens. Clicking it dismisses whichever picker is open.
-let _finePickerActiveCard = null;
-function _ensureFinePickerBackdrop() {
-  let bd = document.getElementById("fine-picker-backdrop");
-  if (bd) return bd;
-  bd = document.createElement("div");
-  bd.id = "fine-picker-backdrop";
-  bd.addEventListener("click", () => {
-    if (_finePickerActiveCard) _finePickerHide(_finePickerActiveCard);
-  });
-  document.body.appendChild(bd);
-  return bd;
-}
-
-function _finePickerShow(card) {
-  const list = el(".fine-picker-list", card);
-  if (!list) return;
-  if (!list.classList.contains("hidden")) return;   // already shown
-  list.classList.remove("hidden");
-  _finePickerPosition(card);
-  _finePickerActiveCard = card;
-  // Show the backdrop only in sheet mode (mobile). On desktop the
-  // anchored dropdown coexists with a normal page; dimming the page
-  // there would feel heavy. _finePickerPosition decides via the
-  // is-sheet class which we mirror here.
-  if (list.classList.contains("is-sheet")) {
-    _ensureFinePickerBackdrop().classList.add("is-visible");
-  }
-  // Earlier we tried locking body scroll while the picker was open.
-  // That hurt iOS Safari more than it helped: with `body { overflow:
-  // hidden }`, touch events on inner scrollable elements got eaten,
-  // so the user couldn't scroll inside the dropdown either. The
-  // dropdown is `position: fixed` — it stays anchored to the
-  // viewport on its own, even if the page scrolls behind it — so we
-  // don't actually need the lock. (overscroll-behavior: contain in
-  // app.css keeps the dropdown's scroll from chaining into the
-  // page when the user reaches the top/bottom of the list.)
-  if (!card._finePickerReflow) {
-    card._finePickerReflow = () => {
-      _finePickerPosition(card);
-      // Re-evaluate backdrop visibility on resize / orientation
-      // change — a tablet rotated to landscape may cross the 640
-      // px threshold and switch out of sheet mode.
-      const bd = document.getElementById("fine-picker-backdrop");
-      if (!bd) return;
-      if (list.classList.contains("is-sheet")) bd.classList.add("is-visible");
-      else bd.classList.remove("is-visible");
-    };
-    window.addEventListener("resize", card._finePickerReflow, { passive: true });
-    // visualViewport tracks the soft keyboard; without listening
-    // to it the sheet stays anchored to the wrong bottom edge
-    // when the keyboard shows up.
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", card._finePickerReflow, { passive: true });
-    }
-  }
-}
+// Backwards-compatible aliases that map the old per-card picker API
+// onto the new global-modal driver above. Existing call sites keep
+// working without edits.
+function _finePickerShow(card) { _fpOpen(card); }
 function _finePickerHide(card) {
-  const list = el(".fine-picker-list", card);
-  if (!list || list.classList.contains("hidden")) return;   // already hidden
-  list.classList.add("hidden");
-  const bd = document.getElementById("fine-picker-backdrop");
-  if (bd) bd.classList.remove("is-visible");
-  if (_finePickerActiveCard === card) _finePickerActiveCard = null;
-  if (card._finePickerReflow) {
-    window.removeEventListener("resize", card._finePickerReflow);
-    if (window.visualViewport) {
-      window.visualViewport.removeEventListener("resize", card._finePickerReflow);
-    }
-    card._finePickerReflow = null;
-  }
+  // Only close if THIS card is the active one (or no card is active).
+  // Some async code paths call _finePickerHide on a stale card during
+  // transitions — closing eagerly there would dismiss whatever the
+  // user just opened.
+  if (!card || _fp.activeCard === card || !_fp.activeCard) _fpClose();
+}
+// Old _finePickerRender(card, _, query) signature — bridge: if the
+// card is currently active, set the search query and re-render.
+function _finePickerRender(card, _ignored, query) {
+  if (_fp.activeCard !== card) return;
+  _fp.query = query || "";
+  if (_fp.searchEl) _fp.searchEl.value = _fp.query;
+  if (_fp.searchClearBtn) _fp.searchClearBtn.classList.toggle("hidden", !_fp.query);
+  _fpRender();
 }
 
 function _finePickerGetValue(card) {
@@ -3407,18 +3400,19 @@ function _finePickerSetValue(card, slug) {
   }
 }
 
-// Re-init the picker. Wires event listeners once per card; subsequent
-// calls (e.g. when AI pre-fills a slug) just refresh the dropdown.
-// Behaviour:
-//   - Tap the row (icon, padding, etc.) → dropdown opens, keyboard
-//     does NOT pop up (we preventDefault on mousedown to skip input
-//     focus).
-//   - Tap the input itself → input focuses, keyboard pops up, the
-//     existing label auto-selects so typing replaces it. The
-//     dropdown also opens (focus event handler) and switches to
-//     search-results once the user types.
-//   - The input is always typeable — no readonly toggle. Mobile
-//     users get a normal text field they can type into.
+// Re-init the per-card picker trigger. The actual picker is the
+// global #fp-modal in body — this just wires the in-card trigger
+// row to open it.
+//
+// Why the in-card search input is now READONLY: previously typing
+// in it auto-opened the picker. With the global modal, we want
+// ONE search field (the modal's), not two. The in-card field stays
+// as a tap-to-open display showing the current pick — same visual,
+// new behaviour.
+//
+// refreshFineSelect runs on every poll() tick via updateCard, so
+// the wiring guard (picker.dataset.fpWired) is critical — without
+// it we'd attach N click handlers per card after N polls.
 function refreshFineSelect(card, parentSlug /* unused; kept for callers */) {
   const picker  = el(".fine-picker", card);
   if (!picker) return;
@@ -3429,88 +3423,39 @@ function refreshFineSelect(card, parentSlug /* unused; kept for callers */) {
 
   if (!picker.dataset.fpWired) {
     picker.dataset.fpWired = "1";
+    // Read-only: tapping the input no longer pops the soft keyboard
+    // because there's no editable text. The cursor: pointer hint
+    // tells the user this is a button.
+    search.readOnly = true;
+    search.style.cursor = "pointer";
 
-    // Tap-on-padding: prevent the contained input from auto-focusing
-    // when the user taps the icon or empty space inside the trigger.
-    // Tapping the input directly is allowed to focus normally so the
-    // user can type/edit.
-    trigger.addEventListener("mousedown", (ev) => {
-      if (ev.target === search) return;          // direct input tap → normal focus
-      // Same for clear button — let its own click handler run, which
-      // will be invoked AFTER the click event but we also don't want
-      // to focus the input from a clear-button tap.
-      if (ev.target.closest(".fine-picker-clear")) return;
-      ev.preventDefault();
-    });
-    // Tapping anywhere on the trigger row opens the dropdown.
-    trigger.addEventListener("click", (ev) => {
-      if (ev.target.closest(".fine-picker-clear")) return;
-      const list = el(".fine-picker-list", card);
-      const wasClosed = !list || list.classList.contains("hidden");
-      // Only reset the drill state on a FRESH open. Subsequent clicks
-      // while the picker is already open (e.g. tapping the input to
-      // start typing while drilled into a parent's children) must
-      // preserve drill state — otherwise the user gets bounced back
-      // to the parent list every time their finger lands on the
-      // trigger row, which felt like the mini-tree was "jumping back
-      // to the main tree".
-      if (wasClosed) card.dataset.fpDrilled = "";
-      _finePickerRender(card, null, search.value);
-      _finePickerShow(card);
-    });
-    // Auto-select the existing label on focus so typing replaces it
-    // instead of appending. iOS sometimes ignores immediate select(),
-    // hence the next-tick defer.
-    search.addEventListener("focus", () => {
-      _finePickerShow(card);
-      _finePickerRender(card, null, search.value);
-      setTimeout(() => { try { search.select(); } catch (_) {} }, 0);
-    });
-    // Typing always re-renders. If they type letters, the render
-    // function flips to flat search results; if they delete back to
-    // empty, it falls back to browse-parents (or browse-children if
-    // a drill state is still active).
-    search.addEventListener("input", () => {
-      _finePickerRender(card, null, search.value);
-      _finePickerShow(card);
-    });
-    // Esc closes the picker.
+    const open = (ev) => {
+      if (ev && ev.target && ev.target.closest(".fine-picker-clear")) return;
+      ev?.preventDefault?.();
+      _fpOpen(card);
+    };
+    trigger.addEventListener("click", open);
+    // Keyboard support: tabbing onto the input + pressing Enter or
+    // Space should also open the modal.
     search.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape") {
+      if (ev.key === "Enter" || ev.key === " ") {
         ev.preventDefault();
-        search.blur();
-        _finePickerHide(card);
+        _fpOpen(card);
       }
     });
 
-    // Click-outside dismiss.
-    document.addEventListener("click", (ev) => {
-      if (!picker.contains(ev.target)) _finePickerHide(card);
-    });
     if (clearBtn) clearBtn.addEventListener("click", (ev) => {
       ev.stopPropagation();
+      ev.preventDefault();
       const hseSel = el(".hse-select", card);
       if (hseSel) hseSel.value = "";
-      _finePickerSetValue(card, "");        // clears search + hides clear button
-      card.dataset.fpDrilled = "";
-      _finePickerRender(card, null, "");
-      _finePickerShow(card);
+      _finePickerSetValue(card, "");        // clears trigger label, hides X
     });
   }
-
-  // Don't disturb the picker while the user is interacting with it.
-  // refreshFineSelect runs on every poll() tick (every 4 s) via
-  // updateCard — without this guard, drill state got wiped and the
-  // dropdown jumped back to the parent list mid-interaction (the
-  // "mini tree keeps jumping back to main tree" bug).
-  const list = el(".fine-picker-list", card);
-  const isOpen = list && !list.classList.contains("hidden");
-  if (!isOpen) {
-    // Fresh re-init: clear drill state and rebuild the (hidden) list.
-    card.dataset.fpDrilled = "";
-    _finePickerRender(card, null, search.value);
-  }
-  // (If open, leave it alone — the user is in the middle of picking.)
+  // No render-on-poll — the modal renders on open, not on poll,
+  // so the picker can't "jump back to main tree" mid-interaction
+  // anymore. The trigger label still mirrors current value via
+  // _finePickerSetValue calls from the AI pre-fill path.
 }
 
 // =================== Upload (chunked + progress + notifications) ===================

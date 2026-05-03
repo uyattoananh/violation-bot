@@ -155,62 +155,84 @@ input:focus-visible {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
 }
 
-/* Picker dropdown — fixed-position, viewport-bounded.
-   `overscroll-behavior: contain` keeps the inner scroll from
-   chaining into the page when the user reaches the top/bottom
-   (no more "page scrolls when the picker hits its scroll limit").
-   `-webkit-overflow-scrolling: touch` keeps momentum scroll on
-   older iOS WebKit. */
-.fine-picker-list {
+/* ============================================================
+   Global violation-type picker modal (#fp-modal).
+
+   On mobile (<640 px) the .fp-sheet stretches to full screen
+   via h-full + h-auto sm:max-h-[78vh] in the template — i.e.
+   nothing extra needed here for the layout itself.
+
+   What we DO need locally:
+   - smooth fade-in + slide-up
+   - inertial scroll containment so the picker's inner scroll
+     doesn't chain into the page underneath
+   - a sane focus ring on items (Tailwind doesn't quite cut it
+     for the dense list).
+   ============================================================ */
+.fp-modal {
+  /* Visual layering only — the actual scroll lock is via
+     body.fp-modal-open below. The inner .fp-list owns its own
+     scroll container. */
+}
+/* Lock the page scroll while the picker modal is open so swiping
+   the dimmed backdrop doesn't scroll the page underneath. JS
+   toggles this class on body in _fpOpen / _fpClose. */
+body.fp-modal-open {
+  overflow: hidden;
+  /* Reserve the scrollbar gutter on desktop so removing scroll
+     doesn't cause a layout shift. iOS ignores ::-webkit-scrollbar
+     here which is fine — phones don't render a visible scrollbar. */
+  padding-right: var(--scrollbar-width, 0);
+}
+.fp-modal:not(.hidden) {
+  display: block;
+  animation: fpFadeIn 160ms ease-out;
+}
+.fp-modal .fp-sheet {
+  animation: fpSheetIn 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* Respect iOS safe-area at the bottom so the close + items
+     don't sit underneath the home indicator. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@keyframes fpFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes fpSheetIn {
+  /* On mobile we slide up; on desktop the same translate looks
+     fine as a subtle pop. */
+  from { transform: translateY(8%); opacity: 0.4; }
+  to   { transform: translateY(0);  opacity: 1; }
+}
+.fp-list {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
-
-/* Bottom-sheet variant — applied by _finePickerPosition when the
-   viewport is mobile-narrow (vw < 640). Anchors the picker to the
-   bottom of the screen, rounds only the top corners, slides up
-   from below, and pairs with the .fine-picker-backdrop overlay
-   below. The grabber-dot pseudo-element is the iOS/Android visual
-   convention for "this is a draggable sheet" (we don't actually
-   drag-to-dismiss; the close bar handles that). */
-.fine-picker-list.is-sheet {
-  border-top-left-radius: 16px;
-  border-top-right-radius: 16px;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  border-bottom: 0;
-  box-shadow: 0 -8px 32px -4px rgba(0, 0, 0, 0.25);
-  /* Clip the sticky close-bar at the top to the rounded corners.
-     Without this, its full-bleed background extends past the rounded
-     corners and visually breaks the sheet. overflow-y stays auto so
-     the list still scrolls. */
-  overflow-x: hidden;
-  /* Slide-up entrance. Re-applies on every show because we toggle
-     `hidden` -> visible; CSS animations replay on each unhide. */
-  animation: fpSheetSlideUp 200ms cubic-bezier(0.16, 1, 0.3, 1);
+.fp-list .fp-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  /* 44 px hits Apple's HIG minimum touch target — the previous
+     32 px rows fired the wrong row regularly under field gloves. */
+  min-height: 48px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgb(241 245 249); /* slate-100 */
+  color: rgb(15 23 42);
+  font-size: 13px;
+  line-height: 1.35;
 }
-@keyframes fpSheetSlideUp {
-  from { transform: translateY(16%); opacity: 0.6; }
-  to   { transform: translateY(0);    opacity: 1; }
+.fp-list .fp-item:last-child { border-bottom: 0; }
+.fp-list .fp-item:hover     { background: rgb(236 253 245); } /* emerald-50 */
+.fp-list .fp-item:active    { background: rgb(209 250 229); } /* emerald-100 */
+.fp-list .fp-item.is-current {
+  background: rgb(254 252 232); /* yellow-50 — "this is the value already set" */
 }
-
-/* Backdrop overlay sits between the page and the sheet. One
-   shared element on document.body, toggled visible/hidden as the
-   picker opens/closes. Click anywhere on it to dismiss the
-   picker — the JS wires the listener once at create time. */
-#fine-picker-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  z-index: 49;            /* one below .fine-picker-list (z-50) */
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 180ms ease-out;
-}
-#fine-picker-backdrop.is-visible {
-  opacity: 1;
-  pointer-events: auto;
+.fp-list .fp-item .fp-meta {
+  display: block;
+  font-size: 11px;
+  color: rgb(100 116 139); /* slate-500 */
+  margin-top: 2px;
 }
 
 /* Stat number that pops on update */
