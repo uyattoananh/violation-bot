@@ -3341,6 +3341,12 @@ function _fpOpen(card) {
   _fpRender();
   _fp.listEl.scrollTop = 0;
   _fp.modal.classList.remove("hidden");
+  // Save scroll position BEFORE locking — CSS `position: fixed`
+  // resets scroll to 0, so we stash it in a CSS var and reapply
+  // on close. This stops iOS Safari from scrolling the page
+  // underneath the modal overlay.
+  const scrollY = window.scrollY;
+  document.body.style.setProperty("--fp-scroll-y", scrollY + "px");
   document.body.classList.add("fp-modal-open");
   // Don't auto-focus the search input — that would pop the soft
   // keyboard on every open even when the user just wants to scroll
@@ -3351,6 +3357,9 @@ function _fpClose() {
   if (!_fp.modal) return;
   _fp.modal.classList.add("hidden");
   document.body.classList.remove("fp-modal-open");
+  // Restore scroll position after removing position: fixed
+  const scrollY = parseInt(document.body.style.getPropertyValue("--fp-scroll-y") || "0");
+  window.scrollTo(0, scrollY);
   _fp.activeCard = null;
 }
 

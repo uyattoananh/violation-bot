@@ -179,6 +179,12 @@ input:focus-visible {
    toggles this class on body in _fpOpen / _fpClose. */
 body.fp-modal-open {
   overflow: hidden;
+  /* position: fixed prevents iOS Safari from scrolling the
+     background through the modal overlay. JS saves & restores
+     the scroll offset via --fp-scroll-y on open/close. */
+  position: fixed;
+  width: 100%;
+  top: calc(-1 * var(--fp-scroll-y, 0px));
   /* Reserve the scrollbar gutter on desktop so removing scroll
      doesn't cause a layout shift. iOS ignores ::-webkit-scrollbar
      here which is fine — phones don't render a visible scrollbar. */
