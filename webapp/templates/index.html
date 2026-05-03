@@ -723,35 +723,34 @@
        role="button"
        tabindex="0"
        data-batch-id="">
-    <!-- Delete batch (top-right). stopPropagation in handler so the
-         outer card's open-batch click doesn't also fire. -->
-    <!-- Top-right action strip: rename then delete (UX backlog D3). -->
-    <div class="absolute top-2 right-2 z-10 flex items-center gap-1">
-      <button type="button"
-              class="batch-card-rename bg-white/95 hover:bg-emerald-50 active:bg-emerald-100 text-slate-400 hover:text-emerald-600 border border-slate-200 hover:border-emerald-300 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors"
-              aria-label="Rename inspection"
-              title="Rename this inspection">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
-        </svg>
-      </button>
-      <button type="button"
-              class="batch-card-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors"
-              aria-label="Delete inspection"
-              title="Delete inspection">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round"
-                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
-        </svg>
-      </button>
-    </div>
-    <div class="flex items-start justify-between gap-2 pr-16">
+    <!-- Header row: name + date + action buttons — single flex row
+         so everything aligns on the same horizontal line. -->
+    <div class="flex items-center gap-2">
       <div class="font-semibold text-slate-900 batch-card-label flex-1 min-w-0 truncate"></div>
       <!-- Date hidden on the very narrowest screens (fold-folded
            ~280 px) where the label + 2 action buttons need every
            pixel. The date stays in the tooltip and is still visible
            on every other device. -->
-      <div class="narrow-very-hide text-[10px] uppercase tracking-wider text-slate-400 batch-card-when whitespace-nowrap"></div>
+      <div class="narrow-very-hide text-[11px] uppercase tracking-wider text-slate-400 batch-card-when whitespace-nowrap"></div>
+      <div class="flex items-center gap-1 flex-shrink-0">
+        <button type="button"
+                class="batch-card-rename hover:bg-emerald-50 active:bg-emerald-100 text-slate-400 hover:text-emerald-600 rounded-full w-7 h-7 grid place-items-center transition-colors"
+                aria-label="Rename inspection"
+                title="Rename this inspection">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
+          </svg>
+        </button>
+        <button type="button"
+                class="batch-card-delete hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 rounded-full w-7 h-7 grid place-items-center transition-colors"
+                aria-label="Delete inspection"
+                title="Delete inspection">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+            </svg>
+        </button>
+      </div>
     </div>
     <div class="text-xs text-slate-500 flex items-center gap-3">
       <span class="flex items-center gap-1">
@@ -2794,10 +2793,16 @@ function toggleEdit(card) {
     // its body-scroll lock is released. Without this, taps on Cancel
     // (or hitting Esc) left the page silently un-scrollable.
     _finePickerHide(card);
+  } else {
+    // Edit form is opening — clear the picker so it shows the empty
+    // placeholder ("Tap to choose or type to search") instead of the
+    // AI's suggestion.  The user tapped Edit because the AI got it
+    // wrong; pre-filling the picker with the wrong answer is confusing.
+    // The AI's guess is already visible in the card header above.
+    const hseSel = el(".hse-select", card);
+    if (hseSel) hseSel.value = "";
+    _finePickerSetValue(card, "");
   }
-  // (No auto-focus on the hidden hse-select — that was a relic from
-  // when the parent select was a visible <select>. The new picker
-  // opens on user tap, not on form open.)
 }
 
 // Stage a candidate-chip pick on the card. Does NOT submit — just
@@ -3114,13 +3119,13 @@ function updateCard(card, photo) {
   if (locHidden) locHidden.value = cls.location_slug || "Common_working_area";
   // Don't overwrite the picker's hidden parent select / fine pick
   // mid-edit. updateCard runs on every 4s poll tick; if the user is
-  // currently interacting with the picker, late polls would clobber
-  // their in-progress selection. Only sync these from the AI's
-  // prediction when the picker is closed (i.e. the user isn't
-  // actively choosing). With the global #fp-modal we just check
-  // whether THIS card is the modal's active binding.
+  // currently interacting with the picker OR has the edit form open,
+  // late polls would clobber their in-progress selection. Editing
+  // means the user is correcting — the AI's prediction should NOT
+  // refill the picker the user just intentionally cleared.
   const _pickerOpen = _fp && _fp.activeCard === card;
-  if (!_pickerOpen) {
+  const _editOpen = !el(".edit-form", card)?.classList.contains("hidden");
+  if (!_pickerOpen && !_editOpen) {
     el(".hse-select", card).value = cls.hse_type_slug;
     refreshFineSelect(card, cls.hse_type_slug);
     if (cls.fine_hse_type_slug) {
@@ -3396,8 +3401,8 @@ function _fpRender() {
           <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
         </svg>
         <div class="flex-1 min-w-0">
-          <div class="text-emerald-800 font-medium truncate">${pickAllLabel}</div>
-          <div class="fp-meta text-emerald-700/80 truncate">${escapeHtml(_parentLabel(drilledParent))}</div>
+          <div class="text-emerald-800 font-medium">${pickAllLabel}</div>
+          <div class="fp-meta text-emerald-700/80">${escapeHtml(_parentLabel(drilledParent))}</div>
         </div>
       </div>`;
     pickAllBtn.addEventListener("click", () => {
@@ -3443,7 +3448,7 @@ function _fpRender() {
       btn.innerHTML =
         `<div class="flex items-center gap-2">
            <div class="flex-1 min-w-0">
-             <div class="font-medium truncate">${escapeHtml(label)}</div>
+             <div class="font-medium">${escapeHtml(label)}</div>
              ${childLine}
            </div>
            ${drillIcon}
@@ -3469,10 +3474,10 @@ function _fpRender() {
       // Fine sub-type. In search mode, show the parent breadcrumb so
       // the inspector knows which category the fine lives under.
       const breadcrumb = isSearch && it._parent
-        ? `<div class="fp-meta truncate">${escapeHtml(_parentLabel(it._parent))}</div>`
+        ? `<div class="fp-meta">${escapeHtml(_parentLabel(it._parent))}</div>`
         : "";
       btn.innerHTML =
-        `<div class="truncate">${escapeHtml(label)}</div>
+        `<div>${escapeHtml(label)}</div>
          ${breadcrumb}`;
       if (currentSlug === it.slug) btn.classList.add("is-current");
       btn.addEventListener("click", () => {

@@ -681,7 +681,8 @@
   <div id="fp-modal" class="fp-modal hidden fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Pick violation type">
     <div class="fp-backdrop absolute inset-0 bg-slate-900/55"></div>
     <div class="fp-sheet relative bg-white shadow-2xl flex flex-col
-                h-full sm:h-auto sm:max-h-[78vh] sm:max-w-[480px]
+                w-full h-full
+                sm:h-auto sm:max-h-[78vh] sm:max-w-[480px]
                 sm:mx-auto sm:my-12 sm:rounded-2xl overflow-hidden">
 
       <!-- Header: title + currently-selected hint + close X -->
@@ -728,7 +729,7 @@
           </svg>
           <span data-i18n="picker_back">All categories</span>
         </button>
-        <div class="fp-crumb-label text-xs font-medium text-slate-900 mt-0.5 truncate"></div>
+        <div class="fp-crumb-label text-xs font-medium text-slate-900 mt-0.5"></div>
       </div>
 
       <!-- Item list (scrollable) -->
