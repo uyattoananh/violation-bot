@@ -218,50 +218,48 @@
   </div>
 </details>
 
-<!-- Batch indicator (always visible — shows above toolbar so users see which job they're on) -->
-<div id="batch-bar" class="mt-4 flex items-center gap-2 text-sm">
-  <div class="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm">
-    <div class="flex items-center gap-2 px-3 py-2">
-      <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/>
-      </svg>
-      <span class="text-xs text-slate-500 hidden sm:inline" data-i18n="batch_label_prefix">Batch:</span>
-      <input type="text" id="batch-label-input"
-             class="bg-transparent text-sm font-semibold text-slate-900 focus:outline-none focus:bg-slate-50 rounded px-1 py-0 w-40 sm:w-48"
-             placeholder="Tap to name this batch"
-             autocomplete="off">
-    </div>
+<!-- Unified batch header card (UX backlog A2 + A4). Three concerns
+     used to live in three separate boxes: batch identity, reset,
+     and the filter pills. Now they share one paper-toned card with
+     a hairline divider between the identity row and the filter
+     row, so the user reads it as a single "this is your batch
+     context" block. -->
+<div id="batch-bar" class="mt-4 bg-white border border-slate-200 rounded-lg shadow-sm text-sm">
+  <!-- Row 1: batch identity + reset -->
+  <div class="flex items-center gap-2 px-3 py-2">
+    <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/>
+    </svg>
+    <input type="text" id="batch-label-input"
+           class="flex-1 min-w-0 bg-transparent text-sm font-semibold text-slate-900 focus:outline-none focus:bg-slate-50 rounded px-1 py-0"
+           placeholder="Tap to name this batch"
+           autocomplete="off">
+    <span class="hidden sm:inline-flex items-center text-xs text-slate-400 italic" id="batch-count-hint"></span>
     <button id="batch-reset-reviews"
-            class="border-l border-slate-200 px-3 py-2 text-xs text-slate-500 hover:text-rose-700 hover:bg-rose-50 rounded-r-lg flex items-center gap-1 transition-colors"
+            class="text-xs text-slate-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded flex items-center gap-1 transition-colors"
             aria-label="Reset reviews"
             title="Wipe all confirmations / corrections you made in this batch (keeps photos and AI predictions)">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.355m-2.5 9.32A8.25 8.25 0 015.25 12.045a8.25 8.25 0 0115.272-4.32m0 0V4.355"/>
       </svg>
-      <!-- Show "Reset" on mobile (short label) and "Reset reviews" on
-           desktop. Used to hide entirely on mobile via sm:inline, which
-           left a bare icon that confused first-time users. -->
       <span class="sm:hidden" data-i18n="batch_reset_short">Reset</span>
       <span class="hidden sm:inline" data-i18n="batch_reset">Reset reviews</span>
     </button>
-    <!-- "New batch" was previously inside the detail view too — but
-         creating a batch from inside another batch was confusing
-         (which one am I in? did I lose the previous one?). New
-         batches are now started exclusively from the all-batches
-         list view via #btn-new-batch-from-list. The Reset-reviews
-         button keeps its rounded-right corner via the CSS below. -->
   </div>
-  <div class="hidden sm:flex items-center text-xs text-slate-400 italic" id="batch-count-hint"></div>
+  <!-- Row 2: filter pills (only visible once the toolbar should show
+       — same #toolbar id so existing JS that toggles its hidden
+       state still works). -->
+  <div id="toolbar" class="hidden flex items-center gap-1 border-t border-slate-100 px-2 py-1.5">
+    <button data-filter="all"     class="filter-btn active flex-1 px-3 py-1.5 rounded-md font-medium text-slate-700 text-xs sm:text-sm"><span data-i18n="filter_all">All</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
+    <button data-filter="pending" class="filter-btn flex-1 px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_pending">Pending</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
+    <button data-filter="reviewed"class="filter-btn flex-1 px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_reviewed">Reviewed</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
+  </div>
 </div>
 
-<!-- Toolbar: filter + sort + export + bulk actions -->
-<div id="toolbar" class="hidden mt-4 flex flex-wrap items-center gap-2 text-sm">
-  <div class="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
-    <button data-filter="all"     class="filter-btn active px-3 py-1.5 rounded-md font-medium text-slate-700"><span data-i18n="filter_all">All</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
-    <button data-filter="pending" class="filter-btn px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900"><span data-i18n="filter_pending">Pending</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
-    <button data-filter="reviewed"class="filter-btn px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900"><span data-i18n="filter_reviewed">Reviewed</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
-  </div>
-
+<!-- Tools toolbar — sort, export, bulk actions. Separate from the
+     batch header above; only visible once there's at least one
+     photo (toolbar2 toggled together with toolbar). -->
+<div id="toolbar2" class="hidden mt-3 flex flex-wrap items-center gap-2 text-sm">
   <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm">
     <span class="text-slate-500 text-xs" data-i18n="sort_label">Sort:</span>
     <select id="sort-select" class="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer">
@@ -379,15 +377,27 @@
            data-status="pending"
            data-confidence="0">
 
+    <!-- TOP-LEFT chip strip — status + quality. Per UX backlog B1 the
+         "Please verify" / "Likely correct" / "Needs review" label
+         lives on the LEFT so the eye reads "what is this photo?"
+         before "what can I do with it?". -->
+    <div class="absolute top-2 left-2 z-10 flex items-center gap-1.5">
+      <span class="status-pill hidden text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"></span>
+      <!-- Quality flag: pre-flight blurry / dark / tiny check. -->
+      <span class="quality-pill hidden text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300" title=""></span>
+    </div>
+
+    <!-- TOP-RIGHT — delete only. The conf-ring used to live here too,
+         but per UX backlog B2 the confidence percentage is now shown
+         inline with the "AI suggests" header further down, so the
+         corner is reserved for the destructive action. -->
     <div class="absolute top-2 right-2 z-10 flex items-center gap-1.5">
-      <div class="conf-ring hidden bg-white shadow-sm" style="--pct: 0; --color: rgb(16 185 129)">
+      <!-- conf-ring kept in the DOM (hidden) so existing
+           setConfidenceRing JS still runs without null-deref. The
+           visible "· 60%" lives in the AI-suggests header instead. -->
+      <div class="conf-ring hidden" style="--pct: 0; --color: rgb(16 185 129); display: none">
         <span class="conf-text">0%</span>
       </div>
-      <!-- Quality flag: photo was uploaded but pre-flight check found it
-           blurry / dark / tiny. Surfaced so the user knows the AI may
-           struggle and to verify the prediction more carefully. -->
-      <span class="quality-pill hidden text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300" title=""></span>
-      <span class="status-pill hidden text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"></span>
       <button type="button" class="btn-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors"
               aria-label="Delete photo"
               title="Delete photo">
@@ -429,7 +439,13 @@
       </div>
 
       <div class="state-predicted hidden">
-        <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5" data-i18n="ai_suggests">AI suggests</div>
+        <!-- "AI suggests" header now carries the confidence % inline so
+             the user reads "AI suggests · 60%" as one phrase (UX backlog
+             B2). The conf-pct span is filled by setConfidenceRing. -->
+        <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5 flex items-center gap-2">
+          <span data-i18n="ai_suggests">AI suggests</span>
+          <span class="conf-pct font-semibold text-slate-700 tabular-nums normal-case tracking-normal"></span>
+        </div>
         <div class="space-y-0.5">
           <!-- Fine sub-type is the primary user-visible label when Stage 2
                picked one. When fine is null, the parent (.primary-hse) is
@@ -439,7 +455,16 @@
             <span class="primary-hse font-medium text-slate-700 leading-tight"></span>
           </div>
         </div>
+        <!-- Expandable AI rationale (UX backlog B3). Default state =
+             clamped to 2 lines with a "Show more" toggle; clicking
+             expands. Toggle text swaps to "Show less" when expanded.
+             The actual text fills .rationale; .rationale-toggle is
+             only shown when the text overflows. -->
         <div class="rationale text-[11px] text-slate-500 italic mt-2 line-clamp-2"></div>
+        <button type="button"
+                class="rationale-toggle hidden text-[10px] text-emerald-700 hover:text-emerald-900 underline-offset-2 hover:underline mt-1">
+          <span data-i18n="rationale_show_more">Show full reasoning</span>
+        </button>
 
         <div class="mt-3 flex gap-2">
           <button type="button" class="btn-confirm flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
@@ -658,6 +683,8 @@ const I18N = {
     quota_partial_cutoff: (n, limit) => `${n} photo${n === 1 ? "" : "s"} skipped — daily limit of ${limit} reached.`,
     state_analyzing: "Analyzing photo…",
     ai_suggests: "AI suggests",
+    rationale_show_more: "Show full reasoning",
+    rationale_show_less: "Show less",
     btn_confirm: "Confirm",
     btn_edit: "Edit",
     alt_label: "Was it one of these?",
@@ -852,6 +879,8 @@ const I18N = {
     quota_partial_cutoff: (n, limit) => `${n} ảnh bị bỏ qua — đã đạt giới hạn ${limit} ảnh/ngày.`,
     state_analyzing: "Đang phân tích ảnh…",
     ai_suggests: "AI gợi ý",
+    rationale_show_more: "Xem giải thích đầy đủ",
+    rationale_show_less: "Thu gọn",
     btn_confirm: "Xác nhận",
     btn_edit: "Sửa",
     alt_label: "Có phải một trong số này?",
@@ -1046,6 +1075,8 @@ const I18N = {
     quota_partial_cutoff: (n, limit) => `${n} foto${n === 1 ? "" : "s"} omitida${n === 1 ? "" : "s"} — se alcanzó el límite diario de ${limit}.`,
     state_analyzing: "Analizando foto…",
     ai_suggests: "La IA sugiere",
+    rationale_show_more: "Ver razonamiento completo",
+    rationale_show_less: "Mostrar menos",
     btn_confirm: "Confirmar",
     btn_edit: "Editar",
     alt_label: "¿Era una de estas?",
@@ -1240,6 +1271,8 @@ const I18N = {
     quota_partial_cutoff: (n, limit) => `已跳过 ${n} 张照片 — 已达每日上限 ${limit}。`,
     state_analyzing: "正在分析照片…",
     ai_suggests: "AI 建议",
+    rationale_show_more: "查看完整理由",
+    rationale_show_less: "收起",
     btn_confirm: "确认",
     btn_edit: "编辑",
     alt_label: "是其中之一吗？",
@@ -1574,6 +1607,24 @@ const dropzone   = el("#dropzone");
 const fileInput  = el("#file-input");
 const errorBanner = el("#error-banner");
 const toolbar    = el("#toolbar");
+const toolbar2   = el("#toolbar2");
+// Wrapper that mirrors `hidden` class onto both toolbars so existing
+// `toolbar.classList.add/remove("hidden")` call sites keep working
+// after we split the row into the inline filter pills (toolbar) and
+// the sort/export/bulk row (toolbar2). Override classList on the
+// `toolbar` reference with a tiny shim.
+if (toolbar && toolbar2) {
+  const _origAdd = toolbar.classList.add.bind(toolbar.classList);
+  const _origRemove = toolbar.classList.remove.bind(toolbar.classList);
+  toolbar.classList.add = function (...names) {
+    _origAdd(...names);
+    if (names.includes("hidden")) toolbar2.classList.add("hidden");
+  };
+  toolbar.classList.remove = function (...names) {
+    _origRemove(...names);
+    if (names.includes("hidden")) toolbar2.classList.remove("hidden");
+  };
+}
 const lightbox   = el("#lightbox");
 const lightboxImg= el("#lightbox-img");
 const toastEl    = el("#toast");
@@ -2447,6 +2498,18 @@ function setConfidenceRing(card, conf, band) {
   el(".conf-text", ring).textContent = Math.round(conf * 100) + "%";
   ring.classList.remove("hidden");
 
+  // Inline confidence % next to "AI suggests" header (UX backlog B2).
+  // Reads as one phrase: "AI SUGGESTS · 60%". Tinted by band so a
+  // low-conf percentage is visually distinct from a high-conf one.
+  const pctSpan = el(".conf-pct", card);
+  if (pctSpan) {
+    pctSpan.textContent = `· ${Math.round(conf * 100)}%`;
+    const bandColor = band === "high" ? "text-emerald-700"
+                    : band === "medium" ? "text-amber-700"
+                    : "text-rose-700";
+    pctSpan.className = `conf-pct font-semibold tabular-nums normal-case tracking-normal ${bandColor}`;
+  }
+
   const pill = el(".status-pill", card);
   pill.className = `status-pill text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${colors.pill}`;
   pill.textContent = t(colors.labelKey);
@@ -2661,7 +2724,40 @@ function updateCard(card, photo) {
     primaryFineEl.textContent = "";
     primaryHseEl.className = "primary-hse font-semibold text-slate-900 leading-tight";
   }
-  el(".rationale", card).textContent = cls.rationale || "";
+  // Rationale text + show-more toggle (UX backlog B3). Default the
+  // text to line-clamp:2; show the toggle only when the text would
+  // actually overflow. Click toggles between clamped and full.
+  const ratEl = el(".rationale", card);
+  const ratToggle = el(".rationale-toggle", card);
+  ratEl.textContent = cls.rationale || "";
+  // Reset to clamped state on each updateCard; re-measure overflow.
+  ratEl.classList.add("line-clamp-2");
+  ratEl.dataset.expanded = "0";
+  if (ratToggle) {
+    if (!ratToggle.dataset.wired) {
+      ratToggle.dataset.wired = "1";
+      ratToggle.addEventListener("click", () => {
+        const expanded = ratEl.dataset.expanded === "1";
+        if (expanded) {
+          ratEl.classList.add("line-clamp-2");
+          ratEl.dataset.expanded = "0";
+          ratToggle.querySelector("span").textContent = t("rationale_show_more");
+        } else {
+          ratEl.classList.remove("line-clamp-2");
+          ratEl.dataset.expanded = "1";
+          ratToggle.querySelector("span").textContent = t("rationale_show_less");
+        }
+      });
+    }
+    // Show the toggle only if the rationale would clip. Schedule one
+    // measure pass per updateCard (defer to next tick so the browser
+    // has applied the textContent + clamp class first).
+    setTimeout(() => {
+      const clipped = ratEl.scrollHeight > ratEl.clientHeight + 1;
+      ratToggle.classList.toggle("hidden", !clipped);
+      if (!clipped) ratToggle.querySelector("span").textContent = t("rationale_show_more");
+    }, 0);
+  }
   // Location is no longer displayed but is preserved as a hidden form
   // field so the corrections insert still has a valid location_slug.
   const locHidden = el(".loc-select-hidden", card);
