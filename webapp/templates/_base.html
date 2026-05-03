@@ -547,13 +547,8 @@
   <footer id="app-footer"
           class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-slate-200 z-40">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4 text-xs text-slate-600">
-      <div class="flex items-center gap-2">
-        <svg class="w-3.5 h-3.5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 4a1 1 0 10-2 0v4a1 1 0 00.3.7l2.5 2.5a1 1 0 001.4-1.4L11 9.6V6z"/>
-        </svg>
-        <span data-i18n="footer_training_set">Training set:</span>
-        <span id="stat-training" class="font-semibold text-slate-900 tabular-nums">—</span>
-      </div>
+      <!-- (Was: training-set counter — internal metric not useful to
+           inspectors; removed per UX backlog item E1.) -->
       <div class="hidden sm:flex items-center gap-3">
         <span class="text-slate-400" data-i18n="footer_session">Session:</span>
         <span class="flex items-center gap-1">

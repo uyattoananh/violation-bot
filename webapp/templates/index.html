@@ -627,8 +627,10 @@
     <div class="h-1 rounded-full bg-slate-200 overflow-hidden">
       <div class="batch-card-progress h-full bg-emerald-500 transition-all"></div>
     </div>
-    <div class="text-[10px] text-slate-400 flex items-center justify-between">
-      <span class="batch-card-id font-mono"></span>
+    <!-- Footer line of the batch card. UUID prefix removed per UX
+         backlog D1 — internal id, not useful to users. Just the
+         reviewed % stays. -->
+    <div class="text-[10px] text-slate-400 flex items-center justify-end">
       <span class="batch-card-pct tabular-nums"></span>
     </div>
   </div>
@@ -658,7 +660,7 @@ const I18N = {
     ai_suggests: "AI suggests",
     btn_confirm: "Confirm",
     btn_edit: "Edit",
-    alt_label: "One-click runner-up",
+    alt_label: "Was it one of these?",
     edit_hse_label: "HSE type",
     edit_loc_label: "Location",
     edit_fine_label: "AECIS sub-type <span class='text-slate-400 font-normal'>(optional)</span>",
@@ -669,7 +671,7 @@ const I18N = {
     fine_scope_in_category: "in category",
     fine_scope_all: "all categories",
     fine_no_results: "No matches",
-    edit_note_ph: "optional note for the audit log",
+    edit_note_ph: "Optional note (visible in correction history)",
     edit_save: "Save correction",
     edit_cancel: "Cancel",
     reviewed_confirmed: "Confirmed",
@@ -852,7 +854,7 @@ const I18N = {
     ai_suggests: "AI gợi ý",
     btn_confirm: "Xác nhận",
     btn_edit: "Sửa",
-    alt_label: "Chọn nhanh phương án thay thế",
+    alt_label: "Có phải một trong số này?",
     edit_hse_label: "Loại vi phạm HSE",
     edit_loc_label: "Vị trí",
     edit_fine_label: "Phân loại chi tiết AECIS <span class='text-slate-400 font-normal'>(không bắt buộc)</span>",
@@ -863,7 +865,7 @@ const I18N = {
     fine_scope_in_category: "trong danh mục",
     fine_scope_all: "tất cả danh mục",
     fine_no_results: "Không có kết quả",
-    edit_note_ph: "ghi chú (không bắt buộc) cho nhật ký kiểm tra",
+    edit_note_ph: "Ghi chú (không bắt buộc, hiện trong lịch sử chỉnh sửa)",
     edit_save: "Lưu chỉnh sửa",
     edit_cancel: "Hủy",
     reviewed_confirmed: "Đã xác nhận",
@@ -1046,7 +1048,7 @@ const I18N = {
     ai_suggests: "La IA sugiere",
     btn_confirm: "Confirmar",
     btn_edit: "Editar",
-    alt_label: "Alternativa rápida",
+    alt_label: "¿Era una de estas?",
     edit_hse_label: "Tipo HSE",
     edit_loc_label: "Ubicación",
     edit_fine_label: "Sub-tipo AECIS <span class='text-slate-400 font-normal'>(opcional)</span>",
@@ -1057,7 +1059,7 @@ const I18N = {
     fine_scope_in_category: "en la categoría",
     fine_scope_all: "todas las categorías",
     fine_no_results: "Sin resultados",
-    edit_note_ph: "nota opcional para el registro de auditoría",
+    edit_note_ph: "Nota opcional (visible en el historial)",
     edit_save: "Guardar corrección",
     edit_cancel: "Cancelar",
     reviewed_confirmed: "Confirmada",
@@ -1240,7 +1242,7 @@ const I18N = {
     ai_suggests: "AI 建议",
     btn_confirm: "确认",
     btn_edit: "编辑",
-    alt_label: "一键备选",
+    alt_label: "是其中之一吗？",
     edit_hse_label: "HSE 类型",
     edit_loc_label: "位置",
     edit_fine_label: "AECIS 子类型 <span class='text-slate-400 font-normal'>（可选）</span>",
@@ -1251,7 +1253,7 @@ const I18N = {
     fine_scope_in_category: "在该类别中",
     fine_scope_all: "所有类别",
     fine_no_results: "无匹配结果",
-    edit_note_ph: "审计日志的可选备注",
+    edit_note_ph: "可选备注（显示在更正历史中）",
     edit_save: "保存更正",
     edit_cancel: "取消",
     reviewed_confirmed: "已确认",
@@ -1598,14 +1600,10 @@ function updateStats() {
   if (k.textContent != SESSION.corrected) { k.textContent = SESSION.corrected; bumpStat(k); }
 }
 
-function renderTrainingSetSize(n) {
-  const cur = el("#stat-training");
-  const old = parseInt(cur.textContent.replace(/,/g, ""), 10) || 0;
-  if (Number.isFinite(n) && n !== old) {
-    cur.textContent = n.toLocaleString();
-    bumpStat(cur);
-  }
-}
+// (Was: renderTrainingSetSize. The training-set counter was removed
+// from the footer per UX backlog item E1 — internal metric, not useful
+// to inspectors. Stub kept so existing call sites in poll() don't break.)
+function renderTrainingSetSize(_n) { /* no-op */ }
 
 // Cost ticker — pulls today's estimated AI spend from /api/usage/today
 // and renders it in the footer. Polls every 60s; cheap enough that the
@@ -2700,8 +2698,11 @@ function updateCard(card, photo) {
   altsHse.forEach(a => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-100 rounded-md px-2 py-1 text-[11px] transition-colors";
-    b.innerHTML = `<span class="text-amber-500 mr-1">hse</span>${displayLabel(HSE_BY_SLUG, a.slug)} <span class="text-amber-500 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
+    // Pill-style runner-up button. Per UX backlog B6 the redundant
+    // amber "hse" prefix tag was dropped — the whole app is HSE so
+    // tagging each option with "hse" was noise.
+    b.className = "inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-200 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors";
+    b.innerHTML = `${displayLabel(HSE_BY_SLUG, a.slug)} <span class="text-amber-600 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
     b.addEventListener("click", () => correctCard(card, { hse_type_slug: a.slug }));
     hseRow.appendChild(b);
   });
@@ -4208,18 +4209,23 @@ async function refreshBatchesList() {
       const pct = b.photo_count ? Math.round(b.reviewed_count / b.photo_count * 100) : 0;
       el(".batch-card-progress", node).style.width = pct + "%";
       el(".batch-card-pct", node).textContent = pct + "%";
-      el(".batch-card-id", node).textContent = b.batch_id.slice(0, 8);
-      // Friendlier date
+      // (Was: batch-card-id rendered the UUID prefix here. Removed per
+      // UX backlog D1 — internal value, not useful to users.)
+      // Always render as a numeric short date (UX backlog D2). The
+      // previous "yesterday / 3 days ago" format is ambiguous over
+      // longer time spans and inspectors prefer a date they can
+      // reference precisely. Tooltip carries the full timestamp for
+      // when the user wants the exact upload time.
       try {
         const d = new Date(b.latest_uploaded_at);
-        const today = new Date();
-        const diffDays = Math.floor((today - d) / 86400000);
-        let when;
-        if (diffDays === 0) when = LANG === "vn" ? "hôm nay" : "today";
-        else if (diffDays === 1) when = LANG === "vn" ? "hôm qua" : "yesterday";
-        else if (diffDays < 7) when = `${diffDays} ${LANG === "vn" ? "ngày trước" : "days ago"}`;
-        else when = d.toLocaleDateString();
-        el(".batch-card-when", node).textContent = when;
+        if (!isNaN(d.getTime())) {
+          const localeMap = { en: "en", vn: "vi", es: "es", zh: "zh-CN" };
+          const opts = { year: "numeric", month: "short", day: "numeric" };
+          const when = d.toLocaleDateString(localeMap[LANG] || "en", opts);
+          const elt = el(".batch-card-when", node);
+          elt.textContent = when;
+          elt.title = d.toLocaleString(localeMap[LANG] || "en");
+        }
       } catch (e) { /* ignore */ }
       // Localize the delete button's tooltip + aria-label so VN users
       // see the right text on hover / via screen reader.
