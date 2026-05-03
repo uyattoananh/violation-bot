@@ -397,6 +397,36 @@ def _quota_increment(user_key: str, n: int) -> None:
             log.warning("quota increment fallback failed: %s", e)
 
 
+# How many reviews = +1 bonus upload. Default: every 2 reviews earns 1.
+_REVIEWS_PER_BONUS = int(os.environ.get("REVIEWS_PER_BONUS_UPLOAD", "2"))
+
+
+def _quota_bonus_from_reviews(user_key: str) -> int:
+    """Count today's corrections by this user and convert to bonus uploads.
+    Every _REVIEWS_PER_BONUS confirmations/corrections earns +1 upload."""
+    if not user_key or _REVIEWS_PER_BONUS <= 0:
+        return 0
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        # Count corrections from today for this user_key.
+        rows = (
+            get_db().table("corrections")
+              .select("id", count="exact")
+              .eq("user_key", user_key)
+              .gte("created_at", today + "T00:00:00Z")
+              .lt("created_at", today + "T23:59:59.999Z")
+              .execute()
+        )
+        review_count = rows.count if rows.count is not None else 0
+        return review_count // _REVIEWS_PER_BONUS
+    except Exception as e:  # noqa: BLE001
+        # Best-effort — if corrections table is missing a column or the
+        # query fails, just return 0 bonus. Never block uploads.
+        log.warning("bonus review count failed: %s", e)
+        return 0
+
+
 def _admin_authed(request: Request) -> bool:
     """Cheap admin gate. Cookie set after correct password POST.
     Returns False when ADMIN_PASSWORD env var isn't set (admin off).
@@ -2129,8 +2159,14 @@ async def upload(
     # started writing it.
     _session_user = _get_session_user(request)
     user_id = _session_user["id"] if _session_user else None
+
     used_today = _quota_today_used(user_key)
-    remaining = max(0, _DAILY_QUOTA - used_today)
+    # Confirmation credits: every 2 reviews (confirm/correct) earns
+    # +1 bonus upload. Incentivises reviewing existing photos and
+    # feeding the training loop before uploading more.
+    bonus = _quota_bonus_from_reviews(user_key)
+    effective_quota = _DAILY_QUOTA + bonus
+    remaining = max(0, effective_quota - used_today)
     if remaining <= 0:
         from datetime import datetime, timezone, timedelta
         tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).date()
@@ -2139,7 +2175,9 @@ async def upload(
             status_code=429,
             detail={
                 "error": "daily_limit_reached",
-                "limit": _DAILY_QUOTA,
+                "limit": effective_quota,
+                "base_limit": _DAILY_QUOTA,
+                "bonus": bonus,
                 "used": used_today,
                 "resets_at": resets_at,
             },
@@ -2157,7 +2195,7 @@ async def upload(
         # The remaining files in this request go to "rejected" with
         # reason=daily_limit so the frontend can group them in the
         # error banner.
-        if quota_used >= _DAILY_QUOTA:
+        if quota_used >= effective_quota:
             rejected.append({"filename": f.filename, "reason": "daily_limit_reached"})
             continue
         raw = await f.read()
@@ -2308,7 +2346,9 @@ async def upload(
         "count": len(created),
         "batch_id": batch_id,
         "quota_used": quota_used,
-        "quota_limit": _DAILY_QUOTA,
+        "quota_limit": effective_quota,
+        "quota_base": _DAILY_QUOTA,
+        "quota_bonus": bonus,
     }
     # Set the user-key cookie on the response so subsequent /api/usage
     # calls can identify the same client. JSONResponse lets us mutate
@@ -4295,10 +4335,14 @@ def api_usage_me(request: Request):
     user_key = _get_or_set_user_key(request)
     used = _quota_today_used(user_key)
     tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).date()
+    bonus = _quota_bonus_from_reviews(user_key)
+    effective = _DAILY_QUOTA + bonus
     body = {
         "used": used,
-        "limit": _DAILY_QUOTA,
-        "remaining": max(0, _DAILY_QUOTA - used),
+        "limit": effective,
+        "base_limit": _DAILY_QUOTA,
+        "bonus": bonus,
+        "remaining": max(0, effective - used),
         "resets_at": f"{tomorrow.isoformat()}T00:00:00Z",
     }
     resp = JSONResponse(content=body)

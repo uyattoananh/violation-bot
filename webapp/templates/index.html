@@ -143,6 +143,26 @@
     </div>
   </div>
 
+  <!-- Quota progress bar — lives inside the dropzone so it's always
+       visible when the user is about to upload. Updates via
+       updateDropzoneQuota() after each upload + periodic refresh. -->
+  <div id="dropzone-quota" class="w-full max-w-md mx-auto mt-3 pointer-events-auto px-2">
+    <div class="flex items-center justify-between text-xs mb-1">
+      <span id="dz-quota-text" class="text-slate-500 tabular-nums"></span>
+      <span id="dz-quota-warn" class="hidden font-medium text-xs"></span>
+    </div>
+    <div class="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+      <div id="dz-quota-bar" class="h-full rounded-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+    </div>
+    <!-- Bonus credit hint — shown when user has earned (or could earn) bonus uploads -->
+    <div id="dz-quota-bonus" class="hidden mt-1.5 text-[11px] text-emerald-600 flex items-center gap-1">
+      <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+      </svg>
+      <span id="dz-bonus-text"></span>
+    </div>
+  </div>
+
   <!-- Upload progress overlay -->
   <div id="upload-progress" class="hidden absolute inset-0 rounded-2xl bg-white/95 backdrop-blur grid place-items-center">
     <div class="text-center w-full max-w-sm px-6">
@@ -922,6 +942,12 @@ const I18N = {
     footer_tagline: "every confirmation trains the AI",
     footer_today: "today:",
     quota_label_suffix: "photos today",
+    dz_quota_text: (used, lim) => `${used} of ${lim} photos used today`,
+    dz_quota_low: (n) => `${n} remaining`,
+    dz_quota_full: (reset) => `Daily limit reached — resets at ${reset}`,
+    dz_quota_full_hint: "Daily limit reached",
+    dz_bonus_earned: (n) => `+${n} bonus from reviewing photos`,
+    dz_bonus_hint: "Review photos to earn bonus uploads (2 reviews = +1 upload)",
     kbd_title: "Keyboard shortcuts",
     kbd_confirm: "Confirm focused card",
     kbd_edit: "Edit focused card",
@@ -1125,6 +1151,12 @@ const I18N = {
     footer_tagline: "mỗi lần xác nhận giúp AI học",
     footer_today: "hôm nay:",
     quota_label_suffix: "ảnh hôm nay",
+    dz_quota_text: (used, lim) => `Đã dùng ${used} / ${lim} ảnh hôm nay`,
+    dz_quota_low: (n) => `Còn ${n} ảnh`,
+    dz_quota_full: (reset) => `Đã hết lượt — đặt lại lúc ${reset}`,
+    dz_quota_full_hint: "Đã hết lượt hôm nay",
+    dz_bonus_earned: (n) => `+${n} thưởng từ xét duyệt ảnh`,
+    dz_bonus_hint: "Xét duyệt ảnh để nhận thêm lượt tải (2 xét duyệt = +1 lượt)",
     kbd_title: "Phím tắt",
     kbd_confirm: "Xác nhận thẻ đang chọn",
     kbd_edit: "Sửa thẻ đang chọn",
@@ -1328,6 +1360,12 @@ const I18N = {
     footer_tagline: "cada confirmación entrena a la IA",
     footer_today: "hoy:",
     quota_label_suffix: "fotos hoy",
+    dz_quota_text: (used, lim) => `${used} de ${lim} fotos usadas hoy`,
+    dz_quota_low: (n) => `${n} restantes`,
+    dz_quota_full: (reset) => `Límite diario alcanzado — se restablece a las ${reset}`,
+    dz_quota_full_hint: "Límite diario alcanzado",
+    dz_bonus_earned: (n) => `+${n} bonificación por revisar fotos`,
+    dz_bonus_hint: "Revisa fotos para ganar subidas extra (2 revisiones = +1 subida)",
     kbd_title: "Atajos de teclado",
     kbd_confirm: "Confirmar tarjeta enfocada",
     kbd_edit: "Editar tarjeta enfocada",
@@ -1531,6 +1569,12 @@ const I18N = {
     footer_tagline: "每次确认都训练 AI",
     footer_today: "今日：",
     quota_label_suffix: "张今日",
+    dz_quota_text: (used, lim) => `今日已用 ${used} / ${lim} 张`,
+    dz_quota_low: (n) => `剩余 ${n} 张`,
+    dz_quota_full: (reset) => `已达每日上限 — ${reset} 重置`,
+    dz_quota_full_hint: "已达每日上限",
+    dz_bonus_earned: (n) => `+${n} 审核奖励`,
+    dz_bonus_hint: "审核照片可获得额外上传额度（2次审核 = +1次上传）",
     kbd_title: "键盘快捷键",
     kbd_confirm: "确认聚焦的卡片",
     kbd_edit: "编辑聚焦的卡片",
@@ -1771,7 +1815,82 @@ async function refreshQuotaIndicator() {
       const reset = d.resets_at ? new Date(d.resets_at).toLocaleString() : "00:00 UTC";
       wrap.title = `${d.used}/${d.limit} photos used today (resets at ${reset})`;
     }
+    // Also update the dropzone quota bar
+    updateDropzoneQuota(d.used ?? 0, d.limit ?? 30, d.resets_at, d.bonus ?? 0);
   } catch (e) { /* silent */ }
+}
+
+// =================== Dropzone quota bar ===================
+// Renders the in-dropzone progress bar + warning text + bonus hint.
+// Called by refreshQuotaIndicator (poll) and directly after each
+// upload chunk completes (immediate feedback from response data).
+function updateDropzoneQuota(used, limit, resetsAt, bonus) {
+  const bar = el("#dz-quota-bar");
+  const text = el("#dz-quota-text");
+  const warn = el("#dz-quota-warn");
+  const bonusWrap = el("#dz-quota-bonus");
+  const bonusText = el("#dz-bonus-text");
+  if (!bar || !text) return;
+
+  const pct = Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
+  bar.style.width = pct + "%";
+
+  // Color tiers
+  bar.classList.remove("bg-emerald-500", "bg-amber-500", "bg-rose-500");
+  bar.classList.add(
+    pct >= 100 ? "bg-rose-500" :
+    pct >= 80  ? "bg-amber-500" :
+    "bg-emerald-500"
+  );
+
+  // Main text
+  text.textContent = t("dz_quota_text")(used, limit);
+
+  // Warning states
+  const remaining = Math.max(0, limit - used);
+  if (warn) {
+    if (remaining <= 0) {
+      const resetStr = resetsAt
+        ? new Date(resetsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : "00:00 UTC";
+      warn.textContent = t("dz_quota_full")(resetStr);
+      warn.classList.remove("hidden", "text-amber-600");
+      warn.classList.add("text-rose-600");
+    } else if (pct >= 80) {
+      warn.textContent = t("dz_quota_low")(remaining);
+      warn.classList.remove("hidden", "text-rose-600");
+      warn.classList.add("text-amber-600");
+    } else {
+      warn.classList.add("hidden");
+    }
+  }
+
+  // Bonus credit hint
+  if (bonusWrap && bonusText) {
+    if (bonus > 0) {
+      bonusText.textContent = t("dz_bonus_earned")(bonus);
+      bonusWrap.classList.remove("hidden");
+    } else if (pct >= 60) {
+      // Nudge: when past 60%, show the hint about earning bonus
+      bonusText.textContent = t("dz_bonus_hint");
+      bonusWrap.classList.remove("hidden");
+    } else {
+      bonusWrap.classList.add("hidden");
+    }
+  }
+
+  // Disable upload buttons when at 100%
+  const btns = [el("#btn-camera"), el("#btn-choose")];
+  btns.forEach(b => {
+    if (!b) return;
+    if (remaining <= 0) {
+      b.disabled = true;
+      b.classList.add("opacity-50", "cursor-not-allowed");
+    } else {
+      b.disabled = false;
+      b.classList.remove("opacity-50", "cursor-not-allowed");
+    }
+  });
 }
 
 // Phase 4: pull decided HSE-class proposals for this cookie that the
@@ -3584,6 +3703,8 @@ async function uploadFiles(files) {
         const limitEl = el("#quota-limit");
         if (usedEl) usedEl.textContent = data.quota_used;
         if (limitEl && data.quota_limit) limitEl.textContent = data.quota_limit;
+        // Immediate dropzone bar update from response data (no poll lag)
+        updateDropzoneQuota(data.quota_used, data.quota_limit || 30, null, data.quota_bonus || 0);
         refreshQuotaIndicator();   // also fires class-color update
       }
       detail.textContent = `${uploadedCount} / ${total}`;
@@ -3899,6 +4020,9 @@ async function confirmCard(card, opts = {}) {
         action: { label: t("undo"), handler: () => undoReview(card, prevState) },
       });
     }
+    // Reviews earn bonus upload credits; refresh the quota bar so
+    // the user sees the updated limit immediately.
+    refreshQuotaIndicator();
     poll({ force: true });
   } catch (e) {
     restoreState(card, prevState);
@@ -4036,6 +4160,8 @@ async function correctCard(card, override = null) {
     showToast(t("correct_toast"), {
       action: { label: t("undo"), handler: () => undoReview(card, prevState) },
     });
+    // Reviews earn bonus upload credits; refresh quota bar
+    refreshQuotaIndicator();
     poll();
   } catch (e) {
     restoreState(card, prevState);
