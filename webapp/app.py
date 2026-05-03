@@ -233,7 +233,7 @@ except ImportError:
 
 _USER_COOKIE_NAME = "vai_uid"
 _USER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365   # 1 year
-_DAILY_QUOTA = int(os.environ.get("QUOTA_FREE_PER_DAY", "30"))
+_DAILY_QUOTA = int(os.environ.get("QUOTA_FREE_PER_DAY", "100"))
 _ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")    # None = admin disabled
 _ADMIN_COOKIE_NAME = "vai_admin"
 _ADMIN_COOKIE_MAX_AGE = 60 * 60 * 12   # 12 hours
