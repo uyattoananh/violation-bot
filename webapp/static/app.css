@@ -214,10 +214,10 @@ body.fp-modal-open {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-  padding: 8px 12px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 .fp-list .fp-item {
   display: block;
@@ -225,7 +225,7 @@ body.fp-modal-open {
   text-align: left;
   /* 44 px hits Apple's HIG minimum touch target */
   min-height: 48px;
-  padding: 14px 14px 16px;
+  padding: 14px 16px 18px;
   border: 1px solid rgb(226 232 240);   /* slate-200 box */
   border-radius: 10px;
   background: rgb(248 250 252);         /* slate-50 */
