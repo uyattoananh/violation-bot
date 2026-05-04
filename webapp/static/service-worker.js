@@ -29,9 +29,20 @@
 // cache name in `activate`. Phase 5 added the auth-pill markup
 // + JS — without this bump, returning users keep seeing the
 // pre-Phase-5 shell.
-const CACHE_VERSION = "v75-heic-defensive";
+const CACHE_VERSION = "v76-sw-cache-cap";
 const SHELL_CACHE = `violation-ai-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `violation-ai-runtime-${CACHE_VERSION}`;
+
+// Cap the runtime cache so a long-running PWA install doesn't fill the
+// browser's quota and start failing every subsequent cache.put silently.
+// 200 entries × ~150 KB R2 thumbnails ≈ 30 MB, well under typical PWA
+// quotas (60-100 MB+). The cache holds R2 thumbnails (bulk),
+// /auth/me, /api/batches, /api/usage/today (each <5 KB, negligible).
+// UX backlog 8.4. FIFO not strict-LRU because the Cache API doesn't
+// expose access time and re-putting on every read would double traffic;
+// FIFO matches user expectation here (oldest thumbnails are from
+// inactive inspections — safe to evict first).
+const RUNTIME_MAX_ENTRIES = 200;
 
 // App-shell URLs to precache. Keep this minimal — anything that
 // changes per-deploy needs to be in here so the bumped CACHE_VERSION
@@ -146,6 +157,46 @@ self.addEventListener("fetch", (event) => {
 });
 
 // =============================================================
+// cache helpers — bounded put + FIFO prune
+// =============================================================
+
+// Wrap cache.put so quota-exceeded failures don't bubble up as
+// unhandled rejections. When the browser quota is full, put() rejects
+// with a QuotaExceededError; we want to swallow that and let the next
+// request just go to network. The follow-up _pruneRuntimeCache call
+// will free room for the next put.
+async function _safePut(cache, req, resp) {
+  try {
+    await cache.put(req, resp);
+  } catch (err) {
+    // Don't log every failure (storms in offline-then-online sessions);
+    // log first failure per session to surface the issue once.
+    if (!self._cachePutFailedLogged) {
+      console.warn("[sw] cache.put failed (quota?):", err);
+      self._cachePutFailedLogged = true;
+    }
+  }
+}
+
+// FIFO eviction: keep RUNTIME_MAX_ENTRIES; delete the oldest first.
+// Cache API preserves insertion order in keys(). Fire-and-forget from
+// the strategy handlers — pruning is best-effort and shouldn't block
+// the response.
+async function _pruneRuntimeCache() {
+  try {
+    const cache = await caches.open(RUNTIME_CACHE);
+    const keys = await cache.keys();
+    const overflow = keys.length - RUNTIME_MAX_ENTRIES;
+    if (overflow <= 0) return;
+    for (let i = 0; i < overflow; i++) {
+      await cache.delete(keys[i]);
+    }
+  } catch (err) {
+    console.warn("[sw] runtime cache prune failed:", err);
+  }
+}
+
+// =============================================================
 // strategy implementations
 // =============================================================
 
@@ -155,7 +206,7 @@ async function _cacheFirst(req) {
   if (cached) return cached;
   try {
     const resp = await fetch(req);
-    if (resp.ok) cache.put(req, resp.clone());
+    if (resp.ok) await _safePut(cache, req, resp.clone());
     return resp;
   } catch (err) {
     // Offline + not in cache — return a minimal offline page if it
@@ -173,7 +224,10 @@ async function _networkFirst(req) {
   const cache = await caches.open(RUNTIME_CACHE);
   try {
     const resp = await fetch(req);
-    if (resp.ok) cache.put(req, resp.clone());
+    if (resp.ok) {
+      await _safePut(cache, req, resp.clone());
+      _pruneRuntimeCache();   // fire-and-forget
+    }
     return resp;
   } catch (err) {
     const cached = await cache.match(req);
@@ -189,8 +243,11 @@ async function _staleWhileRevalidate(req) {
   // cache, so next time the photo loads with fresh data even if the
   // R2 presigned URL is about to expire.
   const fetchAndUpdate = fetch(req)
-    .then((resp) => {
-      if (resp.ok) cache.put(req, resp.clone());
+    .then(async (resp) => {
+      if (resp.ok) {
+        await _safePut(cache, req, resp.clone());
+        _pruneRuntimeCache();
+      }
       return resp;
     })
     .catch(() => null);
