@@ -53,6 +53,14 @@
 details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 
+/* "More tools" disclosure inside the photo card edit form. The
+   chevron rotates 180° when the disclosure is open so the icon
+   flips from ⌄ (closed, "expand down") to ⌃ (open, "collapse up").
+   <details> is native; this is just visual polish. */
+details.more-tools[open] .more-tools-chevron {
+  transform: rotate(180deg);
+}
+
 /* Smoother card insertions */
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(-6px); }

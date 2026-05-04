@@ -661,33 +661,45 @@
               Cancel
             </button>
           </div>
-          <!-- "More tools" row — UX backlog C7 + C8. Previously these
-               were tiny grey underline links that users didn't notice.
-               Now they're proper outlined buttons with icons + a
-               muted "or" caption above so the user reads them as
-               alternative paths when none of the listed sub-types
-               fit. -->
-          <div class="mt-3 pt-2 border-t border-slate-200">
-            <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-1.5 text-center" data-i18n="more_tools_label">
-              Or, if none fit:
+          <!-- "More tools" disclosure — UX backlog C #3 (action density).
+               The picker covers ~99% of correction cases; Mark region
+               (re-classify on a sub-region) and Propose new sub-type
+               (suggest a new taxonomy entry) are <1% paths. They used
+               to sit always-open below Save, adding visual noise to
+               every edit. Now they live behind a closed <details>:
+               summary "Need something else?" reveals them on tap.
+               <details> is native disclosure — accessible, keyboard-
+               focusable, no JS needed, works without breaking when
+               JS is disabled. -->
+          <details class="more-tools mt-3 pt-2 border-t border-slate-200">
+            <summary class="text-xs text-emerald-700 hover:text-emerald-900 hover:underline underline-offset-2 cursor-pointer flex items-center justify-center gap-1 py-1">
+              <svg class="more-tools-chevron w-3 h-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+              </svg>
+              <span data-i18n="more_tools_summary">Need something else?</span>
+            </summary>
+            <div class="mt-2">
+              <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-1.5 text-center" data-i18n="more_tools_label">
+                Or, if none fit:
+              </div>
+              <div class="grid grid-cols-2 gap-1.5">
+                <button type="button" class="btn-markup inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-emerald-50 active:bg-emerald-100 border border-slate-300 hover:border-emerald-400 rounded-lg px-2 py-1.5 transition-colors"
+                        title="Crop the hazard region and let the AI re-classify on just that area">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z"/>
+                  </svg>
+                  <span data-i18n="markup_link">Mark region & re-detect</span>
+                </button>
+                <button type="button" class="btn-propose inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-emerald-50 active:bg-emerald-100 border border-slate-300 hover:border-emerald-400 rounded-lg px-2 py-1.5 transition-colors"
+                        title="Suggest a new fine sub-type for admin review">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                  </svg>
+                  <span data-i18n="propose_link">Propose new sub-type</span>
+                </button>
+              </div>
             </div>
-            <div class="grid grid-cols-2 gap-1.5">
-              <button type="button" class="btn-markup inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-emerald-50 active:bg-emerald-100 border border-slate-300 hover:border-emerald-400 rounded-lg px-2 py-1.5 transition-colors"
-                      title="Crop the hazard region and let the AI re-classify on just that area">
-                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z"/>
-                </svg>
-                <span data-i18n="markup_link">Mark region & re-detect</span>
-              </button>
-              <button type="button" class="btn-propose inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-emerald-50 active:bg-emerald-100 border border-slate-300 hover:border-emerald-400 rounded-lg px-2 py-1.5 transition-colors"
-                      title="Suggest a new fine sub-type for admin review">
-                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
-                </svg>
-                <span data-i18n="propose_link">Propose new sub-type</span>
-              </button>
-            </div>
-          </div>
+          </details>
         </form>
       </div>
 
@@ -877,6 +889,7 @@ const I18N = {
     markup_no_region: "Drag a rectangle on the photo first",
     propose_link: "Propose new sub-type",
     more_tools_label: "Or, if none fit:",
+    more_tools_summary: "Need something else?",
     propose_title: "Propose new sub-type",
     propose_help: "None of the existing sub-types fit? Propose a new one. An admin reviews each proposal; on approval it joins the live taxonomy and we backfill any photos you tagged with this proposal.",
     propose_parent: "Under category",
@@ -1093,6 +1106,7 @@ const I18N = {
     markup_no_region: "Hãy vẽ hình chữ nhật trên ảnh trước",
     propose_link: "Đề xuất loại mới",
     more_tools_label: "Hoặc, nếu không có loại nào phù hợp:",
+    more_tools_summary: "Cần lựa chọn khác?",
     propose_title: "Đề xuất loại HSE mới",
     propose_help: "Không có loại nào phù hợp? Đề xuất loại mới. Quản trị viên sẽ duyệt từng đề xuất; nếu được duyệt, loại đó sẽ được thêm vào hệ thống và các ảnh bạn đã gán đề xuất này sẽ được cập nhật tự động.",
     propose_parent: "Thuộc nhóm",
@@ -1309,6 +1323,7 @@ const I18N = {
     markup_no_region: "Primero arrastra un rectángulo en la foto",
     propose_link: "Proponer sub-tipo nuevo",
     more_tools_label: "O, si ninguna encaja:",
+    more_tools_summary: "¿Necesita otra opción?",
     propose_title: "Proponer sub-tipo nuevo",
     propose_help: "¿Ningún sub-tipo encaja? Propón uno nuevo. Un administrador revisa cada propuesta; al aprobarse se añade a la taxonomía y rellenamos retroactivamente las fotos que etiquetaste con esta propuesta.",
     propose_parent: "Bajo la categoría",
@@ -1525,6 +1540,7 @@ const I18N = {
     markup_no_region: "请先在照片上拖动一个矩形",
     propose_link: "提议新的子类型",
     more_tools_label: "如果都不合适：",
+    more_tools_summary: "需要其他选项？",
     propose_title: "提议新子类型",
     propose_help: "现有子类型都不合适？提议一个新的。管理员会审核每条提议；批准后将加入正式分类，并自动回填你用此提议标注的照片。",
     propose_parent: "所属类别",
