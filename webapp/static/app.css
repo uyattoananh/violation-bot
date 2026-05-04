@@ -39,7 +39,7 @@ details > summary::-webkit-details-marker { display: none; }
 }
 .conf-ring > span {
   position: relative;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: rgb(51 65 85);
   font-variant-numeric: tabular-nums;
@@ -227,7 +227,7 @@ body.fp-modal-open {
   min-height: 48px;
   padding: 16px;
   border: 1px solid rgb(226 232 240);   /* slate-200 box */
-  border-radius: 10px;
+  border-radius: 12px;                  /* matches rounded-xl */
   background: rgb(248 250 252);         /* slate-50 */
   color: rgb(15 23 42);
   font-size: 14px;
@@ -254,7 +254,7 @@ body.fp-modal-open {
 }
 .fp-list .fp-item .fp-meta {
   display: block;
-  font-size: 11px;
+  font-size: 12px;                     /* matches text-xs */
   color: rgb(100 116 139);             /* slate-500 */
   margin-top: 4px;
 }

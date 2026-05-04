@@ -177,7 +177,7 @@
       <div id="dz-quota-bar" class="h-full rounded-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
     </div>
     <!-- Bonus credit hint — shown when user has earned (or could earn) bonus uploads -->
-    <div id="dz-quota-bonus" class="hidden mt-1.5 text-[11px] text-emerald-600 flex items-center gap-1">
+    <div id="dz-quota-bonus" class="hidden mt-1.5 text-xs text-emerald-600 flex items-center gap-1">
       <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
       </svg>
@@ -209,7 +209,7 @@
   <div class="flex items-center justify-between gap-2 mb-2">
     <div class="text-xs font-medium text-slate-700">
       <span data-i18n="cam_burst_staged_label">Photos ready to upload</span>
-      <span id="cam-burst-count" class="ml-1 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold">0</span>
+      <span id="cam-burst-count" class="ml-1 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-emerald-600 text-white text-xs font-bold">0</span>
     </div>
     <button id="cam-burst-clear" type="button"
             class="text-xs text-slate-500 hover:text-rose-600 underline-offset-2 hover:underline transition-colors"
@@ -295,7 +295,7 @@
            class="flex-1 min-w-0 bg-transparent text-sm font-semibold text-slate-900 focus:outline-none focus:bg-slate-50 rounded px-1 py-0"
            placeholder="Tap to name this inspection"
            autocomplete="off">
-    <span class="hidden sm:inline-flex items-center text-xs text-slate-400 italic" id="batch-count-hint"></span>
+    <span class="hidden sm:inline-flex items-center text-xs text-slate-500 italic" id="batch-count-hint"></span>
     <button id="batch-reset-reviews"
             class="text-xs text-slate-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded flex items-center gap-1 transition-colors"
             aria-label="Reset reviews"
@@ -311,9 +311,9 @@
        — same #toolbar id so existing JS that toggles its hidden
        state still works). -->
   <div id="toolbar" class="hidden flex items-center gap-1 border-t border-slate-100 px-2 py-1.5">
-    <button data-filter="all"     class="filter-btn active flex-1 px-3 py-1.5 rounded-md font-medium text-slate-700 text-xs sm:text-sm"><span data-i18n="filter_all">All</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
-    <button data-filter="pending" class="filter-btn flex-1 px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_pending">Pending</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
-    <button data-filter="reviewed"class="filter-btn flex-1 px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_reviewed">Reviewed</span> <span class="filter-count text-slate-400 ml-1">0</span></button>
+    <button data-filter="all"     class="filter-btn active flex-1 px-3 py-1.5 rounded-md font-medium text-slate-700 text-xs sm:text-sm"><span data-i18n="filter_all">All</span> <span class="filter-count text-slate-500 ml-1">0</span></button>
+    <button data-filter="pending" class="filter-btn flex-1 px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_pending">Pending</span> <span class="filter-count text-slate-500 ml-1">0</span></button>
+    <button data-filter="reviewed"class="filter-btn flex-1 px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_reviewed">Reviewed</span> <span class="filter-count text-slate-500 ml-1">0</span></button>
   </div>
 </div>
 
@@ -453,9 +453,9 @@
          lives on the LEFT so the eye reads "what is this photo?"
          before "what can I do with it?". -->
     <div class="absolute top-2 left-2 z-10 flex items-center gap-1.5">
-      <span class="status-pill hidden text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"></span>
+      <span class="status-pill hidden text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"></span>
       <!-- Quality flag: pre-flight blurry / dark / tiny check. -->
-      <span class="quality-pill hidden text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300" title=""></span>
+      <span class="quality-pill hidden text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300" title=""></span>
     </div>
 
     <!-- TOP-RIGHT — delete only. The conf-ring used to live here too,
@@ -469,10 +469,10 @@
       <div class="conf-ring hidden" style="--pct: 0; --color: rgb(16 185 129); display: none">
         <span class="conf-text">0%</span>
       </div>
-      <button type="button" class="btn-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-7 h-7 grid place-items-center shadow-sm transition-colors"
+      <button type="button" class="btn-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-9 h-9 grid place-items-center shadow-sm transition-colors"
               aria-label="Delete photo"
               title="Delete photo">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round"
                 d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
         </svg>
@@ -500,7 +500,7 @@
           </svg>
           <span data-i18n="state_failed">Classification failed</span>
         </div>
-        <div class="error-detail text-[11px] text-slate-500 mt-1 line-clamp-3 italic"></div>
+        <div class="error-detail text-xs text-slate-500 mt-1 line-clamp-3 italic"></div>
         <button type="button" class="btn-retry mt-2 bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 active:bg-rose-100 text-xs font-medium rounded-md px-3 py-1.5 flex items-center gap-1 transition-colors">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.355m-2.5 9.32A8.25 8.25 0 015.25 12.045a8.25 8.25 0 0115.272-4.32m0 0V4.355"/>
@@ -513,7 +513,7 @@
         <!-- "AI suggests" header now carries the confidence % inline so
              the user reads "AI suggests · 60%" as one phrase (UX backlog
              B2). The conf-pct span is filled by setConfidenceRing. -->
-        <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5 flex items-center gap-2">
+        <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-1.5 flex items-center gap-2">
           <span data-i18n="ai_suggests">AI suggests</span>
           <span class="conf-pct font-semibold text-slate-700 tabular-nums normal-case tracking-normal"></span>
         </div>
@@ -531,9 +531,9 @@
              expands. Toggle text swaps to "Show less" when expanded.
              The actual text fills .rationale; .rationale-toggle is
              only shown when the text overflows. -->
-        <div class="rationale text-[11px] text-slate-500 italic mt-2 line-clamp-2"></div>
+        <div class="rationale text-xs text-slate-500 italic mt-2 line-clamp-2"></div>
         <button type="button"
-                class="rationale-toggle hidden text-[10px] text-emerald-700 hover:text-emerald-900 underline-offset-2 hover:underline mt-1">
+                class="rationale-toggle hidden text-xs text-emerald-700 hover:text-emerald-900 underline-offset-2 hover:underline mt-1">
           <span data-i18n="rationale_show_more">Show full reasoning</span>
         </button>
 
@@ -557,7 +557,7 @@
         </div>
 
         <div class="alt-section hidden mt-2.5 pt-2.5 border-t border-slate-100">
-          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1.5" data-i18n="alt_label">
+          <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-1.5" data-i18n="alt_label">
             One-click runner-up
           </div>
           <div class="alt-row-hse flex flex-wrap gap-1 mb-1"></div>
@@ -662,18 +662,18 @@
                alternative paths when none of the listed sub-types
                fit. -->
           <div class="mt-3 pt-2 border-t border-slate-200">
-            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1.5 text-center" data-i18n="more_tools_label">
+            <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-1.5 text-center" data-i18n="more_tools_label">
               Or, if none fit:
             </div>
             <div class="grid grid-cols-2 gap-1.5">
-              <button type="button" class="btn-markup inline-flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-700 bg-white hover:bg-emerald-50 active:bg-emerald-100 border border-slate-300 hover:border-emerald-400 rounded px-2 py-1.5 transition-colors"
+              <button type="button" class="btn-markup inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-emerald-50 active:bg-emerald-100 border border-slate-300 hover:border-emerald-400 rounded-lg px-2 py-1.5 transition-colors"
                       title="Crop the hazard region and let the AI re-classify on just that area">
                 <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z"/>
                 </svg>
                 <span data-i18n="markup_link">Mark region & re-detect</span>
               </button>
-              <button type="button" class="btn-propose inline-flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-700 bg-white hover:bg-emerald-50 active:bg-emerald-100 border border-slate-300 hover:border-emerald-400 rounded px-2 py-1.5 transition-colors"
+              <button type="button" class="btn-propose inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-emerald-50 active:bg-emerald-100 border border-slate-300 hover:border-emerald-400 rounded-lg px-2 py-1.5 transition-colors"
                       title="Suggest a new fine sub-type for admin review">
                 <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
@@ -695,14 +695,14 @@
                B7a). Was previously only reachable via a toast that
                disappeared after 5 s; users complained that an
                accidental confirm was hard to roll back later. -->
-          <button type="button" class="btn-undo ml-auto inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-0.5 rounded transition-colors"
+          <button type="button" class="btn-undo ml-auto inline-flex items-center gap-1 text-xs text-slate-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-0.5 rounded transition-colors"
                   title="Undo this review and return the photo to pending">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/>
             </svg>
             <span data-i18n="undo">Undo</span>
           </button>
-          <button type="button" class="btn-history text-[11px] text-slate-400 hover:text-emerald-700 underline-offset-2 hover:underline transition-colors"
+          <button type="button" class="btn-history text-xs text-slate-500 hover:text-emerald-700 underline-offset-2 hover:underline transition-colors"
                   title="View history">
             <span data-i18n="history_link">history</span>
           </button>
@@ -731,21 +731,21 @@
            ~280 px) where the label + 2 action buttons need every
            pixel. The date stays in the tooltip and is still visible
            on every other device. -->
-      <div class="narrow-very-hide text-[11px] uppercase tracking-wider text-slate-400 batch-card-when whitespace-nowrap"></div>
+      <div class="narrow-very-hide text-xs uppercase tracking-wider text-slate-500 batch-card-when whitespace-nowrap"></div>
       <div class="flex items-center gap-1 flex-shrink-0">
         <button type="button"
-                class="batch-card-rename hover:bg-emerald-50 active:bg-emerald-100 text-slate-400 hover:text-emerald-600 rounded-full w-7 h-7 grid place-items-center transition-colors"
+                class="batch-card-rename hover:bg-emerald-50 active:bg-emerald-100 text-slate-400 hover:text-emerald-600 rounded-full w-9 h-9 grid place-items-center transition-colors"
                 aria-label="Rename inspection"
                 title="Rename this inspection">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
           </svg>
         </button>
         <button type="button"
-                class="batch-card-delete hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 rounded-full w-7 h-7 grid place-items-center transition-colors"
+                class="batch-card-delete hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 rounded-full w-9 h-9 grid place-items-center transition-colors"
                 aria-label="Delete inspection"
                 title="Delete inspection">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round"
                   d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
             </svg>
@@ -771,7 +771,7 @@
       <div class="batch-card-progress h-full bg-emerald-500 transition-all"></div>
     </div>
     <!-- Footer: reviewed % + expiry countdown -->
-    <div class="text-[10px] text-slate-400 flex items-center justify-between gap-2">
+    <div class="text-xs text-slate-500 flex items-center justify-between gap-2">
       <span class="batch-card-expiry text-amber-600 flex items-center gap-0.5">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         <span class="batch-card-expiry-text tabular-nums"></span>
@@ -2230,12 +2230,12 @@ async function openHistoryModal(photoId) {
       const noteHtml = h.note
         ? `<div class="text-xs text-slate-500 mt-1 italic">"${escapeHtml(h.note)}"</div>`
         : "";
-      const batchHint = h.batch_id ? `<div class="text-[10px] text-slate-400 mt-0.5 font-mono">inspection ${h.batch_id.slice(0,8)}</div>` : "";
+      const batchHint = h.batch_id ? `<div class="text-xs text-slate-500 mt-0.5 font-mono">inspection ${h.batch_id.slice(0,8)}</div>` : "";
       return `
         <li class="py-2.5 border-b border-slate-100 last:border-0">
           <div class="flex items-baseline justify-between gap-3">
             <div>${action}: <span class="text-slate-900">${escapeHtml(label)}</span>${fine}</div>
-            <div class="text-xs text-slate-400 whitespace-nowrap">${when}</div>
+            <div class="text-xs text-slate-500 whitespace-nowrap">${when}</div>
           </div>
           ${noteHtml}
           ${batchHint}
@@ -2866,7 +2866,7 @@ function setConfidenceRing(card, conf, band) {
   }
 
   const pill = el(".status-pill", card);
-  pill.className = `status-pill text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${colors.pill}`;
+  pill.className = `status-pill text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${colors.pill}`;
   pill.textContent = t(colors.labelKey);
   pill.classList.remove("hidden");
 
@@ -3152,7 +3152,7 @@ function updateCard(card, photo) {
     // Pill-style runner-up button. Per UX backlog B6 the redundant
     // amber "hse" prefix tag was dropped — the whole app is HSE so
     // tagging each option with "hse" was noise.
-    b.className = "alt-chip inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-200 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors";
+    b.className = "alt-chip inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-200 rounded-full px-2.5 py-1 text-xs font-medium transition-colors";
     b.dataset.altSlug = a.slug;
     b.innerHTML = `${displayLabel(HSE_BY_SLUG, a.slug)} <span class="text-amber-600 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
     // STAGE — no auto-submit (UX request: "replace the title first,
@@ -3422,7 +3422,7 @@ function _fpRender() {
 
   if (!items.length) {
     const noResults = document.createElement("div");
-    noResults.className = "px-4 py-6 text-xs text-slate-400 text-center";
+    noResults.className = "px-4 py-6 text-xs text-slate-500 text-center";
     noResults.textContent = t("fine_no_results");
     list.appendChild(noResults);
     return;
@@ -3503,7 +3503,7 @@ function _fpRender() {
 
   if (items.length > cap) {
     const more = document.createElement("div");
-    more.className = "px-4 py-2 text-[10px] text-slate-400 text-center italic";
+    more.className = "px-4 py-2 text-xs text-slate-500 text-center italic";
     const moreLabel = LANG === "vn" ? "kết quả nữa" : LANG === "es" ? "más resultados" : LANG === "zh" ? "更多结果" : "more";
     const refineLabel = LANG === "vn" ? "thu hẹp tìm kiếm" : LANG === "es" ? "refina tu búsqueda" : LANG === "zh" ? "细化搜索" : "refine search";
     more.textContent = `(+${items.length - cap} ${moreLabel} — ${refineLabel})`;
