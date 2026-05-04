@@ -95,7 +95,13 @@
      280-px fold-folded phone (UX backlog A1). The browser interpolates
      between 12px and 56px based on viewport width — one rule, every
      device. -->
+<!-- data-state toggles between "empty" (full hero card) and
+     "has-photos" (compact strip on mobile, unchanged on desktop).
+     Set by poll() / openBatch() once we know the photo count.
+     UX backlog A1: dropzone takes too much vertical space when the
+     user already has photos to review. -->
 <section id="dropzone"
+         data-state="empty"
          class="relative rounded-2xl border-2 border-dashed border-slate-300 bg-white
                 text-center transition-all
                 sm:cursor-pointer sm:hover:border-emerald-500 sm:hover:bg-emerald-50/40"
@@ -146,7 +152,7 @@
                             stages in burst tray for batch capture.
            - Choose photos -> OS file chooser (Photos / Files / Camera).
                             Direct upload on selection. -->
-    <div class="sm:hidden flex flex-col items-stretch gap-2 mt-3 w-full max-w-xs mx-auto pointer-events-auto">
+    <div class="dz-mobile-actions sm:hidden flex flex-col items-stretch gap-2 mt-3 w-full max-w-xs mx-auto pointer-events-auto">
       <button id="btn-camera" type="button"
               class="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-semibold rounded-full px-5 py-2.5 shadow-sm transition-colors">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -4254,7 +4260,11 @@ async function correctCard(card, override = null) {
     if (!resp.ok) throw new Error("server returned " + resp.status);
     SESSION.corrected++;
     updateStats();
+    // 6 s undo window matches the confirm path (UX backlog B7b) — long
+    // enough to react to an accidental save, short enough that the toast
+    // doesn't clutter the screen.
     showToast(t("correct_toast"), {
+      timeoutMs: 6000,
       action: { label: t("undo"), handler: () => undoReview(card, prevState) },
     });
     // Reviews earn bonus upload credits; refresh quota bar
@@ -4590,10 +4600,15 @@ async function poll(opts = {}) {
       el("#empty-state").classList.remove("hidden");
       toolbar.classList.add("hidden");
       el("#summary-card").classList.add("hidden");
+      // Empty batch: dropzone is the user's main affordance, keep it big.
+      el("#dropzone").dataset.state = "empty";
     } else {
       el("#empty-state").classList.add("hidden");
       toolbar.classList.remove("hidden");
       refreshSummary();
+      // Has photos: collapse the dropzone so the grid is above the fold
+      // on mobile (UX backlog A1).
+      el("#dropzone").dataset.state = "has-photos";
     }
   } catch (e) {
     // On error, still hide loading state so user isn't stuck on spinner
@@ -4983,6 +4998,9 @@ function openBatch(batchId, label) {
   el("#loading-state").classList.remove("hidden");
   el("#summary-card").classList.add("hidden");
   toolbar.classList.add("hidden");
+  // Reset dropzone to expanded state during load. poll() will collapse
+  // it to compact mode if the batch turns out to have photos.
+  el("#dropzone").dataset.state = "empty";
   // Sync batch label input
   el("#batch-label-input").value = label || "";
   switchView(VIEW_DETAIL);

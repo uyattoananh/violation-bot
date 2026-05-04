@@ -316,3 +316,45 @@ body.fp-modal-open {
   100% { transform: scale(1); }
 }
 .stat-bump { animation: statBump 320ms ease-out; }
+
+/* ============================================================
+   Compact dropzone (mobile only).
+
+   When the batch already has photos, the user is in review mode —
+   the big upload hero card just eats vertical space and pushes the
+   photo grid below the fold. We collapse to a single-row strip:
+   icon + hero copy hidden, two action buttons side-by-side.
+
+   Trigger: #dropzone[data-state="has-photos"] (set by poll()).
+   Scope:   max-width: 639px (Tailwind sm breakpoint).
+            Desktop is unchanged — the dropzone is also a drag
+            target there, so it needs to remain visible.
+
+   UX backlog A1.
+   ============================================================ */
+@media (max-width: 639px) {
+  #dropzone[data-state="has-photos"] {
+    padding: 12px;
+  }
+  #dropzone[data-state="has-photos"] .narrow-very-hide,
+  #dropzone[data-state="has-photos"] [data-i18n="drop_main_mobile"],
+  #dropzone[data-state="has-photos"] [data-i18n="drop_sub_mobile"] {
+    display: none;
+  }
+  /* Two stacked buttons → one row, equal width. The parent flex
+     container is .flex-col by default; specificity (id + attr +
+     class) beats Tailwind's .flex-col utility class. */
+  #dropzone[data-state="has-photos"] .dz-mobile-actions {
+    flex-direction: row;
+    margin-top: 0;
+    max-width: 100%;
+  }
+  #dropzone[data-state="has-photos"] .dz-mobile-actions > button {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  #dropzone[data-state="has-photos"] #dropzone-quota {
+    margin-top: 8px;
+  }
+}
