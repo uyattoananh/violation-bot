@@ -2799,6 +2799,12 @@ function toggleEdit(card) {
     // its body-scroll lock is released. Without this, taps on Cancel
     // (or hitting Esc) left the page silently un-scrollable.
     _finePickerHide(card);
+    // Re-render from cached photo data so the .primary-* labels
+    // restore to the server-side classification. Otherwise a Cancel
+    // after staging a pick leaves the labels showing the staged
+    // value until the next poll tick (~4s of stuck-staged glitch).
+    const photo = photoCache.get(card.dataset.photoId);
+    if (photo) updateCard(card, photo);
   } else {
     // Edit form is opening — clear the picker so it shows the empty
     // placeholder ("Tap to choose or type to search") instead of the
@@ -2809,6 +2815,34 @@ function toggleEdit(card) {
     if (hseSel) hseSel.value = "";
     _finePickerSetValue(card, "");
   }
+}
+
+// Reflect a staged classification (parent + optional fine) in the
+// card's primary labels and scroll the Save button into view. Used
+// by every pick-then-confirm path: alt chips, picker fine items,
+// picker "Pick this whole category" pill, picker parent search hits.
+//
+// Without this, picking a value would update the hidden form fields
+// but leave the visible .primary-fine / .primary-hse labels showing
+// the AI's original guess — making it look like the pick didn't
+// take. UX backlog 5.3, 6.5, 6.6 all share this root cause.
+function _reflectStagedClass(card, parentSlug, fineSlug) {
+  const fineEl = el(".primary-fine", card);
+  const hseEl = el(".primary-hse", card);
+  if (fineSlug && FINE_BY_SLUG[fineSlug]) {
+    if (fineEl) {
+      fineEl.textContent = _finePickerLabel(FINE_BY_SLUG[fineSlug]);
+      fineEl.classList.remove("hidden");
+    }
+    if (hseEl) hseEl.textContent = _parentLabel(parentSlug);
+  } else if (parentSlug) {
+    // Parent-only pick: hide the fine line, show the parent.
+    if (fineEl) fineEl.classList.add("hidden");
+    if (hseEl) hseEl.textContent = _parentLabel(parentSlug);
+  }
+  // Scroll Save into view so the next step is obvious.
+  const saveBtn = card.querySelector(".edit-form button[type='submit']");
+  if (saveBtn) saveBtn.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 // Stage a candidate-chip pick on the card. Does NOT submit — just
@@ -2831,10 +2865,8 @@ function _stageCandidatePick(card, slug) {
   if (hseSel) hseSel.value = slug;
   _finePickerSetValue(card, "");
 
-  // Mirror the stage in the AI-suggests label so the chosen
-  // classification visibly replaces the AI's original guess.
-  const primary = el(".primary-hse", card);
-  if (primary) primary.textContent = _parentLabel(slug);
+  // Reflect the staged parent in the primary labels (hides .primary-fine).
+  _reflectStagedClass(card, slug, "");
 
   // Ring highlight on the picked chip; clear ring on the others.
   const allChips = card.querySelectorAll(".alt-chip");
@@ -2845,10 +2877,6 @@ function _stageCandidatePick(card, slug) {
       c.classList.remove("ring-2", "ring-amber-500", "ring-offset-1", "bg-amber-100");
     }
   });
-
-  // Scroll the Save button into view so the next step is obvious.
-  const saveBtn = card.querySelector(".edit-form button[type='submit']");
-  if (saveBtn) saveBtn.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function setConfidenceRing(card, conf, band) {
@@ -3061,29 +3089,38 @@ function updateCard(card, photo) {
 
   setConfidenceRing(card, conf, band);
 
-  el(".primary-hse", card).textContent = displayLabel(HSE_BY_SLUG, cls.hse_type_slug);
-  // Fine-grained label (Stage 2 of the two-stage classifier). When the
-  // model's Stage 2 picked a specific item with confidence above floor,
-  // we surface it as the headline label and demote the parent to a
-  // subtitle. When fine is null (Stage 2 said "no specific match" or
-  // pre-migration row), only the parent is shown and the .primary-fine
-  // element stays hidden.
-  const primaryFineEl = el(".primary-fine", card);
-  const primaryHseEl = el(".primary-hse", card);
-  if (cls.fine_hse_type_slug) {
-    const fineMeta = FINE_BY_SLUG[cls.fine_hse_type_slug];
-    const fineLabel = fineMeta
-      ? (LANG === "vn" && fineMeta.label_vn ? fineMeta.label_vn : fineMeta.label_en)
-      : cls.fine_hse_type_slug;
-    primaryFineEl.textContent = fineLabel;
-    primaryFineEl.classList.remove("hidden");
-    // Demote the parent line: smaller, lighter, non-bold so the fine
-    // label is visually dominant.
-    primaryHseEl.className = "primary-hse text-xs text-slate-500 leading-tight";
-  } else {
-    primaryFineEl.classList.add("hidden");
-    primaryFineEl.textContent = "";
-    primaryHseEl.className = "primary-hse font-semibold text-slate-900 leading-tight";
+  // Compute edit-form state up front. While the user is editing, the
+  // .primary-* labels reflect their staged pick (set by
+  // _reflectStagedClass). The 4 s poll re-running updateCard would
+  // otherwise clobber the stage with the AI's original prediction —
+  // making the user's pick visually disappear until they re-pick.
+  const _editOpen = !el(".edit-form", card)?.classList.contains("hidden");
+
+  if (!_editOpen) {
+    el(".primary-hse", card).textContent = displayLabel(HSE_BY_SLUG, cls.hse_type_slug);
+    // Fine-grained label (Stage 2 of the two-stage classifier). When the
+    // model's Stage 2 picked a specific item with confidence above floor,
+    // we surface it as the headline label and demote the parent to a
+    // subtitle. When fine is null (Stage 2 said "no specific match" or
+    // pre-migration row), only the parent is shown and the .primary-fine
+    // element stays hidden.
+    const primaryFineEl = el(".primary-fine", card);
+    const primaryHseEl = el(".primary-hse", card);
+    if (cls.fine_hse_type_slug) {
+      const fineMeta = FINE_BY_SLUG[cls.fine_hse_type_slug];
+      const fineLabel = fineMeta
+        ? (LANG === "vn" && fineMeta.label_vn ? fineMeta.label_vn : fineMeta.label_en)
+        : cls.fine_hse_type_slug;
+      primaryFineEl.textContent = fineLabel;
+      primaryFineEl.classList.remove("hidden");
+      // Demote the parent line: smaller, lighter, non-bold so the fine
+      // label is visually dominant.
+      primaryHseEl.className = "primary-hse text-xs text-slate-500 leading-tight";
+    } else {
+      primaryFineEl.classList.add("hidden");
+      primaryFineEl.textContent = "";
+      primaryHseEl.className = "primary-hse font-semibold text-slate-900 leading-tight";
+    }
   }
   // Rationale text + show-more toggle (UX backlog B3). Default the
   // text to line-clamp:2; show the toggle only when the text would
@@ -3129,8 +3166,9 @@ function updateCard(card, photo) {
   // late polls would clobber their in-progress selection. Editing
   // means the user is correcting — the AI's prediction should NOT
   // refill the picker the user just intentionally cleared.
+  // (_editOpen was computed at the top of updateCard for the .primary-*
+  // label gate; same value applies here.)
   const _pickerOpen = _fp && _fp.activeCard === card;
-  const _editOpen = !el(".edit-form", card)?.classList.contains("hidden");
   if (!_pickerOpen && !_editOpen) {
     el(".hse-select", card).value = cls.hse_type_slug;
     refreshFineSelect(card, cls.hse_type_slug);
@@ -3497,10 +3535,9 @@ function _fpRender() {
       btn.addEventListener("click", () => {
         if (hseSel && it._parent) hseSel.value = it._parent;
         _finePickerSetValue(card, it.slug);
-        // Also update the AI-suggests label so the user sees their
-        // pick reflected in the form before they tap Save correction.
-        const primary = el(".primary-hse", card);
-        if (primary && it._parent) primary.textContent = _parentLabel(it._parent);
+        // Reflect the staged classification in the primary labels so
+        // the user sees their pick before tapping Save correction.
+        _reflectStagedClass(card, it._parent, it.slug);
         _fpClose();
       });
     }
@@ -3527,14 +3564,13 @@ function _parentLabel(parentSlug) {
 function _pickParent(card, parentSlug, parentLabel) {
   // Parent-only pick: stamp the hidden parent select, leave the
   // fine value empty. Search box stays empty so users see it as
-  // a search field, not a "current value" display. The picked
-  // parent is reflected back to the user via the card's
-  // .primary-hse line — no need to duplicate it inside the picker.
+  // a search field, not a "current value" display.
   const hseSel = el(".hse-select", card);
   if (hseSel) hseSel.value = parentSlug;
   _finePickerSetValue(card, "");
-  // _finePickerSetValue already shows the clear button when a parent
-  // is set on hseSel.
+  // Reflect the staged parent in .primary-* labels + scroll Save
+  // into view, so the user sees their pick before tapping Save.
+  _reflectStagedClass(card, parentSlug, "");
 }
 
 // Backwards-compatible aliases that map the old per-card picker API
