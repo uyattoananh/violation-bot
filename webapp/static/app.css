@@ -278,6 +278,17 @@ body.fp-modal-open {
   gap: 10px;
 }
 
+/* Search-match highlight inside picker results. <mark> is the
+   semantically correct element for "this is what the user searched
+   for". Light yellow keeps the highlight visible without competing
+   with the .is-current yellow border. UX backlog 6.7b. */
+.fp-match {
+  background: rgb(254 240 138);   /* yellow-200 */
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+
 /* Picker search input: kill iOS Safari + Chromium native decorations
    so only our custom magnifier icon (left) and × clear button (right)
    show. Without this, iOS Safari paints a small native magnifier

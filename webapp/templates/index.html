@@ -492,9 +492,20 @@
 
     <div class="p-3 flex-1 flex flex-col gap-2">
 
-      <div class="state-pending text-sm text-slate-500 flex items-center gap-2">
-        <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot"></span>
-        <span data-i18n="state_analyzing">Analyzing photo…</span>
+      <div class="state-pending text-sm text-slate-500 flex flex-col gap-1">
+        <div class="flex items-center gap-2">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot"></span>
+          <span data-i18n="state_analyzing">Analyzing photo…</span>
+        </div>
+        <!-- Surfaced when the photo has been pending for longer than
+             usual (>30s). Includes a Retry button that re-queues the
+             photo without the user having to wait for the worker to
+             give up. UX backlog 5.1b. -->
+        <div class="state-pending-slow hidden flex items-center gap-2 text-xs text-amber-700 italic mt-1">
+          <span data-i18n="state_pending_slow">Taking longer than usual…</span>
+          <button type="button" class="btn-retry-pending text-amber-800 hover:text-amber-900 underline underline-offset-2 not-italic font-medium"
+                  data-i18n="state_retry">Retry classification</button>
+        </div>
       </div>
 
       <!-- Classify-failure state. Shown when the worker hit an error
@@ -656,7 +667,7 @@
                     data-i18n="edit_save">
               Save correction
             </button>
-            <button type="button" class="btn-edit-cancel text-slate-500 hover:text-slate-900 text-xs px-2"
+            <button type="button" class="btn-edit-cancel text-slate-400 hover:text-slate-700 text-xs px-2 italic font-normal"
                     data-i18n="edit_cancel">
               Cancel
             </button>
@@ -820,6 +831,7 @@ const I18N = {
     quota_reached: (limit, reset) => `Daily limit of ${limit} photos reached. Resets at ${reset}.`,
     quota_partial_cutoff: (n, limit) => `${n} photo${n === 1 ? "" : "s"} skipped — daily limit of ${limit} reached.`,
     state_analyzing: "Analyzing photo…",
+    state_pending_slow: "Taking longer than usual…",
     ai_suggests: "AI suggests",
     rationale_show_more: "Show full reasoning",
     rationale_show_less: "Show less",
@@ -839,6 +851,8 @@ const I18N = {
     edit_note_ph: "Optional note (visible in correction history)",
     edit_save: "Save correction",
     edit_cancel: "Cancel",
+    delete_photo_confirm: "Delete this photo? This can't be undone.",
+    save_no_fine_confirm: "No specific sub-type chosen. Save with just the parent category?",
     reviewed_confirmed: "Confirmed",
     reviewed_corrected: "Corrected",
     confirm_toast: "Confirmed — added to training set",
@@ -1037,6 +1051,7 @@ const I18N = {
     quota_reached: (limit, reset) => `Đã đạt giới hạn ${limit} ảnh/ngày. Đặt lại lúc ${reset}.`,
     quota_partial_cutoff: (n, limit) => `${n} ảnh bị bỏ qua — đã đạt giới hạn ${limit} ảnh/ngày.`,
     state_analyzing: "Đang phân tích ảnh…",
+    state_pending_slow: "Lâu hơn bình thường…",
     ai_suggests: "AI gợi ý",
     rationale_show_more: "Xem giải thích đầy đủ",
     rationale_show_less: "Thu gọn",
@@ -1056,6 +1071,8 @@ const I18N = {
     edit_note_ph: "Ghi chú (không bắt buộc, hiện trong lịch sử chỉnh sửa)",
     edit_save: "Lưu chỉnh sửa",
     edit_cancel: "Hủy",
+    delete_photo_confirm: "Xóa ảnh này? Không thể hoàn tác.",
+    save_no_fine_confirm: "Chưa chọn loại con. Lưu chỉ với nhóm cha?",
     reviewed_confirmed: "Đã xác nhận",
     reviewed_corrected: "Đã chỉnh sửa",
     confirm_toast: "Đã xác nhận — thêm vào tập huấn luyện",
@@ -1254,6 +1271,7 @@ const I18N = {
     quota_reached: (limit, reset) => `Se alcanzó el límite diario de ${limit} fotos. Se restablece a las ${reset}.`,
     quota_partial_cutoff: (n, limit) => `${n} foto${n === 1 ? "" : "s"} omitida${n === 1 ? "" : "s"} — se alcanzó el límite diario de ${limit}.`,
     state_analyzing: "Analizando foto…",
+    state_pending_slow: "Tarda más de lo habitual…",
     ai_suggests: "La IA sugiere",
     rationale_show_more: "Ver razonamiento completo",
     rationale_show_less: "Mostrar menos",
@@ -1273,6 +1291,8 @@ const I18N = {
     edit_note_ph: "Nota opcional (visible en el historial)",
     edit_save: "Guardar corrección",
     edit_cancel: "Cancelar",
+    delete_photo_confirm: "¿Eliminar esta foto? No se puede deshacer.",
+    save_no_fine_confirm: "Sin sub-tipo elegido. ¿Guardar solo con la categoría?",
     reviewed_confirmed: "Confirmada",
     reviewed_corrected: "Corregida",
     confirm_toast: "Confirmada — añadida al conjunto de entrenamiento",
@@ -1471,6 +1491,7 @@ const I18N = {
     quota_reached: (limit, reset) => `已达每日 ${limit} 张照片上限。${reset} 重置。`,
     quota_partial_cutoff: (n, limit) => `已跳过 ${n} 张照片 — 已达每日上限 ${limit}。`,
     state_analyzing: "正在分析照片…",
+    state_pending_slow: "比平时久…",
     ai_suggests: "AI 建议",
     rationale_show_more: "查看完整理由",
     rationale_show_less: "收起",
@@ -1490,6 +1511,8 @@ const I18N = {
     edit_note_ph: "可选备注（显示在更正历史中）",
     edit_save: "保存更正",
     edit_cancel: "取消",
+    delete_photo_confirm: "删除此照片？无法撤销。",
+    save_no_fine_confirm: "未选择具体子类型。仅保存父类别？",
     reviewed_confirmed: "已确认",
     reviewed_corrected: "已更正",
     confirm_toast: "已确认 — 加入训练集",
@@ -1695,6 +1718,17 @@ function t(key) {
 const _BCP47 = { en: "en", vn: "vi", es: "es", zh: "zh-CN" };
 function applyLang() {
   document.documentElement.lang = _BCP47[LANG] || "en";
+  // UX backlog 1.2a: preserve any in-progress text in mid-edit note
+  // fields across the language switch. updateCard re-renders open
+  // cards via JS innerHTML which would otherwise clobber the typed
+  // value. Capture before, restore after.
+  const noteValuesByCardId = new Map();
+  document.querySelectorAll(".card").forEach(c => {
+    const noteEl = c.querySelector(".edit-note");
+    if (noteEl && noteEl.value) {
+      noteValuesByCardId.set(c.dataset.photoId, noteEl.value);
+    }
+  });
   // Static elements with data-i18n
   document.querySelectorAll("[data-i18n]").forEach(elt => {
     const key = elt.dataset.i18n;
@@ -1718,6 +1752,15 @@ function applyLang() {
   els(".card", cardsEl).forEach(c => {
     const cached = photoCache.get(c.dataset.photoId);
     if (cached && cached.photo) updateCard(c, cached.photo);
+  });
+  // Restore any captured note text after the re-render. updateCard
+  // doesn't currently overwrite .edit-note (note isn't part of the
+  // server-side photo state) but defensively restoring here keeps
+  // the user's typing safe even if updateCard's behavior changes.
+  noteValuesByCardId.forEach((val, photoId) => {
+    const card = cardsEl.querySelector(`[data-photo-id="${photoId}"]`);
+    const note = card?.querySelector(".edit-note");
+    if (note && note.value !== val) note.value = val;
   });
   // Refresh summary copy if visible
   refreshSummary();
@@ -2731,12 +2774,25 @@ function getOrCreateCard(photo) {
   el(".btn-edit-cancel", card).addEventListener("click", () => toggleEdit(card));
   el(".btn-delete",  card).addEventListener("click", (e) => {
     e.stopPropagation();
+    // Delete is destructive and irreversible — confirm first.
+    // Native confirm() is accessible + tested across browsers and
+    // honors the OS's right-to-left text orientation. UX backlog 5.8a.
+    if (!confirm(t("delete_photo_confirm"))) return;
     deleteCard(card);
   });
   el(".btn-retry",   card).addEventListener("click", (e) => {
     e.stopPropagation();
     retryClassify(card);
   });
+  // The pending-too-long Retry button uses the same path as the
+  // error-state Retry — re-queue the classification job.
+  const retryPendingBtn = el(".btn-retry-pending", card);
+  if (retryPendingBtn) {
+    retryPendingBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      retryClassify(card);
+    });
+  }
   // History link — only meaningful after the photo has at least one
   // correction, so we just reveal it via the .state-reviewed parent.
   const historyBtn = el(".btn-history", card);
@@ -3084,6 +3140,16 @@ function updateCard(card, photo) {
       errEl.classList.add("hidden");
       card.dataset.status = "pending";
       cached.status = "pending";
+      // Pending-too-long indicator (UX backlog 5.1b). The classify
+      // worker normally finishes in 5-15s; past 30s something likely
+      // went wrong (provider timeout, queue backed up, etc). Surface
+      // a "taking longer than usual" hint + Retry button so the
+      // inspector isn't stuck staring at a spinner.
+      const slowEl = el(".state-pending-slow", card);
+      if (slowEl && photo.uploaded_at) {
+        const elapsedMs = Date.now() - new Date(photo.uploaded_at).getTime();
+        slowEl.classList.toggle("hidden", elapsedMs < 30000);
+      }
     }
     photoCache.set(photo.id, cached);
     return;
@@ -3423,6 +3489,23 @@ function _fpClose() {
   _fp.activeCard = null;
 }
 
+// Wrap the matched substring of `label` in a <mark class="fp-match">
+// so the user can see why a result matched. Case-insensitive find,
+// case-preserving render. UX backlog 6.7b. The label is HTML-escaped
+// throughout to defend against any taxonomy entry containing < or &.
+function _highlightMatch(label, query) {
+  if (!query) return escapeHtml(label);
+  const idx = label.toLowerCase().indexOf(query.toLowerCase());
+  if (idx < 0) return escapeHtml(label);
+  return (
+    escapeHtml(label.slice(0, idx)) +
+    '<mark class="fp-match">' +
+    escapeHtml(label.slice(idx, idx + query.length)) +
+    '</mark>' +
+    escapeHtml(label.slice(idx + query.length))
+  );
+}
+
 function _fpRender() {
   const list = _fp.listEl;
   const card = _fp.activeCard;
@@ -3516,7 +3599,7 @@ function _fpRender() {
       btn.innerHTML =
         `<div class="flex items-center gap-2">
            <div class="flex-1 min-w-0">
-             <div class="font-medium">${escapeHtml(label)}</div>
+             <div class="font-medium">${isSearch ? _highlightMatch(label, q) : escapeHtml(label)}</div>
              ${childLine}
            </div>
            ${drillIcon}
@@ -3545,7 +3628,7 @@ function _fpRender() {
         ? `<div class="fp-meta">${escapeHtml(_parentLabel(it._parent))}</div>`
         : "";
       btn.innerHTML =
-        `<div>${escapeHtml(label)}</div>
+        `<div>${isSearch ? _highlightMatch(label, q) : escapeHtml(label)}</div>
          ${breadcrumb}`;
       if (currentSlug === it.slug) btn.classList.add("is-current");
       btn.addEventListener("click", () => {
@@ -3785,6 +3868,22 @@ async function _resizeForUpload(file, maxDim = 1600, quality = 0.85) {
   }
 }
 
+// Counter so the beforeunload guard (UX backlog 1.1b) knows whether
+// any uploads are currently mid-flight. Incremented at the start of
+// uploadFiles, decremented in finally — so even if the upload throws
+// the counter goes back to zero.
+let _uploadInFlight = 0;
+
+window.addEventListener("beforeunload", (e) => {
+  if (_uploadInFlight > 0) {
+    // Modern browsers ignore custom messages and show a generic
+    // "Leave site?" prompt instead, but BOTH preventDefault and
+    // returnValue must be set for the prompt to fire at all.
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
 async function uploadFiles(files) {
   if (!files.length) return;
   const total = files.length;
@@ -3792,6 +3891,7 @@ async function uploadFiles(files) {
   const bar = el("#upload-progress-bar");
   const overlay = el("#upload-progress");
 
+  _uploadInFlight++;
   overlay.classList.remove("hidden");
   el("#upload-progress > div > div:nth-child(2)").textContent = t("upload_resizing");
   detail.textContent = `0 / ${total}`;
@@ -3918,6 +4018,11 @@ async function uploadFiles(files) {
 
   setTimeout(() => overlay.classList.add("hidden"), 600);
   showToast(t("upload_classifying"));
+  // Drop the in-flight counter so the beforeunload guard releases.
+  // Done here (not in finally) because the function's loop above
+  // catches its own errors per-batch without throwing — there is no
+  // exit path that bypasses this line.
+  _uploadInFlight = Math.max(0, _uploadInFlight - 1);
 }
 
 dropzone.addEventListener("click", (e) => {
@@ -4284,6 +4389,19 @@ async function deleteCard(card) {
 
 async function correctCard(card, override = null) {
   if (card.dataset.status === "reviewed" || card.dataset.busy === "1") return;
+  // UX backlog 5.5b: warn before saving a parent-only correction
+  // when the form was open (so the user had a chance to pick a fine
+  // sub-type but didn't). Skip for runner-up overrides — those
+  // intentionally carry no fine. Also skip when no parent is set
+  // (the form rejects empty parent anyway).
+  if (!override) {
+    const fineSlug = _finePickerGetValue(card);
+    const parentSlug = el(".hse-select", card)?.value;
+    const editOpen = !el(".edit-form", card)?.classList.contains("hidden");
+    if (editOpen && parentSlug && !fineSlug) {
+      if (!confirm(t("save_no_fine_confirm"))) return;
+    }
+  }
   card.dataset.busy = "1";
   const id = card.dataset.photoId;
   const fd = new FormData();
@@ -5059,7 +5177,18 @@ function openBatch(batchId, label) {
 }
 
 el("#btn-back-to-list").addEventListener("click", () => switchView(VIEW_LIST));
-el("#btn-new-batch-from-list").addEventListener("click", () => {
+el("#btn-new-batch-from-list").addEventListener("click", (e) => {
+  // Debounce against multi-tap (UX backlog 3.2b). startNewBatch is
+  // currently client-only — no server POST — but a fast double-tap
+  // would mint two distinct UUIDs and orphan the first. The disabled
+  // attribute also gives the user visual confirmation that the tap
+  // registered. switchView hides this button immediately, but the
+  // browser's pointer events can fire on the still-existing DOM node
+  // before the layout updates.
+  const btn = e.currentTarget;
+  if (btn.dataset.busy === "1") return;
+  btn.dataset.busy = "1";
+  setTimeout(() => { btn.dataset.busy = "0"; }, 800);
   startNewBatch();
   switchView(VIEW_DETAIL);
 });
