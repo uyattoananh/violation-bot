@@ -1,5 +1,55 @@
 /* ===== Custom polish on top of Tailwind CDN ===== */
 
+/* ============================================================
+   Design tokens.
+
+   Tailwind covers most of the app via utility classes (text-xs,
+   p-4, rounded-xl, etc.) and those already follow a consistent
+   scale. These custom properties are for the bits that LIVE in
+   this stylesheet — picker modal, conf-ring, toast, etc. — so
+   future tweaks only have to change one number.
+
+   Type scale  → matches Tailwind text-{xs,sm,base,lg,xl,2xl,3xl}
+   Spacing     → 4px grid, matches Tailwind p-{1,2,3,4,6,8,12}
+   Radius      → matches rounded-{md,lg,xl,full}, with --radius-lg
+                 deliberately set to 12px to match rounded-xl
+                 (the picker card + most card surfaces use this)
+   Duration    → 200ms is the design-system default; 120ms reserved
+                 for hover-only color/border tweaks where snappier
+                 feels better
+   Color       → kept minimal — only the slate-500 readable-text
+                 shade gets a token because it's referenced from
+                 several custom rules. Everything else stays in
+                 Tailwind utilities. */
+:root {
+  --text-xs:   12px;
+  --text-sm:   14px;
+  --text-base: 16px;
+  --text-lg:   18px;
+  --text-xl:   20px;
+  --text-2xl:  24px;
+  --text-3xl:  32px;
+
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-full: 9999px;
+
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+
+  --text-readable: rgb(100 116 139);   /* slate-500 — WCAG AA on white */
+}
+
 details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 
