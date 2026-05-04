@@ -278,12 +278,29 @@ body.fp-modal-open {
   gap: 10px;
 }
 .fp-list .fp-item {
-  display: block;
+  /* Why flex on the BUTTON itself: Chromium does not let <button>
+     elements auto-grow to fit overflow content even with
+     display:block + min-height. The inner flex row (label+meta
+     column + chevron) would paint past the button's bottom border —
+     visible as "N sub-types" leaking below the card on long-label
+     items. Forcing the button through the flex-layout path makes
+     the box grow to fit its children.
+
+     flex-direction: column because some items have just label +
+     breadcrumb (fine sub-types in search mode) which need to STACK,
+     not sit side-by-side. Parent items still render correctly: their
+     single child is an inner flex-row wrapper that places the chevron
+     at the right edge.
+
+     justify-content: center + min-height: 48px keeps single-line
+     items vertically centered + meets Apple HIG touch target. */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   width: 100%;
   text-align: left;
-  /* 44 px hits Apple's HIG minimum touch target */
   min-height: 48px;
-  padding: 16px;
+  padding: 14px 16px;
   border: 1px solid rgb(226 232 240);   /* slate-200 box */
   border-radius: 12px;                  /* matches rounded-xl */
   background: rgb(248 250 252);         /* slate-50 */
