@@ -277,6 +277,24 @@ body.fp-modal-open {
   flex-direction: column;
   gap: 10px;
 }
+
+/* Picker search input: kill iOS Safari + Chromium native decorations
+   so only our custom magnifier icon (left) and × clear button (right)
+   show. Without this, iOS Safari paints a small native magnifier
+   inside the input AND a native cancel button which collide with
+   ours and look misaligned. */
+.fp-search {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.fp-search::-webkit-search-decoration,
+.fp-search::-webkit-search-cancel-button,
+.fp-search::-webkit-search-results-button,
+.fp-search::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
 .fp-list .fp-item {
   /* Why flex on the BUTTON itself: Chromium does not let <button>
      elements auto-grow to fit overflow content even with
