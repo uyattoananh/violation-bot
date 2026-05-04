@@ -1265,10 +1265,23 @@ def _extract_gps(body: bytes) -> tuple[float, float] | None:
         return None
 
 
+class _ImageNormalizeError(Exception):
+    """Raised by _normalize_image when the input bytes can't be decoded
+    OR can't be re-encoded to JPEG. The caller should reject the upload
+    with reason=normalize_failed instead of writing garbage to R2.
+
+    UX backlog 4.2c: previously, normalize failures fell through with
+    the original bytes labeled as image/jpeg. R2 stored them, but
+    Anthropic's API later 4xx'd on the malformed bytes and the photo
+    sat in 'Analyzing…' forever. Raising at the boundary surfaces a
+    clear 'file skipped — not a supported image' to the inspector at
+    upload time so they know to try a different photo."""
+
+
 def _normalize_image(body: bytes, original_filename: str | None) -> tuple[bytes, str, str]:
     """Return (bytes, ext, content_type) — converted to JPEG if the input
-    isn't already in an API-/browser-friendly format. Falls through with
-    the original bytes if Pillow can't decode it (let the provider 4xx)."""
+    isn't already in an API-/browser-friendly format. Raises
+    _ImageNormalizeError if Pillow + pillow_heif can't decode the input."""
     import io as _io
     from PIL import Image
 
@@ -1293,12 +1306,12 @@ def _normalize_image(body: bytes, original_filename: str | None) -> tuple[bytes,
                      fmt or "?", len(body), len(buf.getvalue()))
             return buf.getvalue(), ".jpg", "image/jpeg"
     except Exception as e:  # noqa: BLE001
-        log.warning("image normalize failed (%s) — passing original through: %s",
-                    original_filename or "?", e)
-        ext = (Path(original_filename or "").suffix.lower() or ".jpg")
-        ct = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
-              ".gif": "image/gif", ".webp": "image/webp"}.get(ext, "image/jpeg")
-        return body, ext, ct
+        # Don't fall through with broken bytes — that just defers the
+        # failure to the classify worker, which silently 4xx's against
+        # the provider and leaves the photo stuck pending. Caller
+        # converts this to a rejected entry on the upload response.
+        log.warning("image normalize failed (%s): %s", original_filename or "?", e)
+        raise _ImageNormalizeError(str(e)) from e
 
 
 def _safe_corrections_insert(payload: dict) -> None:
@@ -2299,7 +2312,20 @@ async def upload(
         # the pipeline (R2 thumbnail in browser + Anthropic API call) doesn't
         # need to care about the source format. sha is hashed on the FINAL
         # bytes so dedup matches what's actually stored.
-        body, ext, content_type = _normalize_image(raw, f.filename)
+        try:
+            body, ext, content_type = _normalize_image(raw, f.filename)
+        except _ImageNormalizeError as e:
+            # UX backlog 4.2c: surface the failure now, at upload time, so
+            # the inspector sees a clear rejection instead of watching the
+            # photo sit in 'Analyzing…' forever. The most common cause is
+            # a HEIC variant that pillow_heif can't decode (older iPhone
+            # firmware, panorama mode, live-photo container).
+            rejected.append({
+                "filename": f.filename,
+                "reason": "normalize_failed",
+                "detail": str(e)[:200],
+            })
+            continue
         sha = _hash_bytes(body)
         key = _storage_key(tenant_id, project_id, sha, ext)
 
