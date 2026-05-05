@@ -1845,7 +1845,8 @@ footer a {{
      before, way under the 44 px guideline. inline-block + padding
      gives a fingertip-sized click area without breaking the centered
      copyright line. */
-  display: inline-block; min-height: 44px; padding: 12px 4px;
+  display: inline-block; min-height: 44px; min-width: 44px; padding: 12px 8px;
+  text-align: center;
 }}
 footer a:hover {{ border-color: var(--ink); }}
 
@@ -1941,7 +1942,7 @@ footer a:hover {{ border-color: var(--ink); }}
 <div id="lp-install-modal" class="lp-modal" role="dialog" aria-modal="true">
   <div class="lp-modal-card">
     <div class="lp-modal-head">
-      <h3 id="lp-modal-title">Install on iPhone / iPad</h3>
+      <h2 id="lp-modal-title" style="font-size: 16px; margin: 0;">Install on iPhone / iPad</h2>
       <button id="lp-modal-close" type="button" aria-label="Close">&times;</button>
     </div>
     <ol id="lp-modal-steps"></ol>
