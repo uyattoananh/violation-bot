@@ -609,9 +609,9 @@
               <!-- Single-line input shown when NO value is selected (placeholder visible).
                    Hidden when a value IS selected — the wrapping .fine-picker-label div
                    takes over so long HSE labels aren't truncated by text-overflow: ellipsis. -->
-              <input type="text"
-                     class="fine-picker-search flex-1 min-w-0 bg-transparent outline-none text-slate-900 placeholder-slate-400 px-1 py-0.5"
-                     placeholder="Tap to choose or type to search"
+              <input type="text" readonly
+                     class="fine-picker-search flex-1 min-w-0 bg-transparent outline-none text-slate-900 placeholder-slate-500 px-1 py-0.5 cursor-pointer"
+                     placeholder="Pick violation type"
                      autocomplete="off"
                      style="font-size: 16px; text-overflow: ellipsis;"
                      aria-label="Violation type">
@@ -625,9 +625,14 @@
                       title="Clear">
                 ×
               </button>
+              <!-- Chevron icon (was a magnifier — v83 overhaul). The
+                   trigger ISN'T a search input; tapping it opens the
+                   picker modal. A magnifier read as "search here";
+                   a chevron-down reads as "tap to open menu" — which
+                   matches the actual behaviour. -->
               <div class="flex items-center px-1 text-slate-400 flex-shrink-0">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
                 </svg>
               </div>
             </div>
@@ -831,7 +836,7 @@ const I18N = {
     edit_loc_label: "Location",
     edit_fine_label: "AECIS sub-type <span class='text-slate-400 font-normal'>(optional)</span>",
     edit_pick_label: "Pick the violation type",
-    fine_picker_placeholder: "Tap to choose or type to search",
+    fine_picker_placeholder: "Pick violation type",
     fine_search_placeholder: "Search sub-types…",
     fine_search_placeholder_all: "Search ALL 386+ sub-types…",
     fine_scope_in_category: "in category",
@@ -1055,7 +1060,7 @@ const I18N = {
     edit_loc_label: "Vị trí",
     edit_fine_label: "Phân loại chi tiết AECIS <span class='text-slate-400 font-normal'>(không bắt buộc)</span>",
     edit_pick_label: "Chọn loại vi phạm",
-    fine_picker_placeholder: "Bấm để chọn hoặc gõ để tìm",
+    fine_picker_placeholder: "Chọn loại vi phạm",
     fine_search_placeholder: "Tìm phân loại chi tiết…",
     fine_search_placeholder_all: "Tìm trong TẤT CẢ 386+ phân loại…",
     fine_scope_in_category: "trong danh mục",
@@ -1279,7 +1284,7 @@ const I18N = {
     edit_loc_label: "Ubicación",
     edit_fine_label: "Sub-tipo AECIS <span class='text-slate-400 font-normal'>(opcional)</span>",
     edit_pick_label: "Elige el tipo de infracción",
-    fine_picker_placeholder: "Toca para elegir o escribe para buscar",
+    fine_picker_placeholder: "Elegir tipo de violación",
     fine_search_placeholder: "Buscar sub-tipos…",
     fine_search_placeholder_all: "Buscar en TODOS los 386+ sub-tipos…",
     fine_scope_in_category: "en la categoría",
@@ -1503,7 +1508,7 @@ const I18N = {
     edit_loc_label: "位置",
     edit_fine_label: "AECIS 子类型 <span class='text-slate-400 font-normal'>（可选）</span>",
     edit_pick_label: "选择违规类型",
-    fine_picker_placeholder: "点击选择或输入搜索",
+    fine_picker_placeholder: "选择违规类型",
     fine_search_placeholder: "搜索子类型…",
     fine_search_placeholder_all: "搜索全部 386+ 子类型…",
     fine_scope_in_category: "在该类别中",
@@ -2978,9 +2983,20 @@ function setConfidenceRing(card, conf, band) {
     pctSpan.className = `conf-pct font-semibold tabular-nums normal-case tracking-normal ${bandColor}`;
   }
 
+  // v83 overhaul: status pill simplified from a text label
+  // ("LIKELY CORRECT" / "VERIFY" / "PLEASE REVIEW") to a single
+  // glyph (✓ / ! / ?). Confidence is still communicated via:
+  //   1. The numeric % in the AI-suggests header (.conf-pct)
+  //   2. The band-coloured card border (band-high/medium/low)
+  //   3. The pill colour
+  //   4. THIS glyph — non-colour signal for color-blind users.
+  // The accessible name (aria-label) carries the original phrase so
+  // screen readers still announce "Likely correct" etc.
   const pill = el(".status-pill", card);
-  pill.className = `status-pill text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${colors.pill}`;
-  pill.textContent = t(colors.labelKey);
+  const glyph = band === "high" ? "✓" : band === "medium" ? "!" : "?";
+  pill.className = `status-pill text-xs font-bold leading-none w-5 h-5 grid place-items-center rounded-full ${colors.pill}`;
+  pill.textContent = glyph;
+  pill.setAttribute("aria-label", t(colors.labelKey));
   pill.classList.remove("hidden");
 
   card.classList.remove("band-high", "band-medium", "band-low");
