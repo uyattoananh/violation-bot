@@ -77,7 +77,10 @@
      summary card retire entirely. Add button toggles the dropzone
      (hidden by default once the batch has photos). -->
 <div class="mb-3 flex items-center gap-2 sm:gap-3">
-  <div class="w-10 h-10 rounded-xl bg-emerald-50 grid place-items-center flex-shrink-0">
+  <!-- Icon + button now match: both 44 x 44, both rounded-xl. The
+       icon container's height was 40 px while the button's was 44 px,
+       which read as a misalignment when stacked side-by-side. -->
+  <div class="w-11 h-11 rounded-xl bg-emerald-50 grid place-items-center flex-shrink-0">
     <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
     </svg>
@@ -91,11 +94,11 @@
     <div id="batch-subtitle" class="text-xs text-slate-600 px-1 mt-0.5 truncate"></div>
   </div>
   <button type="button" id="btn-add-photos"
-          class="flex-shrink-0 inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-lg px-3 py-2.5 min-h-[44px] shadow-sm transition-colors"
+          class="flex-shrink-0 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-xl w-11 h-11 sm:w-auto sm:h-11 sm:px-4 shadow-sm transition-colors"
           aria-label="Add photos"
           aria-controls="dropzone-panel"
           aria-expanded="false">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+    <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
     </svg>
     <span class="hidden sm:inline" data-i18n="add_photos_short">Add</span>
@@ -321,7 +324,6 @@
     <select id="sort-select" aria-label="Sort photos by"
             class="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer min-h-[44px]">
       <option value="newest" data-i18n="sort_newest">Newest</option>
-      <option value="confidence-low" data-i18n="sort_low_first">Low confidence first</option>
       <option value="confidence-high" data-i18n="sort_high_first">High confidence first</option>
     </select>
   </div>
@@ -1863,7 +1865,12 @@ let activeFilter = localStorage.getItem("violation-ai-filter") || "all";
 // time should go to where their judgment matters most. Low-conf photos are
 // where the AI is uncertain, so reviewing those first maximizes labeling
 // throughput AND yields the highest-value training corrections.
-let activeSort   = localStorage.getItem("violation-ai-sort") || "confidence-low";
+// Default sort changed from "confidence-low" to "newest" — inspectors
+// review chronologically far more often than they want to see the
+// AI's least-confident calls first. Users who had the dropped
+// "confidence-low" saved in localStorage get migrated to "newest".
+let activeSort   = localStorage.getItem("violation-ai-sort") || "newest";
+if (activeSort === "confidence-low") activeSort = "newest";
 const photoCache = new Map();
 // Quality flags from /api/upload — photo_id -> reason ("blurry"/"dark"/"tiny").
 // Surfaced as a yellow chip on the card so the user knows the AI prediction
