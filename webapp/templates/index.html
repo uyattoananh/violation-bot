@@ -559,6 +559,7 @@
 
         <div class="mt-3 flex gap-2">
           <button type="button" class="btn-confirm flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
+                                       disabled:opacity-50 disabled:cursor-not-allowed
                                        text-white text-sm font-medium rounded-lg px-3 py-2
                                        flex items-center justify-center gap-1.5 transition-colors shadow-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -672,7 +673,7 @@
                  class="edit-note w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white">
           <div class="flex gap-1.5">
             <button type="submit"
-                    class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded px-3 py-1.5 flex-1"
+                    class="btn-correct-save bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded px-3 py-1.5 min-h-[44px] flex-1"
                     data-i18n="edit_save">
               Save correction
             </button>
@@ -4498,6 +4499,12 @@ async function correctCard(card, override = null) {
     if (note) fd.append("note", note);
   }
   const prevState = captureState(card);
+  // v87 overhaul: visually disable the Save button during the
+  // network round-trip. dataset.busy already prevents re-firing,
+  // but without the visual state the user has no signal that
+  // their tap landed.
+  const saveBtn = el(".btn-correct-save", card);
+  if (saveBtn) saveBtn.disabled = true;
   applyReviewedState(card, "correct");
 
   try {
@@ -4518,6 +4525,10 @@ async function correctCard(card, override = null) {
   } catch (e) {
     restoreState(card, prevState);
     showError("Correction failed: " + e.message);
+    // Re-enable Save so the user can retry. (When the success
+    // path runs, applyReviewedState hides the entire edit form,
+    // so re-enabling there is moot.)
+    if (saveBtn) saveBtn.disabled = false;
   } finally {
     delete card.dataset.busy;
   }
