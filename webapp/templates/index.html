@@ -319,10 +319,14 @@
      batch header above; only visible once there's at least one
      photo (toolbar2 toggled together with toolbar). -->
 <div id="toolbar2" class="hidden mt-3 flex flex-wrap items-center gap-2 text-sm">
-  <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm">
+  <!-- Sort wrapper is the touch-target shell (min-h-[44px]); the
+       <select> inside no longer needs its own min-height. Was rendering
+       as 54 px because select's 44 + wrapper py-1 (8) + border (2) all
+       stacked. -->
+  <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 min-h-[44px] shadow-sm">
     <label for="sort-select" class="text-slate-500 text-xs" data-i18n="sort_label">Sort:</label>
     <select id="sort-select" aria-label="Sort photos by"
-            class="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer min-h-[44px]">
+            class="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer">
       <option value="newest" data-i18n="sort_newest">Newest</option>
       <option value="confidence-high" data-i18n="sort_high_first">High confidence first</option>
     </select>
@@ -345,7 +349,7 @@
   <div class="relative">
     <button id="export-btn"
             class="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100
-                   text-slate-700 text-sm font-medium rounded-lg px-3 py-2 shadow-sm
+                   text-slate-700 text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] shadow-sm
                    flex items-center gap-1.5 transition-colors">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
