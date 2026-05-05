@@ -668,7 +668,12 @@
   </div>
 
   <!-- Toast container -->
-  <div id="toast" class="toast bg-slate-900 text-white text-sm rounded-full px-4 py-2.5 shadow-lg flex items-center gap-3"></div>
+  <!-- role=status + aria-live=polite so screen readers announce toast
+       updates without interrupting the user. role=alert would be too
+       intrusive for "Photo deleted" / "Saved" — those are confirmations,
+       not errors. -->
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true"
+       class="toast bg-slate-900 text-white text-sm rounded-full px-4 py-2.5 shadow-lg flex items-center gap-3"></div>
 
   <!-- ===========================================================
        Global violation-type picker modal.
@@ -752,10 +757,10 @@
   <!-- Email export modal: inspector picks a format + recipient,
        server generates the export and emails it. Falls back to a
        presigned R2 link when the file is too big to attach. -->
-  <div id="email-modal" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
+  <div id="email-modal" role="dialog" aria-modal="true" aria-labelledby="email-modal-title" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-semibold" data-i18n="email_title">Email this inspection</h3>
+        <h3 id="email-modal-title" class="font-semibold" data-i18n="email_title">Email this inspection</h3>
         <button id="email-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
       </div>
       <form id="email-form" class="text-sm space-y-3">
@@ -802,11 +807,11 @@
        re-runs the classifier on just that region. Used when the AI got
        distracted by other features in the photo and missed the actual
        hazard. -->
-  <div id="markup-modal" class="hidden fixed inset-0 bg-slate-900/85 z-50 items-center justify-center p-4">
+  <div id="markup-modal" role="dialog" aria-modal="true" aria-labelledby="markup-modal-title" class="hidden fixed inset-0 bg-slate-900/85 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-4 max-w-4xl w-full shadow-2xl flex flex-col max-h-[95vh]">
       <div class="flex items-center justify-between mb-2">
         <div>
-          <h3 class="font-semibold" data-i18n="markup_title">Mark the violation</h3>
+          <h3 id="markup-modal-title" class="font-semibold" data-i18n="markup_title">Mark the violation</h3>
           <div class="text-xs text-slate-500" data-i18n="markup_help">Drag to draw a rectangle around the hazard. The AI re-classifies on just that region.</div>
         </div>
         <button id="markup-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
@@ -837,10 +842,10 @@
        /admin/proposals; the inspector keeps working with a placeholder
        'pending:<slug>' on the correction in the meantime, retro-patched
        to the real slug on approval. -->
-  <div id="propose-modal" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
+  <div id="propose-modal" role="dialog" aria-modal="true" aria-labelledby="propose-modal-title" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-2">
-        <h3 class="font-semibold" data-i18n="propose_title">Propose new sub-type</h3>
+        <h3 id="propose-modal-title" class="font-semibold" data-i18n="propose_title">Propose new sub-type</h3>
         <button id="propose-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
       </div>
       <p class="text-xs text-slate-500 mb-3" data-i18n="propose_help">
@@ -890,10 +895,10 @@
   </div>
 
   <!-- Per-photo history modal (audit trail). Populated by openHistoryModal(). -->
-  <div id="history-modal" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
+  <div id="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-5 max-w-2xl w-full shadow-2xl max-h-[85vh] flex flex-col">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="font-semibold" data-i18n="history_title">Correction history</h3>
+        <h3 id="history-modal-title" class="font-semibold" data-i18n="history_title">Correction history</h3>
         <button id="history-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
       </div>
       <div id="history-body" class="overflow-y-auto text-sm text-slate-700">
@@ -990,10 +995,10 @@
   </div>
 
   <!-- Keyboard shortcuts modal -->
-  <div id="kbd-help" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
+  <div id="kbd-help" role="dialog" aria-modal="true" aria-labelledby="kbd-help-title" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="font-semibold" data-i18n="kbd_title">Keyboard shortcuts</h3>
+        <h3 id="kbd-help-title" class="font-semibold" data-i18n="kbd_title">Keyboard shortcuts</h3>
         <button id="kbd-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
       </div>
       <ul class="text-sm space-y-2.5 text-slate-700">

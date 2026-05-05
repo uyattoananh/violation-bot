@@ -1608,6 +1608,8 @@ header {{
   display: inline-flex; align-items: center; gap: 10px;
   font-weight: 600; font-size: 16px; color: var(--ink); text-decoration: none;
   letter-spacing: -0.01em;
+  /* Apple HIG min touch target. Was 25 px tall before. */
+  min-height: 44px; padding: 8px 4px;
 }}
 .brand .check {{
   width: 26px; height: 26px;
@@ -1625,8 +1627,10 @@ header {{
 }}
 .locale-toggle button {{
   font: inherit; background: transparent; border: 0; cursor: pointer;
-  padding: 5px 12px; color: var(--ink-mute); font-weight: 600; font-size: 11px;
+  padding: 12px 14px; color: var(--ink-soft); font-weight: 600; font-size: 11px;
   letter-spacing: 0.04em;
+  /* min-height: 44px (Apple HIG touch target). Was 27 px before. */
+  min-height: 44px; min-width: 44px;
   transition: background .15s, color .15s;
 }}
 .locale-toggle button:hover {{ color: var(--ink); }}
@@ -1711,7 +1715,10 @@ h1 .em {{ font-style: italic; font-weight: 400; color: var(--ink-soft); }}
    provider list. Quiet by default so it doesn't compete. */
 .alt-signin-link {{
   display: block; margin-top: 14px; text-align: center;
-  font-size: 12px; color: var(--ink-mute); text-decoration: none;
+  font-size: 12px; color: var(--ink-soft); text-decoration: none;
+  /* min-height: 44px + flex centering = Apple HIG touch target */
+  min-height: 44px; padding: 12px 16px;
+  display: inline-flex; align-items: center; justify-content: center; width: 100%;
 }}
 .alt-signin-link:hover {{ color: var(--ink); text-decoration: underline; text-decoration-color: var(--hairline); }}
 /* Secondary CTA — paper-tone outlined button matching the drafting
@@ -1820,7 +1827,7 @@ h1 .em {{ font-style: italic; font-weight: 400; color: var(--ink-soft); }}
   border-radius: 4px; background: var(--paper);
 }}
 .feature .ic svg {{ width: 16px; height: 16px; }}
-.feature h3 {{
+.feature h2 {{
   font-size: 15px; margin: 0 0 8px; font-weight: 600; color: var(--ink);
   letter-spacing: -0.005em;
 }}
@@ -1832,7 +1839,14 @@ footer {{
   padding: 40px 16px 32px; letter-spacing: 0.02em;
   border-top: 1px solid var(--hairline); margin-top: auto;
 }}
-footer a {{ color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--hairline); }}
+footer a {{
+  color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--hairline);
+  /* Apple HIG min touch target — footer "Sign in" link was 35x16
+     before, way under the 44 px guideline. inline-block + padding
+     gives a fingertip-sized click area without breaking the centered
+     copyright line. */
+  display: inline-block; min-height: 44px; padding: 12px 4px;
+}}
 footer a:hover {{ border-color: var(--ink); }}
 
 [data-locale]:not(.show) {{ display: none; }}
@@ -1951,12 +1965,12 @@ footer a:hover {{ border-color: var(--ink); }}
   <div class="features">
     <div class="feature">
       <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5l5-5 4 4 6-7 3 3v6.5a2 2 0 01-2 2H5a2 2 0 01-2-2V16.5z"/></svg></div>
-      <h3>
+      <h2>
         <span data-locale="en">Upload &amp; classify</span>
         <span data-locale="vn">Tải lên &amp; phân loại</span>
         <span data-locale="es">Subir y clasificar</span>
         <span data-locale="zh">上传与分类</span>
-      </h3>
+      </h2>
       <p>
         <span data-locale="en">Drop site photos straight from your phone. The AI tags HSE violation type and fine-grained AECIS sub-type within seconds.</span>
         <span data-locale="vn">Thả ảnh từ điện thoại. AI gắn nhãn loại vi phạm HSE và loại con AECIS chi tiết trong vài giây.</span>
@@ -1966,12 +1980,12 @@ footer a:hover {{ border-color: var(--ink); }}
     </div>
     <div class="feature">
       <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.6 2A9 9 0 11 3.4 14a9 9 0 0117.2 0z"/></svg></div>
-      <h3>
+      <h2>
         <span data-locale="en">Confirm or correct</span>
         <span data-locale="vn">Xác nhận hoặc chỉnh sửa</span>
         <span data-locale="es">Confirmar o corregir</span>
         <span data-locale="zh">确认或更正</span>
-      </h3>
+      </h2>
       <p>
         <span data-locale="en">Every confirmation trains the model. Wrong call? Re-mark the region or propose a new sub-type for admin review.</span>
         <span data-locale="vn">Mỗi xác nhận đều giúp AI học. Sai? Vẽ lại vùng hoặc đề xuất loại con mới để quản trị viên duyệt.</span>
@@ -1981,12 +1995,12 @@ footer a:hover {{ border-color: var(--ink); }}
     </div>
     <div class="feature">
       <div class="ic"><svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
-      <h3>
+      <h2>
         <span data-locale="en">Export &amp; share</span>
         <span data-locale="vn">Xuất &amp; chia sẻ</span>
         <span data-locale="es">Exportar y compartir</span>
         <span data-locale="zh">导出与分享</span>
-      </h3>
+      </h2>
       <p>
         <span data-locale="en">PDF cover-sheet, renamed-photos ZIP, CSV, or JSON — emailed straight to the safety officer or downloaded.</span>
         <span data-locale="vn">PDF có trang bìa, ZIP ảnh đã đổi tên, CSV hoặc JSON — gửi email cho cán bộ an toàn hoặc tải về.</span>

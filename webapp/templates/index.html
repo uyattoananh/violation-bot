@@ -245,8 +245,9 @@
   </div>
 </section>
 
-<!-- Error banner -->
-<div id="error-banner"
+<!-- Error banner. role=alert + aria-live=assertive so screen readers
+     announce upload failures + similar errors immediately. -->
+<div id="error-banner" role="alert" aria-live="assertive"
      class="hidden mt-4 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 px-4 py-2.5 text-sm
             flex items-center gap-2">
   <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -3410,6 +3411,15 @@ function _fpWireOnce() {
   _fp.wired = true;
   _fp.closeBtn.addEventListener("click", () => _fpClose());
   _fp.backdrop.addEventListener("click", () => _fpClose());
+  // Esc dismisses the picker modal — the conventional keyboard shortcut
+  // for any dialog. Only fires when the modal is currently open so we
+  // don't intercept Esc for other UI (lightbox, edit form, etc).
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!_fp.modal || _fp.modal.classList.contains("hidden")) return;
+    e.preventDefault();
+    _fpClose();
+  });
   _fp.backBtn.addEventListener("click", () => {
     _fp.drilledParent = "";
     _fpRender();
@@ -4548,13 +4558,18 @@ function applyFilter() {
   els(".filter-btn").forEach(b => {
     const f = b.dataset.filter;
     el(".filter-count", b).textContent = counts[f];
-    if (b.dataset.filter === activeFilter) {
+    const isActive = b.dataset.filter === activeFilter;
+    if (isActive) {
       b.classList.add("bg-slate-900", "text-white", "active");
       b.classList.remove("text-slate-500", "text-slate-700");
     } else {
       b.classList.remove("bg-slate-900", "text-white", "active");
       b.classList.add("text-slate-500");
     }
+    // aria-pressed announces the toggle state to screen readers so
+    // users can tell which filter is currently active. role=button is
+    // implicit on <button>; aria-pressed turns it into a toggle button.
+    b.setAttribute("aria-pressed", String(isActive));
   });
 }
 
