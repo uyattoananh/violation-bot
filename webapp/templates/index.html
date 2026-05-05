@@ -14,7 +14,7 @@
          is still discoverable. -->
     <button id="btn-new-batch-from-list"
             class="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white
-                   text-sm font-medium rounded-lg px-3 sm:px-4 py-2 shadow-sm
+                   text-sm font-medium rounded-lg px-3 sm:px-4 py-3 min-h-[44px] shadow-sm
                    flex items-center gap-1.5 transition-colors"
             aria-label="Start new inspection"
             title="Start a new inspection">
@@ -70,7 +70,7 @@
 
 <!-- Back to list -->
 <button id="btn-back-to-list"
-        class="mb-3 text-sm text-slate-500 hover:text-slate-900 flex items-center gap-1 transition-colors">
+        class="mb-3 text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1 px-2 py-2.5 min-h-[44px] -ml-2 rounded transition-colors">
   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
   </svg>
@@ -300,10 +300,11 @@
     <input type="text" id="batch-label-input"
            class="flex-1 min-w-0 bg-transparent text-sm font-semibold text-slate-900 focus:outline-none focus:bg-slate-50 rounded px-1 py-0"
            placeholder="Tap to name this inspection"
+           aria-label="Inspection name"
            autocomplete="off">
     <span class="hidden sm:inline-flex items-center text-xs text-slate-500 italic" id="batch-count-hint"></span>
     <button id="batch-reset-reviews"
-            class="text-xs text-slate-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded flex items-center gap-1 transition-colors"
+            class="text-xs text-slate-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-2.5 min-h-[44px] rounded flex items-center gap-1 transition-colors"
             aria-label="Reset reviews"
             title="Wipe all confirmations / corrections you made in this inspection (keeps photos and AI predictions)">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -317,9 +318,9 @@
        — same #toolbar id so existing JS that toggles its hidden
        state still works). -->
   <div id="toolbar" class="hidden flex items-center gap-1 border-t border-slate-100 px-2 py-1.5">
-    <button data-filter="all"     class="filter-btn active flex-1 px-3 py-1.5 rounded-md font-medium text-slate-700 text-xs sm:text-sm"><span data-i18n="filter_all">All</span> <span class="filter-count text-slate-500 ml-1">0</span></button>
-    <button data-filter="pending" class="filter-btn flex-1 px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_pending">Pending</span> <span class="filter-count text-slate-500 ml-1">0</span></button>
-    <button data-filter="reviewed"class="filter-btn flex-1 px-3 py-1.5 rounded-md font-medium text-slate-500 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_reviewed">Reviewed</span> <span class="filter-count text-slate-500 ml-1">0</span></button>
+    <button data-filter="all"     class="filter-btn active flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-700 text-xs sm:text-sm"><span data-i18n="filter_all">All</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
+    <button data-filter="pending" class="filter-btn flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-600 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_pending">Pending</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
+    <button data-filter="reviewed"class="filter-btn flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-600 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_reviewed">Reviewed</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
   </div>
 </div>
 
@@ -328,8 +329,9 @@
      photo (toolbar2 toggled together with toolbar). -->
 <div id="toolbar2" class="hidden mt-3 flex flex-wrap items-center gap-2 text-sm">
   <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm">
-    <span class="text-slate-500 text-xs" data-i18n="sort_label">Sort:</span>
-    <select id="sort-select" class="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer">
+    <label for="sort-select" class="text-slate-500 text-xs" data-i18n="sort_label">Sort:</label>
+    <select id="sort-select" aria-label="Sort photos by"
+            class="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer min-h-[44px]">
       <option value="newest" data-i18n="sort_newest">Newest</option>
       <option value="confidence-low" data-i18n="sort_low_first">Low confidence first</option>
       <option value="confidence-high" data-i18n="sort_high_first">High confidence first</option>
@@ -475,7 +477,7 @@
       <div class="conf-ring hidden" style="--pct: 0; --color: rgb(16 185 129); display: none">
         <span class="conf-text">0%</span>
       </div>
-      <button type="button" class="btn-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-9 h-9 grid place-items-center shadow-sm transition-colors"
+      <button type="button" class="btn-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-11 h-11 grid place-items-center shadow-sm transition-colors"
               aria-label="Delete photo"
               title="Delete photo">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -660,6 +662,7 @@
           <input type="hidden" name="location_slug" class="loc-select-hidden">
 
           <input type="text" name="note" placeholder="optional note for the audit log"
+                 aria-label="Optional correction note"
                  class="edit-note w-full border border-slate-300 rounded px-2 py-1.5 mb-2 bg-white">
           <div class="flex gap-1.5">
             <button type="submit"
@@ -667,7 +670,7 @@
                     data-i18n="edit_save">
               Save correction
             </button>
-            <button type="button" class="btn-edit-cancel text-slate-400 hover:text-slate-700 text-xs px-2 italic font-normal"
+            <button type="button" class="btn-edit-cancel text-slate-500 hover:text-slate-900 text-xs px-3 py-2.5 italic font-normal min-h-[44px]"
                     data-i18n="edit_cancel">
               Cancel
             </button>

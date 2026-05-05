@@ -74,9 +74,14 @@
       border-top: 1px solid var(--hairline) !important;
       color: var(--ink-soft);
     }
+    /* Footer text on warm-cream needs more contrast than --ink-mute
+       (#6b7280 = 4.38:1, fails WCAG AA). Map slate-500/600 to
+       --ink-soft (#3a3a3a, ~9:1, comfortable AA pass). slate-400
+       stays as --ink-mute since it's used for de-emphasized icons /
+       dividers, not body text. */
     body.theme-paper #app-footer .text-slate-500,
-    body.theme-paper #app-footer .text-slate-600 { color: var(--ink-mute) !important; }
-    body.theme-paper #app-footer .text-slate-400 { color: var(--ink-faint) !important; }
+    body.theme-paper #app-footer .text-slate-600 { color: var(--ink-soft) !important; }
+    body.theme-paper #app-footer .text-slate-400 { color: var(--ink-mute) !important; }
     body.theme-paper #app-footer .text-slate-900 { color: var(--ink) !important; }
 
     /* Language pill — round outlined ink button group */
@@ -94,11 +99,15 @@
     .lang-pill button:hover { color: var(--ink); }
     .lang-pill button.active { background: var(--ink); color: var(--paper); }
 
-    /* Drop-down version (mobile or 4+ langs) */
+    /* Drop-down version (mobile or 4+ langs).
+       min-height: 44px ensures Apple HIG touch target on mobile.
+       Vertical padding kept tight so the pill doesn't dominate the
+       header; min-height does the work. */
     .lang-select {
       border: 1px solid var(--ink); background: var(--paper); color: var(--ink);
       border-radius: 999px; padding: 5px 22px 5px 10px;
       font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+      min-height: 44px;
       cursor: pointer; appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%230a0a0a' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
@@ -495,13 +504,13 @@
          - gap collapses from 2 -> 1 on narrow.  -->
   <header class="sticky top-0 z-30 backdrop-blur">
     <div class="max-w-6xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-4">
-      <a href="/" class="brand-link flex items-center font-semibold whitespace-nowrap"
+      <a href="/" class="brand-link flex items-center font-semibold whitespace-nowrap min-h-[44px] py-2"
          style="font-size: clamp(15px, 4.2vw, 17px)">
         HSE&nbsp;<span class="em">Detector</span>
       </a>
       <div class="flex items-center gap-1.5 sm:gap-2 min-w-0">
         <div class="hidden sm:flex items-center gap-1.5 text-xs text-slate-600 rounded-full px-3 py-1"
-             style="background: var(--paper-warm); border: 1px solid var(--rule-strong); color: var(--ink-mute);">
+             style="background: var(--paper-warm); border: 1px solid var(--rule-strong); color: var(--ink-soft);">
           <span class="w-1.5 h-1.5 rounded-full pulse-dot" style="background: var(--accent);"></span>
           <span>{{ (model or "model").split("/")[-1] }}</span>
         </div>
@@ -515,7 +524,7 @@
           <option value="zh">ZH</option>
         </select>
         <button id="kbd-help-btn" type="button"
-                class="hidden sm:inline-flex text-xs text-slate-500 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-md px-2 py-1 transition-colors"
+                class="hidden sm:inline-flex items-center text-xs text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-md px-3 py-2 min-h-[44px] min-w-[44px] justify-center transition-colors"
                 title="Keyboard shortcuts">
           <kbd class="font-mono">?</kbd>
         </button>
@@ -608,28 +617,28 @@
       <!-- (Was: training-set counter — internal metric not useful to
            inspectors; removed per UX backlog item E1.) -->
       <div class="hidden sm:flex items-center gap-3">
-        <span class="text-slate-400" data-i18n="footer_session">Session:</span>
+        <span class="text-slate-600" data-i18n="footer_session">Session:</span>
         <span class="flex items-center gap-1">
           <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
           <span id="stat-session-uploaded" class="font-semibold tabular-nums">0</span>
-          <span class="text-slate-500" data-i18n="footer_uploaded">uploaded</span>
+          <span class="text-slate-600" data-i18n="footer_uploaded">uploaded</span>
         </span>
         <span class="flex items-center gap-1">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
           <span id="stat-session-confirmed" class="font-semibold tabular-nums text-emerald-700">0</span>
-          <span class="text-slate-500" data-i18n="footer_confirmed">confirmed</span>
+          <span class="text-slate-600" data-i18n="footer_confirmed">confirmed</span>
         </span>
         <span class="flex items-center gap-1">
           <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
           <span id="stat-session-corrected" class="font-semibold tabular-nums text-sky-700">0</span>
-          <span class="text-slate-500" data-i18n="footer_corrected">corrected</span>
+          <span class="text-slate-600" data-i18n="footer_corrected">corrected</span>
         </span>
       </div>
       <!-- Today's quota usage. Read from /api/usage/me — per cookie-id,
            independent of the global cost ticker which is admin-only.
            Inline label so users understand "0 / 30" isn't a mystery
            number (UX backlog E2). -->
-      <div class="flex items-center gap-1 text-slate-500 tabular-nums" id="quota-wrap"
+      <div class="flex items-center gap-1 text-slate-600 tabular-nums" id="quota-wrap"
            title="Daily upload limit. Resets at 00:00 UTC.">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
@@ -642,14 +651,14 @@
       <!-- Today's estimated cost (sums tokens * public list rates).
            Refreshes on page load + every 60s. OpenRouter dashboard is
            authoritative for billing; this is a sanity-check ticker. -->
-      <div class="hidden md:flex items-center gap-1 text-slate-400 tabular-nums" id="cost-ticker-wrap" title="Today's estimated AI spend (resets at 00:00 UTC)">
+      <div class="hidden md:flex items-center gap-1 text-slate-600 tabular-nums" id="cost-ticker-wrap" title="Today's estimated AI spend (resets at 00:00 UTC)">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-2.21 0-4-1.79-4-4 0-1.105.448-2.105 1.172-2.828C9.895 4.448 10.895 4 12 4c1.105 0 2.105.448 2.828 1.172L15.5 5.5"/>
         </svg>
         <span data-i18n="footer_today">today:</span>
         <span id="cost-ticker">$0.00</span>
       </div>
-      <div class="text-slate-400 italic hidden md:block" data-i18n="footer_tagline">every confirmation trains the AI</div>
+      <div class="text-slate-600 italic hidden md:block" data-i18n="footer_tagline">every confirmation trains the AI</div>
     </div>
   </footer>
 
@@ -695,7 +704,7 @@
           </div>
           <div class="fp-current text-xs text-emerald-700 truncate mt-0.5"></div>
         </div>
-        <button type="button" class="fp-close bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-full p-2 flex-shrink-0 transition-colors" aria-label="Close">
+        <button type="button" class="fp-close bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-full w-11 h-11 grid place-items-center flex-shrink-0 transition-colors" aria-label="Close">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -762,7 +771,7 @@
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-700 mb-1" data-i18n="email_to">Recipient email</label>
-          <input id="email-to" type="email" required
+          <input id="email-to" type="email" inputmode="email" required
                  placeholder="someone@aecis.com"
                  class="w-full border border-slate-300 rounded px-2 py-2 bg-white"
                  autocomplete="email">

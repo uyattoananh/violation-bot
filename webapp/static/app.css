@@ -53,6 +53,32 @@
 details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 
+/* Respect users who set "Reduce motion" in their OS accessibility
+   preferences. Vestibular-disorder sufferers get nausea from looping
+   animations (the pulse-dot, qualityBlink, and shimmer effects in
+   particular). We blanket-suppress all transitions + animations to
+   1ms instead of 0 because some JS waits on transitionend events;
+   1ms still fires the event almost immediately. iteration-count: 1
+   stops infinite loops dead. WCAG 2.3.3 (Level AAA). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Disable the 300ms tap delay legacy mobile browsers add when they
+   wait to see if the tap is the start of a double-tap-to-zoom. Modern
+   Safari/Chrome don't apply it on viewports with `width=device-width`,
+   but it's cheap insurance for older WebKit forks. */
+button, a, [role="button"], select, input[type="checkbox"], input[type="radio"], summary, .fp-item {
+  touch-action: manipulation;
+}
+
 /* "More tools" disclosure inside the photo card edit form. The
    chevron rotates 180° when the disclosure is open so the icon
    flips from ⌄ (closed, "expand down") to ⌃ (open, "collapse up").
