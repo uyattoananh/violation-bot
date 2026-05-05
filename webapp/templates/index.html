@@ -70,26 +70,67 @@
 
 <!-- Back to list -->
 <button id="btn-back-to-list"
-        class="mb-3 text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1 px-2 py-2.5 min-h-[44px] -ml-2 rounded transition-colors">
+        class="mb-2 text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1 px-2 py-2.5 min-h-[44px] -ml-2 rounded transition-colors">
   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
   </svg>
   <span data-i18n="back_to_list">All inspections</span>
 </button>
 
-<!-- Expiry warning banner — detail view -->
-<div id="expiry-banner-detail"
-     class="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-  <svg class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
-  </svg>
-  <div>
-    <span data-i18n="expiry_banner_detail">This inspection's photos will be deleted in</span>
-    <strong id="expiry-countdown" class="tabular-nums">48h</strong>.
-    <span data-i18n="expiry_banner_cta" class="text-amber-900 font-medium">Download your report before then.</span>
+<!-- ===== TITLE ROW (UX overhaul v81) =====================================
+     The inspection name IS the page identity. Putting it at the top
+     means the inspector reads "what am I looking at?" the moment the
+     screen paints. Photo + reviewed counts as a subtitle let the
+     summary card retire entirely. Add button toggles the dropzone
+     (hidden by default once the batch has photos). -->
+<div class="mb-3 flex items-center gap-2 sm:gap-3">
+  <div class="w-10 h-10 rounded-xl bg-emerald-50 grid place-items-center flex-shrink-0">
+    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
   </div>
+  <div class="flex-1 min-w-0">
+    <input type="text" id="batch-label-input"
+           class="w-full bg-transparent text-base sm:text-lg font-semibold text-slate-900 focus:outline-none focus:bg-slate-50 rounded px-1 py-0.5 truncate"
+           placeholder="Tap to name this inspection"
+           aria-label="Inspection name"
+           autocomplete="off">
+    <div id="batch-subtitle" class="text-xs text-slate-600 px-1 mt-0.5 truncate"></div>
+  </div>
+  <button type="button" id="btn-add-photos"
+          class="flex-shrink-0 inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-lg px-3 py-2.5 min-h-[44px] shadow-sm transition-colors"
+          aria-label="Add photos"
+          aria-controls="dropzone-panel"
+          aria-expanded="false">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+    </svg>
+    <span class="hidden sm:inline" data-i18n="add_photos_short">Add</span>
+  </button>
 </div>
 
+<!-- Compact expiry banner. Was a two-line yellow box; now a single
+     line with a small icon. Same info, ~30 px shorter. -->
+<div id="expiry-banner-detail"
+     class="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+  <svg class="w-3.5 h-3.5 flex-shrink-0 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+  </svg>
+  <span class="truncate">
+    <span data-i18n="expiry_banner_detail_compact">Expires in</span>
+    <strong id="expiry-countdown" class="tabular-nums">48h</strong> —
+    <span data-i18n="expiry_banner_cta_compact" class="text-amber-900 font-medium">download report</span>
+  </span>
+</div>
+
+<!-- Dropzone panel. Wrapped in a div so the [+ Add] button in the
+     title row can toggle it via aria-expanded. UX overhaul v81: the
+     dropzone no longer dominates every visit — it's hidden by
+     default once the batch has photos, expands when the user
+     explicitly taps [+ Add], or auto-expands when the batch is
+     empty. The data-state attribute on #dropzone (set by poll())
+     also still drives the v69 compact mobile layout. -->
+<div id="dropzone-panel" class="hidden mb-3">
 <!-- Hero / Dropzone. Padding scales fluidly via clamp() so the box
      is generous on desktop but doesn't dominate the viewport on a
      280-px fold-folded phone (UX backlog A1). The browser interpolates
@@ -203,6 +244,8 @@
     </div>
   </div>
 </section>
+</div>
+<!-- /#dropzone-panel -->
 
 <!-- Camera burst staging tray. Hidden until the first camera shot
      is taken; once visible, the inspector can keep tapping "Take
@@ -258,71 +301,20 @@
           class="text-rose-400 hover:text-rose-600 text-lg leading-none">&times;</button>
 </div>
 
-<!-- Batch summary card (shows when there are reviewed photos) -->
-<details id="summary-card" class="hidden mt-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-  <summary class="flex items-center justify-between px-4 py-3 cursor-pointer">
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-lg bg-emerald-100 grid place-items-center">
-        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-      </div>
-      <div>
-        <div class="font-semibold text-slate-900" data-i18n="summary_title">Inspection summary</div>
-        <div id="summary-headline" class="text-xs text-slate-500"></div>
-      </div>
-    </div>
-    <svg class="w-4 h-4 text-slate-400 transition-transform" id="summary-caret" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
-    </svg>
-  </summary>
-  <div class="px-4 pb-3 pt-1 text-sm">
-    <ul class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-slate-700">
-      <li class="flex justify-between"><span data-i18n="summary_total">Total</span><span id="summary-total" class="tabular-nums font-semibold">0</span></li>
-      <li class="flex justify-between"><span data-i18n="summary_reviewed">Reviewed</span><span id="summary-reviewed" class="tabular-nums font-semibold text-emerald-700">0</span></li>
-      <li class="flex justify-between"><span data-i18n="summary_pending">Pending</span><span id="summary-pending" class="tabular-nums font-semibold text-amber-700">0</span></li>
-      <li class="flex justify-between"><span data-i18n="summary_avg_conf">Avg confidence</span><span id="summary-conf" class="tabular-nums font-semibold">—</span></li>
-    </ul>
-  </div>
-</details>
+<!-- Inspection summary card REMOVED in v81 overhaul: the photo +
+     reviewed counts now live in the title-row subtitle (#batch-subtitle),
+     and avg-confidence wasn't load-bearing for any user workflow. JS
+     refreshSummary() repurposed to populate #batch-subtitle. -->
 
-<!-- Unified batch header card (UX backlog A2 + A4). Three concerns
-     used to live in three separate boxes: batch identity, reset,
-     and the filter pills. Now they share one paper-toned card with
-     a hairline divider between the identity row and the filter
-     row, so the user reads it as a single "this is your batch
-     context" block. -->
-<div id="batch-bar" class="mt-4 bg-white border border-slate-200 rounded-lg shadow-sm text-sm">
-  <!-- Row 1: batch identity + reset -->
-  <div class="flex items-center gap-2 px-3 py-2">
-    <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/>
-    </svg>
-    <input type="text" id="batch-label-input"
-           class="flex-1 min-w-0 bg-transparent text-sm font-semibold text-slate-900 focus:outline-none focus:bg-slate-50 rounded px-1 py-0"
-           placeholder="Tap to name this inspection"
-           aria-label="Inspection name"
-           autocomplete="off">
-    <span class="hidden sm:inline-flex items-center text-xs text-slate-500 italic" id="batch-count-hint"></span>
-    <button id="batch-reset-reviews"
-            class="text-xs text-slate-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-2.5 min-h-[44px] rounded flex items-center gap-1 transition-colors"
-            aria-label="Reset reviews"
-            title="Wipe all confirmations / corrections you made in this inspection (keeps photos and AI predictions)">
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.355m-2.5 9.32A8.25 8.25 0 015.25 12.045a8.25 8.25 0 0115.272-4.32m0 0V4.355"/>
-      </svg>
-      <span class="sm:hidden" data-i18n="batch_reset_short">Reset</span>
-      <span class="hidden sm:inline" data-i18n="batch_reset">Reset reviews</span>
-    </button>
-  </div>
-  <!-- Row 2: filter pills (only visible once the toolbar should show
-       — same #toolbar id so existing JS that toggles its hidden
-       state still works). -->
-  <div id="toolbar" class="hidden flex items-center gap-1 border-t border-slate-100 px-2 py-1.5">
-    <button data-filter="all"     class="filter-btn active flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-700 text-xs sm:text-sm"><span data-i18n="filter_all">All</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
-    <button data-filter="pending" class="filter-btn flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-600 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_pending">Pending</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
-    <button data-filter="reviewed"class="filter-btn flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-600 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_reviewed">Reviewed</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
-  </div>
+<!-- Filter pills row. Was the second row of the old #batch-bar
+     (which also held the editable name + Reset button — both moved
+     to the title row above, Reset removed entirely per the user's
+     "per-item or selectable" directive; per-card "Undo" already
+     handles single-item reset). -->
+<div id="toolbar" class="hidden mt-2 flex items-center gap-1 bg-white border border-slate-200 rounded-lg shadow-sm px-2 py-1.5 text-sm">
+  <button data-filter="all"     class="filter-btn active flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-700 text-xs sm:text-sm"><span data-i18n="filter_all">All</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
+  <button data-filter="pending" class="filter-btn flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-600 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_pending">Pending</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
+  <button data-filter="reviewed"class="filter-btn flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-600 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_reviewed">Reviewed</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
 </div>
 
 <!-- Tools toolbar — sort, export, bulk actions. Separate from the
@@ -1029,6 +1021,9 @@ const I18N = {
     dz_bonus_hint: "Review photos to earn bonus uploads (2 reviews = +1 upload)",
     expiry_banner: "Photos are automatically deleted after 48 hours. Download or email your report before then.",
     expiry_banner_detail: "This inspection's photos will be deleted in",
+    expiry_banner_detail_compact: "Expires in",
+    expiry_banner_cta_compact: "download report",
+    add_photos_short: "Add",
     expiry_banner_cta: "Download your report before then.",
     expiry_expired: "expired",
     expiry_hours: (h) => `${h}h`,
@@ -1249,6 +1244,9 @@ const I18N = {
     dz_bonus_hint: "Xét duyệt ảnh để nhận thêm lượt tải (2 xét duyệt = +1 lượt)",
     expiry_banner: "Ảnh sẽ tự động bị xóa sau 48 giờ. Tải xuống hoặc gửi email báo cáo trước thời hạn.",
     expiry_banner_detail: "Ảnh của đợt kiểm tra này sẽ bị xóa sau",
+    expiry_banner_detail_compact: "Hết hạn sau",
+    expiry_banner_cta_compact: "tải báo cáo",
+    add_photos_short: "Thêm",
     expiry_banner_cta: "Tải báo cáo trước thời hạn.",
     expiry_expired: "đã hết hạn",
     expiry_hours: (h) => `${h} giờ`,
@@ -1469,6 +1467,9 @@ const I18N = {
     dz_bonus_hint: "Revisa fotos para ganar subidas extra (2 revisiones = +1 subida)",
     expiry_banner: "Las fotos se eliminan automáticamente después de 48 horas. Descarga o envía tu informe antes.",
     expiry_banner_detail: "Las fotos de esta inspección se eliminarán en",
+    expiry_banner_detail_compact: "Caduca en",
+    expiry_banner_cta_compact: "descargar informe",
+    add_photos_short: "Añadir",
     expiry_banner_cta: "Descarga tu informe antes.",
     expiry_expired: "expirado",
     expiry_hours: (h) => `${h}h`,
@@ -1689,6 +1690,9 @@ const I18N = {
     dz_bonus_hint: "审核照片可获得额外上传额度（2次审核 = +1次上传）",
     expiry_banner: "照片将在48小时后自动删除。请在此之前下载或发送邮件报告。",
     expiry_banner_detail: "此检查的照片将在以下时间后删除：",
+    expiry_banner_detail_compact: "剩余",
+    expiry_banner_cta_compact: "下载报告",
+    add_photos_short: "添加",
     expiry_banner_cta: "请在此之前下载报告。",
     expiry_expired: "已过期",
     expiry_hours: (h) => `${h}小时`,
@@ -1852,7 +1856,9 @@ function startNewBatch() {
   el("#empty-state").classList.remove("hidden");
   el("#loading-state").classList.add("hidden");
   toolbar.classList.add("hidden");
-  el("#summary-card").classList.add("hidden");
+  // v81 overhaul: summary card removed; subtitle clears when there
+  // are no photos.
+  el("#batch-subtitle").textContent = "";
   // Reset batch label input + session counters
   el("#batch-label-input").value = "";
   SESSION.uploaded = 0;
@@ -4031,6 +4037,10 @@ async function uploadFiles(files) {
 
   setTimeout(() => overlay.classList.add("hidden"), 600);
   showToast(t("upload_classifying"));
+  // v81 overhaul: collapse the dropzone panel after a successful
+  // upload so the user lands on the photo grid instead of having to
+  // scroll past the dropzone again.
+  _setDropzonePanelOpen(false);
   // Drop the in-flight counter so the beforeunload guard releases.
   // Done here (not in finally) because the function's loop above
   // catches its own errors per-batch without throwing — there is no
@@ -4628,27 +4638,23 @@ document.addEventListener("click", e => {
   }
 });
 
-// =================== Summary card ===================
+// =================== Title-row subtitle ===================
+// v81 overhaul: the summary card was removed; the photo + reviewed
+// counts now sit under the editable inspection name as a subtitle.
+// We keep the function name refreshSummary() so existing call sites
+// don't need to change.
 async function refreshSummary() {
+  const subtitle = el("#batch-subtitle");
+  if (!subtitle) return;
   try {
     const resp = await fetch(`/api/export/summary?batch_id=${encodeURIComponent(CURRENT_BATCH_ID)}`);
     if (!resp.ok) return;
     const s = await resp.json();
-    const card = el("#summary-card");
     if (!s.total_photos) {
-      card.classList.add("hidden");
+      subtitle.textContent = "";
       return;
     }
-    card.classList.remove("hidden");
-    el("#summary-headline").textContent = t("summary_headline")(s.total_photos, s.reviewed);
-    el("#summary-total").textContent = s.total_photos;
-    el("#summary-reviewed").textContent = s.reviewed;
-    el("#summary-pending").textContent = s.pending;
-    el("#summary-conf").textContent = s.avg_confidence
-      ? Math.round(s.avg_confidence * 100) + "%"
-      : "—";
-    // Top HSE types + top locations moved to export-only (PDF/email)
-    // to declutter the in-app review screen.
+    subtitle.textContent = t("summary_headline")(s.total_photos, s.reviewed);
   } catch (e) { /* silent */ }
 }
 
@@ -4787,9 +4793,12 @@ async function poll(opts = {}) {
     if (!els(".card", cardsEl).length) {
       el("#empty-state").classList.remove("hidden");
       toolbar.classList.add("hidden");
-      el("#summary-card").classList.add("hidden");
-      // Empty batch: dropzone is the user's main affordance, keep it big.
+      // Empty batch (no photos): auto-expand the dropzone panel and
+      // keep its compact mode flag at "empty" so it shows the full
+      // welcome layout. UX overhaul v81.
       el("#dropzone").dataset.state = "empty";
+      _setDropzonePanelOpen(true);
+      el("#batch-subtitle").textContent = "";
     } else {
       el("#empty-state").classList.add("hidden");
       toolbar.classList.remove("hidden");
@@ -4835,25 +4844,31 @@ batchInput.addEventListener("keydown", e => {
 // (Old #batch-new handler removed — see markup comment above. New
 // batches now start exclusively from the list view's
 // #btn-new-batch-from-list button, no in-batch alternative.)
-el("#batch-reset-reviews").addEventListener("click", async () => {
-  const reviewedCount = document.querySelectorAll(".card[data-status='reviewed']").length;
-  if (reviewedCount === 0) {
-    showToast(t("reset_nothing") || "Nothing to reset — no reviews in this inspection", { timeoutMs: 3000 });
-    return;
-  }
-  const ok = window.confirm(
-    (t("reset_confirm") || "Wipe all your confirmations and corrections in this inspection? Photos + AI predictions stay; only your reviews are removed.") +
-    `\n\n(${reviewedCount} review${reviewedCount === 1 ? "" : "s"} will be removed)`);
-  if (!ok) return;
-  try {
-    const r = await fetch(`/api/batches/${CURRENT_BATCH_ID}/clear-reviews`, { method: "POST" });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    showToast(t("reset_done") || `${reviewedCount} review${reviewedCount === 1 ? "" : "s"} cleared`, { timeoutMs: 3500 });
-    photoCache.clear();
-    cardsEl.querySelectorAll(".card").forEach(c => c.remove());
-    poll();
-  } catch (e) {
-    showError("Reset failed: " + e.message);
+//
+// Global #batch-reset-reviews handler REMOVED in v81 overhaul. The
+// per-card "↶ Undo" already handles single-photo reset; v84 adds
+// multi-select for bulk operations. Bulk-wipe-everything was too
+// destructive — easy mis-tap, no granularity.
+
+// v81 dropzone-panel toggle. The [+ Add] button in the title row
+// expands/collapses the dropzone panel. aria-expanded follows the
+// state so screen readers announce it. _setDropzonePanelOpen() is
+// also called from poll() to auto-show on empty batch.
+function _setDropzonePanelOpen(open) {
+  const panel = el("#dropzone-panel");
+  const btn = el("#btn-add-photos");
+  if (!panel || !btn) return;
+  panel.classList.toggle("hidden", !open);
+  btn.setAttribute("aria-expanded", String(!!open));
+}
+el("#btn-add-photos")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const open = el("#dropzone-panel").classList.contains("hidden");
+  _setDropzonePanelOpen(open);
+  // When opening, scroll the dropzone into view so the user can
+  // immediately see the upload buttons.
+  if (open) {
+    el("#dropzone-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 });
 
@@ -5184,11 +5199,14 @@ function openBatch(batchId, label) {
   // true empty state if the batch really is empty.
   el("#empty-state").classList.add("hidden");
   el("#loading-state").classList.remove("hidden");
-  el("#summary-card").classList.add("hidden");
+  el("#batch-subtitle").textContent = "";
   toolbar.classList.add("hidden");
   // Reset dropzone to expanded state during load. poll() will collapse
   // it to compact mode if the batch turns out to have photos.
   el("#dropzone").dataset.state = "empty";
+  // Hide the dropzone panel by default when entering a batch — poll()
+  // will auto-open it if the batch is empty (UX overhaul v81).
+  _setDropzonePanelOpen(false);
   // Sync batch label input
   el("#batch-label-input").value = label || "";
   switchView(VIEW_DETAIL);
