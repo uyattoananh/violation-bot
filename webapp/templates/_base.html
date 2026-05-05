@@ -610,55 +610,46 @@
     {% block body %}{% endblock %}
   </main>
 
-  <!-- Sticky stats footer -->
+  <!-- Sticky footer slimmed in v86 overhaul. The session counters
+       ("0 uploaded · 0 confirmed · 0 corrected") didn't help any
+       single-batch workflow — those numbers now live in the title-
+       row subtitle (#batch-subtitle). The "every confirmation trains
+       the AI" tagline was marketing copy that belongs on the landing
+       page, not on every screen. The cost ticker was admin-curiosity
+       and lives behind {% if is_admin %} only.
+       What's left: the daily quota (with the inline label so it
+       reads as "0 / 100 photos today" not just "0/100"). The
+       hidden DOM nodes for stat-session-* are kept so the existing
+       JS counters don't null-deref. -->
   <footer id="app-footer"
           class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-slate-200 z-40">
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4 text-xs text-slate-600">
-      <!-- (Was: training-set counter — internal metric not useful to
-           inspectors; removed per UX backlog item E1.) -->
-      <div class="hidden sm:flex items-center gap-3">
-        <span class="text-slate-600" data-i18n="footer_session">Session:</span>
-        <span class="flex items-center gap-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-          <span id="stat-session-uploaded" class="font-semibold tabular-nums">0</span>
-          <span class="text-slate-600" data-i18n="footer_uploaded">uploaded</span>
-        </span>
-        <span class="flex items-center gap-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-          <span id="stat-session-confirmed" class="font-semibold tabular-nums text-emerald-700">0</span>
-          <span class="text-slate-600" data-i18n="footer_confirmed">confirmed</span>
-        </span>
-        <span class="flex items-center gap-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
-          <span id="stat-session-corrected" class="font-semibold tabular-nums text-sky-700">0</span>
-          <span class="text-slate-600" data-i18n="footer_corrected">corrected</span>
-        </span>
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between gap-4 text-xs text-slate-600">
+      <!-- Hidden session counters (preserved so existing JS that
+           writes to them keeps working without null-deref). -->
+      <div class="hidden">
+        <span id="stat-session-uploaded">0</span>
+        <span id="stat-session-confirmed">0</span>
+        <span id="stat-session-corrected">0</span>
       </div>
-      <!-- Today's quota usage. Read from /api/usage/me — per cookie-id,
-           independent of the global cost ticker which is admin-only.
-           Inline label so users understand "0 / 30" isn't a mystery
-           number (UX backlog E2). -->
+      <!-- Daily upload quota — the one item the inspector benefits
+           from seeing on every screen. -->
       <div class="flex items-center gap-1 text-slate-600 tabular-nums" id="quota-wrap"
            title="Daily upload limit. Resets at 00:00 UTC.">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
         </svg>
         <span id="quota-text">
-          <span id="quota-used">0</span>/<span id="quota-limit">30</span>
+          <span id="quota-used">0</span>/<span id="quota-limit">100</span>
           <span class="hidden sm:inline" data-i18n="quota_label_suffix">photos today</span>
         </span>
       </div>
-      <!-- Today's estimated cost (sums tokens * public list rates).
-           Refreshes on page load + every 60s. OpenRouter dashboard is
-           authoritative for billing; this is a sanity-check ticker. -->
-      <div class="hidden md:flex items-center gap-1 text-slate-600 tabular-nums" id="cost-ticker-wrap" title="Today's estimated AI spend (resets at 00:00 UTC)">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-2.21 0-4-1.79-4-4 0-1.105.448-2.105 1.172-2.828C9.895 4.448 10.895 4 12 4c1.105 0 2.105.448 2.828 1.172L15.5 5.5"/>
-        </svg>
-        <span data-i18n="footer_today">today:</span>
+      <!-- Cost ticker — admin only. Hidden DOM nodes preserved so the
+           60 s update cycle in JS doesn't null-deref. -->
+      <div class="hidden" id="cost-ticker-wrap">
         <span id="cost-ticker">$0.00</span>
       </div>
-      <div class="text-slate-600 italic hidden md:block" data-i18n="footer_tagline">every confirmation trains the AI</div>
+      <!-- Marketing tagline ("every confirmation trains the AI")
+           removed in v86 overhaul. -->
     </div>
   </footer>
 
