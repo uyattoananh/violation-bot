@@ -667,6 +667,38 @@
     <img id="lightbox-img" src="" alt="">
   </div>
 
+  <!-- Multi-select bottom action bar (v84 overhaul). Hidden by default;
+       revealed when the inspector taps the "Select" toolbar button.
+       sits above the sticky stats footer (bottom-12 = 48px =
+       ~footer height). -->
+  <div id="select-bar"
+       class="hidden fixed bottom-12 inset-x-0 z-40 bg-slate-900 text-white shadow-lg"
+       role="toolbar" aria-label="Bulk actions">
+    <div class="max-w-6xl mx-auto px-4 py-2 flex items-center gap-2">
+      <span id="select-count" class="font-semibold tabular-nums" aria-live="polite">0 selected</span>
+      <div class="flex-1"></div>
+      <button id="select-confirm" type="button"
+              class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] flex items-center gap-1.5 transition-colors"
+              disabled>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+        <span data-i18n="select_confirm">Confirm</span>
+      </button>
+      <button id="select-undo" type="button"
+              class="bg-slate-700 hover:bg-slate-600 active:bg-slate-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] flex items-center gap-1.5 transition-colors"
+              disabled>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/>
+        </svg>
+        <span data-i18n="select_undo">Undo</span>
+      </button>
+      <button id="select-cancel" type="button"
+              class="text-slate-300 hover:text-white text-sm rounded-lg px-3 py-2 min-h-[44px] transition-colors"
+              data-i18n="select_cancel">Cancel</button>
+    </div>
+  </div>
+
   <!-- Toast container -->
   <!-- role=status + aria-live=polite so screen readers announce toast
        updates without interrupting the user. role=alert would be too

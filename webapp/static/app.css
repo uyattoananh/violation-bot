@@ -398,6 +398,39 @@ body.fp-modal-open {
 .stat-bump { animation: statBump 320ms ease-out; }
 
 /* ============================================================
+   Multi-select mode (v84 overhaul). When the inspector enters
+   select mode (via toolbar Select button), every .card gains
+   .select-mode; individually-picked cards add .is-selected.
+   Selected cards get a 3 px emerald outline + a checkmark badge
+   in the top-left corner. Pad <main> so the photo grid clears
+   the sticky bottom action bar. ============================================================ */
+.card.select-mode { cursor: pointer; }
+.card.select-mode.is-selected {
+  outline: 3px solid rgb(16 185 129);
+  outline-offset: -3px;
+}
+.card.select-mode.is-selected::after {
+  content: "✓";
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 28px;
+  height: 28px;
+  background: rgb(16 185 129);
+  color: white;
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  z-index: 11;
+  pointer-events: none;
+}
+body.select-mode-active main {
+  /* sticky #app-footer (~48 px) + #select-bar (~56 px) = 104 px clearance. */
+  padding-bottom: 7rem;
+}
+
+/* ============================================================
    Compact dropzone (mobile only).
 
    When the batch already has photos, the user is in review mode —
