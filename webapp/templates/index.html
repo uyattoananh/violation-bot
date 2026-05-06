@@ -5133,12 +5133,15 @@ async function poll(opts = {}) {
   }
 }
 
-// Listen for tab visibility changes — fire one immediate poll when
-// the tab comes back to the foreground so the user doesn't see stale
-// state. Without this, a returning user has to wait up to 16 s
-// (idle-backoff window) for the next refresh.
+// Listen for tab visibility changes — refresh whichever view the
+// user is on when the tab comes back to the foreground. Without this,
+// a returning user could see stale data (their other device finished
+// uploading photos / another inspector deleted a batch).
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
+  if (document.hidden) return;
+  if (currentView === VIEW_LIST) {
+    refreshBatchesList();
+  } else {
     _pollIdleStreak = 0;
     poll({ force: true });
   }
@@ -5252,18 +5255,23 @@ window.addEventListener("popstate", (e) => {
 let _refreshBatchesToken = 0;
 
 // v115.3 — stale-while-revalidate cache.
+// v115.4 — refresh-on-event (no TTL polling).
 // On switchView('list'), the JS used to: fetch /api/batches → wait
 // the network round-trip + DB aggregation (~1 s on a slow link) →
 // THEN paint. Cold open meant a full second of empty list every
 // single time. Now: render synchronously from a localStorage mirror
-// of the last good response (~0 ms), then refetch in background and
-// re-render if anything changed. Mutations (delete, rename) update
-// the cache directly so the next render reflects them without a
-// round-trip.
+// of the last good response (~0 ms), then refetch in background.
+// Refresh fires only on real events:
+//   * App boot (no cache → cold fetch + render)
+//   * switchView('list') — user navigates back to the list, possibly
+//     after mutating photos in a detail view
+//   * visibilitychange-to-visible on the list view — tab returned
+//     from background, may have stale data from another device
+//   * Mutations (rename, delete) — cache updated inline so the
+//     next render reflects the change without a round-trip.
+// No TTL-based polling; we trust the events.
 const _BATCHES_CACHE_KEY = "violation-ai-batches-v1";
-const _BATCHES_CACHE_TTL_MS = 30_000;
 let _batchesCachedData = null;
-let _batchesCachedAt = 0;
 
 function _readBatchesCache() {
   try {
@@ -5416,29 +5424,24 @@ function _renderBatches(data) {
   });
 }
 
-async function refreshBatchesList(opts = {}) {
+async function refreshBatchesList() {
   const myToken = ++_refreshBatchesToken;
 
-  // Step 1: render from cache instantly so the user never sees
-  // an empty grid on view-list switch.
+  // Step 1: render from cache instantly so the user never sees an
+  // empty grid on view-list switch.
   if (_batchesCachedData === null) _batchesCachedData = _readBatchesCache();
   if (_batchesCachedData) _renderBatches(_batchesCachedData);
 
-  // Step 2: skip the network call if cache is fresh enough AND the
-  // caller didn't force a refresh. Mutations call with {force: true}
-  // to bypass the TTL guard.
-  if (!opts.force && _batchesCachedAt && (Date.now() - _batchesCachedAt) < _BATCHES_CACHE_TTL_MS) {
-    return;
-  }
-
-  // Step 3: refetch in background, re-render + persist on success.
+  // Step 2: refetch in background, re-render + persist on success.
+  // No TTL gate — every call to refreshBatchesList() corresponds to
+  // a real user event (boot / view switch / focus / mutation),
+  // there's no point throttling.
   try {
     const r = await fetch("/api/batches?limit=100");
     if (!r.ok) throw new Error("HTTP " + r.status);
     const data = await r.json();
     if (myToken !== _refreshBatchesToken) return;
     _batchesCachedData = data;
-    _batchesCachedAt = Date.now();
     _writeBatchesCache(data);
     _renderBatches(data);
   } catch (_) { /* keep showing cache */ }
