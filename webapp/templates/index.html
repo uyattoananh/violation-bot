@@ -820,8 +820,11 @@
        tabindex="0"
        data-batch-id="">
     <div class="flex-1 min-w-0">
-      <!-- Line 1: name (truncates) + percentage (right-aligned, tabular). -->
-      <div class="flex items-center gap-2">
+      <!-- Line 1: name (truncates) + percentage (right-aligned, tabular).
+           items-baseline so the % digits sit on the same baseline as the
+           title — items-center makes mixed text-base / text-sm look like
+           the smaller text is floating above the bigger one. -->
+      <div class="flex items-baseline gap-2">
         <div class="batch-card-label font-semibold text-slate-900 text-base truncate flex-1 min-w-0"></div>
         <span class="batch-card-pct text-sm font-semibold text-slate-600 tabular-nums flex-shrink-0"></span>
       </div>
