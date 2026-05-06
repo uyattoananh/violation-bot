@@ -285,19 +285,22 @@
       color: var(--paper) !important;
     }
 
-    /* ---- Filter pills: ink-on-paper-warm look ---- */
+    /* ---- Filter pills (v102 rebuild): the active state was full
+         ink-on-paper which read as a separate dark UI block. Now it's
+         a softer paper-warm tint with full ink text — pills look
+         like "current selection" rather than "primary action". */
     body.theme-paper .filter-btn {
       color: var(--ink-mute) !important;
       background-color: transparent;
     }
     body.theme-paper .filter-btn:hover { color: var(--ink) !important; }
     body.theme-paper .filter-btn.active {
-      background-color: var(--ink) !important;
-      color: var(--paper) !important;
-      box-shadow: none !important;
+      background-color: var(--paper-warm) !important;
+      color: var(--ink) !important;
+      box-shadow: inset 0 0 0 1px var(--rule-strong) !important;
     }
     body.theme-paper .filter-btn.active .filter-count {
-      color: rgba(245,243,235,0.65) !important;
+      color: var(--ink-soft) !important;
     }
 
     /* ---- Skeleton thumbnail: paper-warm rather than slate ---- */

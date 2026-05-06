@@ -333,30 +333,34 @@
     </select>
   </div>
 
-  <!-- Multi-select toggle. Tapping enters select-mode where each
-       card becomes a checkbox-toggle target. v84 overhaul. -->
+  <!-- Multi-select toggle. v102: label hidden on mobile so the
+       toolbar fits on one row alongside Sort + Download. -->
   <button id="btn-select-mode" type="button"
           class="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100
-                 text-slate-700 text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] shadow-sm
-                 flex items-center gap-1.5 transition-colors"
-          aria-pressed="false">
+                 text-slate-700 text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] min-w-[44px] shadow-sm
+                 flex items-center justify-center gap-1.5 transition-colors"
+          aria-pressed="false"
+          aria-label="Select multiple photos"
+          title="Select multiple photos">
     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
     </svg>
-    <span data-i18n="select_mode">Select</span>
+    <span class="hidden sm:inline" data-i18n="select_mode">Select</span>
   </button>
 
   <!-- Export menu -->
   <div class="relative">
     <button id="export-btn"
             class="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100
-                   text-slate-700 text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] shadow-sm
-                   flex items-center gap-1.5 transition-colors">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                   text-slate-700 text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] min-w-[44px] shadow-sm
+                   flex items-center justify-center gap-1.5 transition-colors"
+            aria-label="Download report"
+            title="Download report">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
       </svg>
-      <span data-i18n="export_btn">Download</span>
-      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <span class="hidden sm:inline" data-i18n="export_btn">Download</span>
+      <svg class="hidden sm:inline w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
       </svg>
     </button>
@@ -4635,12 +4639,16 @@ function applyFilter() {
     const f = b.dataset.filter;
     el(".filter-count", b).textContent = counts[f];
     const isActive = b.dataset.filter === activeFilter;
+    // v102 rebuild: lighter active state. Was full bg-slate-900 with
+    // white text — too heavy. Now an inset bg-slate-200 + dark text
+    // so the active pill reads as a "current selection" rather than
+    // a separate dark UI block.
     if (isActive) {
-      b.classList.add("bg-slate-900", "text-white", "active");
-      b.classList.remove("text-slate-500", "text-slate-700");
+      b.classList.add("bg-slate-200", "text-slate-900", "active");
+      b.classList.remove("text-slate-600", "text-slate-700", "bg-slate-900", "text-white");
     } else {
-      b.classList.remove("bg-slate-900", "text-white", "active");
-      b.classList.add("text-slate-500");
+      b.classList.remove("bg-slate-200", "text-slate-900", "active", "bg-slate-900", "text-white");
+      b.classList.add("text-slate-600");
     }
     // aria-pressed announces the toggle state to screen readers so
     // users can tell which filter is currently active. role=button is
@@ -5013,6 +5021,14 @@ async function poll(opts = {}) {
       // Has photos: collapse the dropzone so the grid is above the fold
       // on mobile (UX backlog A1).
       el("#dropzone").dataset.state = "has-photos";
+      // v102 rebuild: also collapse the dropzone PANEL when the batch
+      // already has photos. Previously the panel only auto-closed AFTER
+      // a successful upload (uploadFiles end), so navigating into a
+      // batch you'd already populated showed the dropzone panel open
+      // for no reason. Now the moment poll() sees photos, the panel
+      // collapses to a [+ Add] button — same one tap to expand again
+      // if you want to add more.
+      _setDropzonePanelOpen(false);
     }
   } catch (e) {
     // On error, still hide loading state so user isn't stuck on spinner
