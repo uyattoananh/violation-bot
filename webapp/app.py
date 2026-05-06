@@ -976,10 +976,16 @@ async def security_headers_middleware(request: Request, call_next):
         "Content-Security-Policy",
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
-        "style-src 'self' 'unsafe-inline'; "
+        # v110: allow fonts.googleapis.com so the Atkinson Hyperlegible
+        # CSS file can load. Pre-v110 we used Inter (also from Google
+        # Fonts) which got blocked by the same rule but we never
+        # noticed because Inter looked like the system fallback. AHL is
+        # visually distinct, so the font silently falling back broke
+        # the design. font-src adds fonts.gstatic.com for the woff2.
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "img-src 'self' data: blob: https:; "
         "connect-src 'self' https:; "
-        "font-src 'self' data:; "
+        "font-src 'self' data: https://fonts.gstatic.com; "
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
         "form-action 'self' https://accounts.google.com "
