@@ -39,11 +39,13 @@
        button. The corresponding JS handler in the el(#btn-quick-batch)
        check is already null-guarded so it's a no-op without the markup. -->
 
-  <!-- v101 rebuild: single-column dense list on mobile; 2-col grid
-       on tablet+. Cards become rows, with all per-batch metadata
-       on two compact lines. -->
-  <div id="batches-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-2">
-    <!-- batch cards inserted by JS using #batch-card-template -->
+  <!-- v111 rebuild: hairline row list. No card chrome, no shadow,
+       no rounded box per item. Each row separates by a thin slate-200
+       hairline. On desktop ≥1024 px we still split into two columns
+       (a long inspection list shouldn't waste 2/3 of a 27" screen).
+       On mobile we just stack — this is what inspectors actually see. -->
+  <div id="batches-grid" class="flex flex-col lg:grid lg:grid-cols-2 lg:gap-x-6 border-t border-slate-200">
+    <!-- batch rows inserted by JS using #batch-card-template -->
   </div>
 
   <!-- Empty state — v101: a single one-liner instead of the
@@ -772,49 +774,67 @@
      The outer element is a <div role="button"> rather than a <button> so
      we can nest a real <button> (delete) inside it without invalid markup. -->
 <template id="batch-card-template">
-  <!-- v101 rebuild: tighter card. Was 4 stacked rows (header / counts /
-       progress / footer); now 2 lines: [name + edit + delete] on top,
-       [photos · reviewed · expiry · pct] underneath. The progress bar
-       was redundant with the percentage text. -->
-  <div class="batch-card relative text-left bg-white border border-slate-200 rounded-lg hover:border-slate-400 active:bg-slate-50 transition-colors px-3 py-2.5 flex flex-col gap-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
+  <!-- v111 hairline row. No card chrome, no rounded box, no shadow.
+       Title + percentage on one line, meta on a second smaller line.
+       Rename/delete sit at the right edge as 44 px round taps;
+       trailing chevron echoes the row-tap affordance.
+
+       JS-bound class hooks preserved verbatim:
+         .batch-card / -label / -rename / -delete / -photos /
+         -reviewed / -when / -expiry / -expiry-text / -pct /
+         -progress (hidden DOM-only). -->
+  <div class="batch-card group relative cursor-pointer flex items-center gap-2 px-2 py-3 min-h-[64px] border-b border-slate-200 hover:bg-slate-100 active:bg-slate-200 transition-colors focus:outline-none focus-visible:bg-slate-100"
        role="button"
        tabindex="0"
        data-batch-id="">
-    <div class="flex items-center gap-2 min-h-[36px]">
-      <div class="font-semibold text-slate-900 batch-card-label flex-1 min-w-0 truncate"></div>
-      <div class="flex items-center gap-1 flex-shrink-0">
-        <button type="button"
-                class="batch-card-rename hover:bg-slate-100 active:bg-slate-200 text-slate-400 hover:text-slate-700 rounded-full w-9 h-9 grid place-items-center transition-colors"
-                aria-label="Rename inspection"
-                title="Rename this inspection">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
-          </svg>
-        </button>
-        <button type="button"
-                class="batch-card-delete hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 rounded-full w-9 h-9 grid place-items-center transition-colors"
-                aria-label="Delete inspection"
-                title="Delete inspection">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
-            </svg>
-        </button>
+    <div class="flex-1 min-w-0">
+      <!-- Line 1: name (truncates) + percentage (right-aligned, tabular). -->
+      <div class="flex items-center gap-2">
+        <div class="batch-card-label font-semibold text-slate-900 text-base truncate flex-1 min-w-0"></div>
+        <span class="batch-card-pct text-sm font-semibold text-slate-600 tabular-nums flex-shrink-0"></span>
+      </div>
+      <!-- Line 2: photos · reviewed · expiry · timestamp (smaller, muted). -->
+      <div class="text-xs text-slate-600 flex items-center flex-wrap gap-x-2 mt-0.5 tabular-nums">
+        <span class="batch-card-photos"></span>
+        <span class="batch-card-reviewed text-emerald-700"></span>
+        <span class="batch-card-expiry text-amber-700 flex items-center gap-0.5">
+          <span class="batch-card-expiry-text"></span>
+        </span>
+        <span class="batch-card-when text-slate-500 hidden sm:inline whitespace-nowrap"></span>
       </div>
     </div>
-    <!-- Single meta line: photos · reviewed · expiry · pct -->
-    <div class="text-xs text-slate-600 flex items-center flex-wrap gap-x-3 gap-y-0.5 tabular-nums">
-      <span class="batch-card-photos"></span>
-      <span class="batch-card-reviewed text-emerald-700"></span>
-      <span class="batch-card-when text-slate-500 hidden sm:inline whitespace-nowrap"></span>
-      <span class="batch-card-expiry text-amber-700 flex items-center gap-0.5">
-        <span class="batch-card-expiry-text"></span>
-      </span>
-      <span class="batch-card-pct ml-auto font-semibold text-slate-700"></span>
+    <!-- Action cluster: rename, delete. Compact 36 px buttons since
+         they live next to a 64 px row tap-target — the row carries
+         the "open this inspection" intent; rename/delete are
+         secondary. Hidden by default on tablet+, revealed on
+         hover/focus. Always visible on mobile (no hover signal). -->
+    <div class="flex items-center flex-shrink-0 row-actions opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+      <button type="button"
+              class="batch-card-rename hover:bg-slate-200 active:bg-slate-300 text-slate-500 hover:text-slate-900 rounded-full w-9 h-9 grid place-items-center transition-colors"
+              aria-label="Rename inspection"
+              title="Rename this inspection">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
+        </svg>
+      </button>
+      <button type="button"
+              class="batch-card-delete hover:bg-rose-50 active:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-full w-9 h-9 grid place-items-center transition-colors"
+              aria-label="Delete inspection"
+              title="Delete inspection">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+        </svg>
+      </button>
     </div>
-    <!-- Hidden progress bar kept in DOM so JS that writes to its
-         width attribute doesn't null-deref. Visually replaced by
-         the percentage above. -->
+    <!-- Tap-affordance chevron — echoes the row-is-clickable signal
+         without forcing a separate icon column on narrow viewports. -->
+    <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0 ml-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+    </svg>
+    <!-- Hidden progress-bar div kept so JS that writes to it
+         doesn't null-deref. Width is now expressed via .batch-card-pct
+         text. -->
     <div class="hidden">
       <div class="batch-card-progress"></div>
     </div>
