@@ -138,12 +138,18 @@
      Set by poll() / openBatch() once we know the photo count.
      UX backlog A1: dropzone takes too much vertical space when the
      user already has photos to review. -->
+<!-- v115.7 dropzone rebuild: lighter chrome.
+     Was border-2 dashed slate-300 with a clamp(12-32px) inner padding
+     and an emerald-50 icon container. The thick dashed box dominated
+     the viewport and the green icon clashed with the safety-orange
+     CTA. Now: border (1px) dashed slate-300, tighter padding, no icon
+     container — just a flat slate-400 download arrow. -->
 <section id="dropzone"
          data-state="empty"
-         class="relative rounded-2xl border-2 border-dashed border-slate-300 bg-white
+         class="relative rounded-xl border border-dashed border-slate-300 bg-white
                 text-center transition-all
-                sm:cursor-pointer sm:hover:border-emerald-500 sm:hover:bg-emerald-50/40"
-         style="padding: clamp(12px, 4vw, 32px) clamp(12px, 5vw, 24px);">
+                sm:cursor-pointer sm:hover:border-orange-400 sm:hover:bg-orange-50/30"
+         style="padding: clamp(16px, 3vw, 24px) clamp(12px, 4vw, 20px);">
   <input id="file-input" type="file" multiple accept="image/*" class="hidden">
   <!-- Dedicated camera input. capture="environment" forces the rear
        camera on Android/iOS, so the dedicated Take-photo button
@@ -152,18 +158,13 @@
        "Choose photos" button can route through fileInput's chooser
        (where the inspector picks already-taken photos). -->
   <input id="camera-input" type="file" accept="image/*" capture="environment" class="hidden">
-  <div class="flex flex-col items-center gap-2 sm:gap-3 pointer-events-none select-none">
-    <!-- Icon shrinks fluidly: 32-56 px depending on viewport. Hidden
-         entirely on the very narrowest screens (fold-folded) where
-         every vertical pixel matters. -->
-    <div class="narrow-very-hide rounded-2xl bg-emerald-50 grid place-items-center"
-         style="width: clamp(32px, 9vw, 56px); height: clamp(32px, 9vw, 56px);">
-      <svg class="text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8"
-           style="width: clamp(18px, 4.5vw, 28px); height: clamp(18px, 4.5vw, 28px);">
-        <path stroke-linecap="round" stroke-linejoin="round"
-              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
-      </svg>
-    </div>
+  <div class="flex flex-col items-center gap-2 pointer-events-none select-none">
+    <!-- Flat icon, no container. Hidden on the narrowest screens
+         (fold-folded) where every vertical pixel matters. -->
+    <svg class="narrow-very-hide w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round"
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+    </svg>
     <!-- Hint text. Desktop sees "Drop photos here, or click to select"
          (the dropzone IS a click target there). Mobile sees a different
          line because the area itself is non-tappable on mobile — the
@@ -452,17 +453,13 @@
 <!-- Cards grid -->
 <section id="cards"
          class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-  <div id="empty-state" class="col-span-full">
-    <div class="bg-white border border-slate-200 rounded-2xl py-14 px-6 text-center">
-      <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 grid place-items-center">
-        <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-          <path stroke-linecap="round" stroke-linejoin="round"
-                d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
-        </svg>
-      </div>
-      <div class="font-medium text-slate-700" data-i18n="empty_title">No photos yet.</div>
-      <div class="text-xs text-slate-500 mt-1" data-i18n="empty_sub">Drop some above to get started — predictions land here in a few seconds.</div>
-    </div>
+  <!-- v115.7: empty state collapsed from a 14 px-padded white card with
+       a circular icon to a single-line caption. The dropzone above
+       already says "Add site photos / Drop site photos here"; the
+       second card was visual duplication, taking ~150 px of vertical
+       space while delivering the same message. -->
+  <div id="empty-state" class="col-span-full text-center text-sm text-slate-500 mt-4 px-6 py-3" role="status">
+    <span data-i18n="empty_sub_short">No photos yet — drop some above</span>
   </div>
   <!-- Loading spinner shown while poll() fetches photos for a batch
        the user just opened. Prevents the "empty batch" flash that
@@ -1073,8 +1070,7 @@ const I18N = {
     pill_high: "Likely correct",
     pill_medium: "Please verify",
     pill_low: "Needs review",
-    empty_title: "No photos yet.",
-    empty_sub: "Drop some above to get started — predictions land here in a few seconds.",
+    empty_sub_short: "No photos yet — drop some above",
     loading_photos: "Loading photos…",
     footer_training_set: "Training set:",
     footer_session: "Session:",
@@ -1295,8 +1291,7 @@ const I18N = {
     pill_high: "Có khả năng đúng",
     pill_medium: "Vui lòng kiểm tra",
     pill_low: "Cần xét duyệt",
-    empty_title: "Chưa có ảnh nào.",
-    empty_sub: "Thả ảnh ở trên để bắt đầu — kết quả hiện sau vài giây.",
+    empty_sub_short: "Chưa có ảnh — thả ảnh ở trên",
     loading_photos: "Đang tải ảnh…",
     footer_training_set: "Tập huấn luyện:",
     footer_session: "Phiên này:",
@@ -1517,8 +1512,7 @@ const I18N = {
     pill_high: "Probablemente correcta",
     pill_medium: "Por favor verifica",
     pill_low: "Necesita revisión",
-    empty_title: "Aún no hay fotos.",
-    empty_sub: "Suelta algunas arriba para empezar — las predicciones aparecerán en unos segundos.",
+    empty_sub_short: "Aún no hay fotos — suelta algunas arriba",
     loading_photos: "Cargando fotos…",
     footer_training_set: "Conjunto de entrenamiento:",
     footer_session: "Sesión:",
@@ -1739,8 +1733,7 @@ const I18N = {
     pill_high: "可能正确",
     pill_medium: "请核实",
     pill_low: "需要审核",
-    empty_title: "暂无照片。",
-    empty_sub: "在上方拖入照片开始 — 几秒后将显示预测结果。",
+    empty_sub_short: "暂无照片 — 在上方拖入照片",
     loading_photos: "正在加载照片…",
     footer_training_set: "训练集：",
     footer_session: "会话：",
