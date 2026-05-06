@@ -462,47 +462,63 @@
 
 <!-- Card template -->
 <template id="card-template">
-  <article class="card relative bg-white border-2 border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow card-enter focus:outline-none focus:ring-2 focus:ring-emerald-500"
+  <!-- v112 rebuild: thumbnail-dominant card.
+       The thumbnail used to be a fixed 224 px tall stripe with chips
+       in a separate strip; chrome borders were 2 px and the rounded
+       container wrapped everything. Now: one rounded surface, the
+       thumb is 16:9 aspect (matches landscape job-site photos),
+       confidence + status chips live ON the thumb as overlay
+       badges (top-right), and the action row sits flat at the
+       bottom of the card with a clean hairline above it.
+
+       JS-bound hooks preserved: .card, .status-pill, .quality-pill,
+       .conf-ring + .conf-text (kept hidden), .btn-delete, .thumb-btn,
+       .skeleton-thumb / .thumb-skeleton, .thumb. The new conf-badge
+       on the thumb is the visible confidence; conf-ring stays in
+       DOM hidden for setConfidenceRing JS that writes to it. -->
+  <article class="card relative bg-white border border-slate-200 rounded-lg overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow card-enter focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
            tabindex="0"
            data-photo-id=""
            data-status="pending"
            data-confidence="0">
 
-    <!-- TOP-LEFT chip strip — status + quality. Per UX backlog B1 the
-         "Please verify" / "Likely correct" / "Needs review" label
-         lives on the LEFT so the eye reads "what is this photo?"
-         before "what can I do with it?". -->
-    <div class="absolute top-2 left-2 z-10 flex items-center gap-1.5">
-      <span class="status-pill hidden text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"></span>
-      <!-- Quality flag: pre-flight blurry / dark / tiny check. -->
-      <span class="quality-pill hidden text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300" title=""></span>
+    <!-- ===== Thumb wrapper =====
+         16:9 aspect ratio + object-cover. The thumb-btn is just the
+         image; overlay chips are siblings positioned absolute
+         relative to the .card article (which has `relative`).
+         Nested <button> in HTML is invalid — browsers hoist the
+         inner button out which broke v112's first cut. -->
+    <button type="button" class="thumb-btn relative block group bg-slate-100 aspect-video overflow-hidden" aria-label="View full image">
+      <div class="skeleton-thumb thumb-skeleton absolute inset-0"></div>
+      <img class="thumb hidden absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-[1.02]" alt="Site photo">
+    </button>
+
+    <!-- Top-left overlays: status + quality. Positioned over the
+         thumbnail; legible against any photo via the white pill bg. -->
+    <div class="absolute top-2 left-2 z-10 flex items-center gap-1.5 max-w-[calc(100%-3rem)] pointer-events-none">
+      <span class="status-pill hidden text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/95 backdrop-blur shadow-sm"></span>
+      <span class="quality-pill hidden text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 shadow-sm" title=""></span>
     </div>
 
-    <!-- TOP-RIGHT — delete only. The conf-ring used to live here too,
-         but per UX backlog B2 the confidence percentage is now shown
-         inline with the "AI suggests" header further down, so the
-         corner is reserved for the destructive action. -->
+    <!-- Top-right overlays: confidence badge + delete.
+         conf-badge is the visible % chip on the thumb. conf-ring
+         is the legacy hidden DOM target for setConfidenceRing JS.
+         pointer-events-auto only on the delete button — the badge
+         is just decoration. -->
     <div class="absolute top-2 right-2 z-10 flex items-center gap-1.5">
-      <!-- conf-ring kept in the DOM (hidden) so existing
-           setConfidenceRing JS still runs without null-deref. The
-           visible "· 60%" lives in the AI-suggests header instead. -->
+      <span class="conf-badge hidden text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-full bg-white/95 backdrop-blur text-slate-900 shadow-sm pointer-events-none"></span>
       <div class="conf-ring hidden" style="--pct: 0; --color: rgb(16 185 129); display: none">
         <span class="conf-text">0%</span>
       </div>
-      <button type="button" class="btn-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-11 h-11 grid place-items-center shadow-sm transition-colors"
+      <button type="button" class="btn-delete bg-white/95 hover:bg-rose-50 active:bg-rose-100 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-full w-9 h-9 grid place-items-center shadow-sm transition-colors backdrop-blur"
               aria-label="Delete photo"
               title="Delete photo">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round"
                 d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
         </svg>
       </button>
     </div>
-
-    <button type="button" class="thumb-btn block group bg-slate-100 relative" aria-label="View full image">
-      <div class="skeleton-thumb thumb-skeleton w-full h-56"></div>
-      <img class="thumb hidden w-full h-56 object-cover transition-transform group-hover:scale-[1.02]" alt="Site photo">
-    </button>
 
     <div class="p-3 flex-1 flex flex-col gap-2">
 
@@ -3051,6 +3067,20 @@ function setConfidenceRing(card, conf, band) {
                     : band === "medium" ? "text-amber-700"
                     : "text-rose-700";
     pctSpan.className = `conf-pct font-semibold tabular-nums normal-case tracking-normal ${bandColor}`;
+  }
+
+  // v112 conf-badge — overlay chip on the thumbnail. Same percentage,
+  // tinted by band so a low-conf chip reads "warning" at a glance.
+  // Renders unconditionally once setConfidenceRing fires (i.e. once
+  // we have a prediction); the band tint replaces the standalone
+  // status-pill glyph for the dominant signal.
+  const badge = el(".conf-badge", card);
+  if (badge) {
+    badge.textContent = `${Math.round(conf * 100)}%`;
+    const badgeBg = band === "high" ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+                  : band === "medium" ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
+                  : "bg-rose-50 text-rose-800 ring-1 ring-rose-200";
+    badge.className = `conf-badge text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-full backdrop-blur shadow-sm ${badgeBg}`;
   }
 
   // v83 overhaul: status pill simplified from a text label

@@ -47,33 +47,59 @@ async def populate_detail_with_card(page):
     try: await page.click("#btn-new-batch-from-list", timeout=2000)
     except: pass
     await page.wait_for_timeout(400)
-    await page.evaluate("""() => {
+    await page.evaluate(r"""() => {
         const tmpl = document.getElementById('card-template');
         const cards = document.getElementById('cards');
         if (!tmpl || !cards) return;
-        for (let i = 0; i < 3; i++) {
+        const samples = [
+            {fine: 'Site warning signs / barricades missing', hse: 'Site warning signs', conf: 92, band: 'high'},
+            {fine: 'Electrical hazard — exposed wiring', hse: 'Electrical hazard', conf: 78, band: 'medium'},
+            {fine: 'Confined space — no entry permit visible', hse: 'Confined space hazard', conf: 64, band: 'low'},
+        ];
+        for (const s of samples) {
             const node = tmpl.content.firstElementChild.cloneNode(true);
-            node.dataset.photoId = 'fake-' + i;
+            node.dataset.photoId = 'fake-' + s.fine;
             node.dataset.status = 'predicted';
             cards.appendChild(node);
             node.querySelector('.state-pending')?.classList.add('hidden');
             node.querySelector('.state-predicted')?.classList.remove('hidden');
             const fineEl = node.querySelector('.primary-fine');
-            if (fineEl) {
-                fineEl.textContent = 'Site warning signs / barricades missing';
-                fineEl.classList.remove('hidden');
-            }
+            if (fineEl) { fineEl.textContent = s.fine; fineEl.classList.remove('hidden'); }
             const hseEl = node.querySelector('.primary-hse');
-            if (hseEl) hseEl.textContent = 'Site warning signs missing';
+            if (hseEl) hseEl.textContent = s.hse;
             const conf = node.querySelector('.conf-pct');
-            if (conf) conf.textContent = '· 90%';
+            if (conf) conf.textContent = '· ' + s.conf + '%';
+            const badge = node.querySelector('.conf-badge');
+            if (badge) {
+                badge.textContent = s.conf + '%';
+                const bg = s.band === 'high' ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
+                         : s.band === 'medium' ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+                         : 'bg-rose-50 text-rose-800 ring-1 ring-rose-200';
+                badge.className = 'conf-badge text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-full backdrop-blur shadow-sm ' + bg;
+            }
             const pill = node.querySelector('.status-pill');
             if (pill) {
-                pill.textContent = '✓';
-                pill.className = 'status-pill text-xs font-bold leading-none w-5 h-5 grid place-items-center rounded-full bg-emerald-100 text-emerald-700';
+                pill.textContent = s.band === 'high' ? '✓' : s.band === 'medium' ? '!' : '?';
+                const c = s.band === 'high' ? 'bg-emerald-100 text-emerald-700'
+                       : s.band === 'medium' ? 'bg-amber-100 text-amber-700'
+                       : 'bg-rose-100 text-rose-700';
+                pill.className = 'status-pill text-xs font-bold leading-none w-5 h-5 grid place-items-center rounded-full ' + c;
                 pill.classList.remove('hidden');
             }
-            node.classList.add('band-high');
+            // Fake thumbnail — solid color block so the card has visible content.
+            const thumb = node.querySelector('.thumb');
+            const skel = node.querySelector('.thumb-skeleton');
+            if (thumb && skel) {
+                const colors = ['#e2e8f0', '#cbd5e1', '#94a3b8'];
+                const idx = Math.floor(Math.random() * 3);
+                const swatch = colors[idx];
+                thumb.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+                    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 9"><rect width="16" height="9" fill="${swatch}"/></svg>`
+                );
+                thumb.classList.remove('hidden');
+                skel.classList.add('hidden');
+            }
+            node.classList.add('band-' + s.band);
         }
         document.getElementById('empty-state')?.classList.add('hidden');
         document.getElementById('loading-state')?.classList.add('hidden');
