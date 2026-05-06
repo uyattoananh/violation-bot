@@ -308,12 +308,28 @@
      to the title row above, Reset removed entirely per the user's
      "per-item or selectable" directive; per-card "Undo" already
      handles single-item reset). -->
-<div id="toolbar" class="hidden mt-2 flex items-center gap-1 bg-white border border-slate-200 rounded-lg shadow-sm px-2 py-1.5 text-sm">
-  <button data-filter="all"     class="filter-btn active flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-700 text-xs sm:text-sm"><span data-i18n="filter_all">All</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
-  <!-- "Select" button placeholder: appended dynamically below the
-       pills by JS so the markup stays simple. v84 multiselect. -->
-  <button data-filter="pending" class="filter-btn flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-600 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_pending">Pending</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
-  <button data-filter="reviewed"class="filter-btn flex-1 px-3 py-3 min-h-[44px] rounded-md font-medium text-slate-600 hover:text-slate-900 text-xs sm:text-sm"><span data-i18n="filter_reviewed">Reviewed</span> <span class="filter-count text-slate-600 ml-1">0</span></button>
+<!-- v114 rebuild: filter pills became underline tabs. The pill row
+     in a rounded card felt like a button group; tabs read as
+     "view modes" which is what they actually are (mutually
+     exclusive view of the photo list). The container hairline
+     forms the unselected-tab baseline; the active tab shows a
+     2 px ink underline that breaks the hairline. -->
+<div id="toolbar" class="hidden mt-3 flex items-stretch gap-1 border-b border-slate-200 text-sm" role="tablist">
+  <button data-filter="all" role="tab" aria-selected="true"
+          class="filter-btn active flex-1 px-3 min-h-[44px] flex items-center justify-center gap-1.5 font-semibold text-slate-900 text-sm">
+    <span data-i18n="filter_all">All</span>
+    <span class="filter-count text-slate-500 tabular-nums">0</span>
+  </button>
+  <button data-filter="pending" role="tab" aria-selected="false"
+          class="filter-btn flex-1 px-3 min-h-[44px] flex items-center justify-center gap-1.5 font-medium text-slate-600 hover:text-slate-900 text-sm transition-colors">
+    <span data-i18n="filter_pending">Pending</span>
+    <span class="filter-count text-slate-500 tabular-nums">0</span>
+  </button>
+  <button data-filter="reviewed" role="tab" aria-selected="false"
+          class="filter-btn flex-1 px-3 min-h-[44px] flex items-center justify-center gap-1.5 font-medium text-slate-600 hover:text-slate-900 text-sm transition-colors">
+    <span data-i18n="filter_reviewed">Reviewed</span>
+    <span class="filter-count text-slate-500 tabular-nums">0</span>
+  </button>
 </div>
 
 <!-- Tools toolbar — sort, export, multi-select. Separate from the
@@ -4780,20 +4796,12 @@ function applyFilter() {
     const f = b.dataset.filter;
     el(".filter-count", b).textContent = counts[f];
     const isActive = b.dataset.filter === activeFilter;
-    // v102 rebuild: lighter active state. Was full bg-slate-900 with
-    // white text — too heavy. Now an inset bg-slate-200 + dark text
-    // so the active pill reads as a "current selection" rather than
-    // a separate dark UI block.
-    if (isActive) {
-      b.classList.add("bg-slate-200", "text-slate-900", "active");
-      b.classList.remove("text-slate-600", "text-slate-700", "bg-slate-900", "text-white");
-    } else {
-      b.classList.remove("bg-slate-200", "text-slate-900", "active", "bg-slate-900", "text-white");
-      b.classList.add("text-slate-600");
-    }
-    // aria-pressed announces the toggle state to screen readers so
-    // users can tell which filter is currently active. role=button is
-    // implicit on <button>; aria-pressed turns it into a toggle button.
+    // v114 underline-tab style: only toggle .active and the
+    // aria attribute; the visual state is fully driven by CSS.
+    b.classList.toggle("active", isActive);
+    // The buttons carry role="tab" so aria-selected is the
+    // correct semantic; aria-pressed kept for backward compat.
+    b.setAttribute("aria-selected", String(isActive));
     b.setAttribute("aria-pressed", String(isActive));
   });
 }
