@@ -819,24 +819,25 @@
        role="button"
        tabindex="0"
        data-batch-id="">
+    <!-- Title + meta column. Meta line is flex-nowrap so it doesn't
+         wrap into a tall third row when items don't fit; the inner
+         div takes min-w-0 + truncate so overflow clips cleanly. -->
     <div class="flex-1 min-w-0">
-      <!-- Title + percentage on line 1. Percentage matched to title's
-         text-base so the baseline align is clean (no smaller text
-         floating above). slate-500 keeps it visually secondary
-         versus the slate-900 title. -->
-      <div class="flex items-baseline gap-2">
-        <div class="batch-card-label font-semibold text-slate-900 text-base truncate flex-1 min-w-0"></div>
-        <span class="batch-card-pct text-base font-semibold text-slate-500 tabular-nums flex-shrink-0"></span>
-      </div>
-      <div class="text-xs text-slate-600 flex items-center flex-wrap gap-x-2 mt-0.5 tabular-nums">
-        <span class="batch-card-photos"></span>
-        <span class="batch-card-reviewed text-emerald-700"></span>
-        <span class="batch-card-expiry text-amber-700 flex items-center gap-0.5">
+      <div class="batch-card-label font-semibold text-slate-900 text-base truncate"></div>
+      <div class="text-xs text-slate-600 flex items-center flex-nowrap gap-x-2 mt-0.5 tabular-nums overflow-hidden">
+        <span class="batch-card-photos whitespace-nowrap"></span>
+        <span class="batch-card-reviewed text-emerald-700 whitespace-nowrap"></span>
+        <span class="batch-card-expiry text-amber-700 flex items-center gap-0.5 whitespace-nowrap">
           <span class="batch-card-expiry-text"></span>
         </span>
         <span class="batch-card-when text-slate-500 hidden sm:inline whitespace-nowrap"></span>
       </div>
     </div>
+    <!-- Percentage in its own column. The outer .batch-card row
+         uses items-center, so this sits at the vertical midpoint of
+         the title + meta stack rather than perched on the title's
+         baseline (which read as "too high" relative to the row). -->
+    <span class="batch-card-pct text-base font-semibold text-slate-500 tabular-nums flex-shrink-0"></span>
     <!-- Action cluster: rename, delete. Compact 36 px buttons since
          they live next to a 64 px row tap-target — the row carries
          the "open this inspection" intent; rename/delete are
@@ -861,9 +862,11 @@
         </svg>
       </button>
     </div>
-    <!-- Tap-affordance chevron — echoes the row-is-clickable signal
-         without forcing a separate icon column on narrow viewports. -->
-    <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0 ml-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+    <!-- Tap-affordance chevron, hidden on mobile to free room for
+         the percentage + meta line; shown on tablet+ where width is
+         comfortable. The whole row is clickable + has cursor-pointer
+         so the chevron is decorative redundancy on narrow viewports. -->
+    <svg class="hidden sm:block w-3.5 h-3.5 text-slate-400 flex-shrink-0 ml-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
     </svg>
     <!-- Hidden progress-bar div kept so JS that writes to it
@@ -5587,6 +5590,26 @@ function openBatch(batchId, label) {
 }
 
 el("#btn-back-to-list").addEventListener("click", () => switchView(VIEW_LIST));
+// Locale-aware default label "Inspection · May 5" so a brand-new
+// batch isn't blank in the list. The user can override by typing
+// over the input. Extracted as a helper so both Start-new-inspection
+// CTAs (header + quick-create) share one source of truth.
+function _autoNameBatch() {
+  try {
+    const localeMap = { en: "en", vn: "vi", es: "es", zh: "zh-CN" };
+    const opts = { month: "short", day: "numeric" };
+    const ds = new Date().toLocaleDateString(localeMap[LANG] || "en", opts);
+    const prefix = LANG === "vn" ? "Kiểm tra"
+                 : LANG === "es" ? "Inspección"
+                 : LANG === "zh" ? "检查"
+                 : "Inspection";
+    CURRENT_BATCH_LABEL = `${prefix} · ${ds}`;
+    localStorage.setItem("violation-ai-batch-label", CURRENT_BATCH_LABEL);
+    const labelInput = el("#batch-label-input");
+    if (labelInput) labelInput.value = CURRENT_BATCH_LABEL;
+  } catch (_) { /* Intl unavailable — leave label empty */ }
+}
+
 el("#btn-new-batch-from-list").addEventListener("click", (e) => {
   // Debounce against multi-tap (UX backlog 3.2b). startNewBatch is
   // currently client-only — no server POST — but a fast double-tap
@@ -5600,6 +5623,7 @@ el("#btn-new-batch-from-list").addEventListener("click", (e) => {
   btn.dataset.busy = "1";
   setTimeout(() => { btn.dataset.busy = "0"; }, 800);
   startNewBatch();
+  _autoNameBatch();   // pre-fill the title with today's date
   switchView(VIEW_DETAIL);
 });
 
@@ -5615,22 +5639,7 @@ const _quickBatchBtn = el("#btn-quick-batch");
 if (_quickBatchBtn) {
   _quickBatchBtn.addEventListener("click", () => {
     startNewBatch();
-    // Auto-generate a "<date>" label per UX backlog D5 (date-only
-    // half — GPS site name is a deeper integration). Date format
-    // matches the locale-aware short date used on batch cards.
-    try {
-      const localeMap = { en: "en", vn: "vi", es: "es", zh: "zh-CN" };
-      const opts = { month: "short", day: "numeric" };
-      const ds = new Date().toLocaleDateString(localeMap[LANG] || "en", opts);
-      const prefix = LANG === "vn" ? "Kiểm tra"
-                   : LANG === "es" ? "Inspección"
-                   : LANG === "zh" ? "检查"
-                   : "Inspection";
-      CURRENT_BATCH_LABEL = `${prefix} · ${ds}`;
-      localStorage.setItem("violation-ai-batch-label", CURRENT_BATCH_LABEL);
-      const labelInput = el("#batch-label-input");
-      if (labelInput) labelInput.value = CURRENT_BATCH_LABEL;
-    } catch (_) { /* if Intl chokes, fall back to empty label */ }
+    _autoNameBatch();  // shared helper, see above
     switchView(VIEW_DETAIL);
     // Defer the camera trigger so view-detail is rendered + measurable
     // before .click() fires. iOS in particular needs a real user
