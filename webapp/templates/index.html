@@ -880,11 +880,11 @@
 
 <script>
 // Wrap the whole script in DOMContentLoaded so that elements defined in
-// _base.html AFTER this body block (#lightbox, #toast, #kbd-help) are
-// already in the DOM when we query them. Without this wrapper, those
-// el() lookups returned null and the very next addEventListener threw,
-// silently aborting the rest of script execution — breaking export menu,
-// filter buttons, kbd-help button, dropzone file picker, etc.
+// _base.html AFTER this body block (#lightbox, #toast) are already in
+// the DOM when we query them. Without this wrapper, those el() lookups
+// returned null and the very next addEventListener threw, silently
+// aborting the rest of script execution — breaking export menu,
+// filter buttons, dropzone file picker, etc.
 document.addEventListener("DOMContentLoaded", () => {
 // =================== I18N ===================
 const I18N = {
@@ -1108,13 +1108,6 @@ const I18N = {
     expiry_expired: "expired",
     expiry_hours: (h) => `${h}h`,
     expiry_days_hours: (d, h) => `${d}d ${h}h`,
-    kbd_title: "Keyboard shortcuts",
-    kbd_confirm: "Confirm focused card",
-    kbd_edit: "Edit focused card",
-    kbd_lightbox: "Open photo full-size",
-    kbd_move: "Move focus next/prev",
-    kbd_upload: "Upload (open file picker)",
-    kbd_close: "Close dialog",
     notif_done_title: "Inspection complete",
     notif_done_body: (n) => `${n} photos finished classifying. Open the tab to review.`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
@@ -1339,13 +1332,6 @@ const I18N = {
     expiry_expired: "đã hết hạn",
     expiry_hours: (h) => `${h} giờ`,
     expiry_days_hours: (d, h) => `${d} ngày ${h} giờ`,
-    kbd_title: "Phím tắt",
-    kbd_confirm: "Xác nhận thẻ đang chọn",
-    kbd_edit: "Sửa thẻ đang chọn",
-    kbd_lightbox: "Mở ảnh phóng to",
-    kbd_move: "Di chuyển trước/sau",
-    kbd_upload: "Tải ảnh lên (mở hộp thoại chọn tệp)",
-    kbd_close: "Đóng hộp thoại",
     notif_done_title: "Đợt kiểm tra hoàn tất",
     notif_done_body: (n) => `${n} ảnh đã phân loại xong. Mở tab để xét duyệt.`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
@@ -1570,13 +1556,6 @@ const I18N = {
     expiry_expired: "expirado",
     expiry_hours: (h) => `${h}h`,
     expiry_days_hours: (d, h) => `${d}d ${h}h`,
-    kbd_title: "Atajos de teclado",
-    kbd_confirm: "Confirmar tarjeta enfocada",
-    kbd_edit: "Editar tarjeta enfocada",
-    kbd_lightbox: "Abrir foto a tamaño completo",
-    kbd_move: "Mover foco siguiente/anterior",
-    kbd_upload: "Subir (abrir selector de archivos)",
-    kbd_close: "Cerrar diálogo",
     notif_done_title: "Inspección completada",
     notif_done_body: (n) => `${n} fotos terminaron de clasificarse. Abre la pestaña para revisar.`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
@@ -1801,13 +1780,6 @@ const I18N = {
     expiry_expired: "已过期",
     expiry_hours: (h) => `${h}小时`,
     expiry_days_hours: (d, h) => `${d}天${h}小时`,
-    kbd_title: "键盘快捷键",
-    kbd_confirm: "确认聚焦的卡片",
-    kbd_edit: "编辑聚焦的卡片",
-    kbd_lightbox: "打开照片大图",
-    kbd_move: "上一张/下一张",
-    kbd_upload: "上传（打开文件选择器）",
-    kbd_close: "关闭对话框",
     notif_done_title: "检查完成",
     notif_done_body: (n) => `${n} 张照片分类完成。打开标签页审核。`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
@@ -5042,53 +5014,24 @@ function moveFocus(dir) {
   next.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
+// v115: pruned the desktop keyboard shortcuts (C/E/Space/U/Arrow/?)
+// and the help modal — usage is overwhelmingly mobile and the
+// inspector controls aren't complex enough to warrant a hotkey
+// cheat sheet. Escape still dismisses dialogs because that's the
+// only essential-for-keyboard-users binding.
 document.addEventListener("keydown", e => {
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "select" || tag === "textarea") return;
 
   if (e.key === "Escape") {
     if (lightbox.classList.contains("show")) { closeLightbox(); return; }
-    const help = el("#kbd-help");
-    if (!help.classList.contains("hidden")) { help.classList.add("hidden"); help.classList.remove("flex"); return; }
     if (!exportMenu.classList.contains("hidden")) { exportMenu.classList.add("hidden"); return; }
     const c = focusedCard();
     if (c) {
       const f = el(".edit-form", c);
       if (!f.classList.contains("hidden")) f.classList.add("hidden");
     }
-    return;
   }
-
-  if (e.key === "?") { toggleKbdHelp(); return; }
-  if (e.key === "u" || e.key === "U") { fileInput.click(); return; }
-
-  const card = focusedCard();
-  if (!card) return;
-
-  if (e.key === "ArrowDown") { e.preventDefault(); moveFocus(1); return; }
-  if (e.key === "ArrowUp")   { e.preventDefault(); moveFocus(-1); return; }
-
-  if (card.dataset.status === "predicted") {
-    if (e.key === "c" || e.key === "C") { e.preventDefault(); confirmCard(card); return; }
-    if (e.key === "e" || e.key === "E") { e.preventDefault(); toggleEdit(card); return; }
-  }
-  if (e.key === " ") {
-    e.preventDefault();
-    const src = el(".thumb", card).src;
-    if (src) openLightbox(src);
-  }
-});
-
-function toggleKbdHelp() {
-  const help = el("#kbd-help");
-  const showing = help.classList.contains("flex");
-  help.classList.toggle("flex", !showing);
-  help.classList.toggle("hidden", showing);
-}
-el("#kbd-help-btn").addEventListener("click", toggleKbdHelp);
-el("#kbd-close").addEventListener("click", toggleKbdHelp);
-el("#kbd-help").addEventListener("click", e => {
-  if (e.target === el("#kbd-help")) toggleKbdHelp();
 });
 
 // =================== Poll ===================

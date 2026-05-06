@@ -178,10 +178,6 @@
       background: var(--paper) !important;
       border: 1px solid var(--hairline) !important;
     }
-    /* v115 ghost: kbd-help-btn no longer has a border/background of
-       its own — let the Tailwind utilities (hover:bg-slate-100,
-       text-slate-600) do the work, matching the lang-select +
-       auth-pill ghost treatment. */
 
     /* ======================================================
        Deep theme overlay — restyles in-app components to
@@ -366,14 +362,13 @@
 
     /* ---- Modal cards (the elevated sheet inside each backdrop). Listed
             explicitly so we only border the outer card and not inner layout
-            divs. #kbd-help doesn't follow the *-modal naming so we name it. ---- */
+            divs. ---- */
     body.theme-paper #email-modal      > div,
     body.theme-paper #markup-modal     > div,
     body.theme-paper #propose-modal    > div,
     body.theme-paper #history-modal    > div,
     body.theme-paper #data-notice-modal > div,
-    body.theme-paper #pwa-ios-modal    > div,
-    body.theme-paper #kbd-help         > div {
+    body.theme-paper #pwa-ios-modal    > div {
       background-color: var(--paper) !important;
       border: 1px solid var(--hairline);
     }
@@ -547,11 +542,6 @@
           <option value="es">ES</option>
           <option value="zh">ZH</option>
         </select>
-        <button id="kbd-help-btn" type="button"
-                class="hidden sm:inline-flex items-center justify-center w-11 h-11 rounded-full text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                title="Keyboard shortcuts">
-          <kbd class="font-mono text-base font-semibold">?</kbd>
-        </button>
 
         <!-- PWA install button. Hidden by default; JS in this file reveals
              it once we detect either:
@@ -1043,23 +1033,6 @@
     </div>
   </div>
 
-  <!-- Keyboard shortcuts modal -->
-  <div id="kbd-help" role="dialog" aria-modal="true" aria-labelledby="kbd-help-title" class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
-      <div class="flex items-center justify-between mb-4">
-        <h3 id="kbd-help-title" class="font-semibold" data-i18n="kbd_title">Keyboard shortcuts</h3>
-        <button id="kbd-close" class="text-slate-400 hover:text-slate-900 text-xl leading-none">&times;</button>
-      </div>
-      <ul class="text-sm space-y-2.5 text-slate-700">
-        <li class="flex items-center justify-between"><span data-i18n="kbd_confirm">Confirm focused card</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">C</kbd></li>
-        <li class="flex items-center justify-between"><span data-i18n="kbd_edit">Edit focused card</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">E</kbd></li>
-        <li class="flex items-center justify-between"><span data-i18n="kbd_lightbox">Open photo full-size</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">Space</kbd></li>
-        <li class="flex items-center justify-between"><span data-i18n="kbd_move">Move focus next/prev</span><span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">↑</kbd> <kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">↓</kbd></span></li>
-        <li class="flex items-center justify-between"><span data-i18n="kbd_upload">Upload (open file picker)</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">U</kbd></li>
-        <li class="flex items-center justify-between"><span data-i18n="kbd_close">Close dialog</span><kbd class="bg-slate-100 border border-slate-300 rounded px-2 py-0.5 font-mono text-xs">Esc</kbd></li>
-      </ul>
-    </div>
-  </div>
 
   <script>
     // Auth pill: populate header with the user's avatar+name when
