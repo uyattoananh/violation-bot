@@ -147,6 +147,12 @@ body {
 .text-rose-600,
 .text-rose-800   { color: rgb(190 18 60); }  /* alias → rose-700 */
 
+/* v115.8 — unify modal dialog title size. Each modal's h3 inherits
+   body 16 px by default, while the picker's h2 uses 18 px (text-lg).
+   Bumping all role=dialog h3s to 18 px so every modal reads with the
+   same visual weight at the title row. */
+[role="dialog"] h3 { font-size: 18px; line-height: 1.35; }
+
 /* ============================================================
    v100 primitives
    These class names are NEW. Use them in new markup; existing
