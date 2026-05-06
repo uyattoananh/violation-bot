@@ -1,3 +1,147 @@
+/* ============================================================
+   v100 REBUILD layer
+   ============================================================
+   Industrial-inspector design language. The HSE Detector is used
+   in bright sunlight on construction sites by people wearing
+   gloves. Priority order: contrast, density, single-tap actions,
+   no decorative chrome.
+
+   Typography: Inter (loaded in _base.html). Falls back to system
+   sans. The whole app reads in 14-16 px sizes — large enough at
+   arm's-length on a phone, dense enough that 12 photos fit on a
+   single screen.
+
+   Color: keep the warm-cream brand bg (--paper) and ink primary;
+   tighten the secondary palette to JUST emerald (action) +
+   amber (warning) + slate (neutrals). Drop incidental colours.
+
+   Spacing: 4px grid. Tight. Section gaps are 12 px (--space-3),
+   element gaps within sections are 8 px (--space-2). No more
+   gradient of 8/12/16/20.
+
+   Motion: the previous tokens stand. 200 ms is the default;
+   prefers-reduced-motion blanket-suppresses (kept from v77).
+   ============================================================ */
+
+html {
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system,
+               'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01', 'ss03';   /* Inter stylistic sets */
+}
+
+body {
+  /* Tighter line-height than browser default 1.5. Text reads more
+     compact and the 4 px grid is preserved. */
+  line-height: 1.4;
+}
+
+/* Snappier base transition speed for hover/focus changes — most
+   feel sluggish at the Tailwind default 150 ms; 120 ms is the
+   minimum the eye registers as smooth. */
+*, *::before, *::after {
+  transition-duration: 120ms;
+}
+
+/* ============================================================
+   v100 primitives
+   These class names are NEW. Use them in new markup; existing
+   .card / .fp-item / .btn-confirm rules below stay intact for
+   the JS hooks. ============================================================ */
+
+/* Hairline-divider list row — for the inspections list and
+   anywhere we want a dense scannable list instead of cards. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.row:hover { background: rgba(10, 10, 10, 0.025); }
+.row:active { background: rgba(10, 10, 10, 0.05); }
+.row:last-child { border-bottom: 0; }
+
+/* Section header — a small uppercase label above content groups. */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* Primary action button. Replaces the assortment of bg-emerald-600
+   buttons across the app for new markup. The paper-theme override
+   maps emerald → ink so this also works in the drafting palette. */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 16px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+.btn-primary:hover { opacity: 0.92; }
+.btn-primary:active { opacity: 0.85; }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Secondary action button. Outlined version of btn-primary for
+   "less important" actions like Edit, Cancel, etc. */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.btn-secondary:hover {
+  border-color: var(--ink);
+  background: rgba(10, 10, 10, 0.025);
+}
+
+/* Status pill — replaces the LIKELY-CORRECT / VERIFY pill on
+   photo cards. Kept tiny + glyph-only; aria-label carries the
+   semantic meaning. */
+.pill {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.pill-high   { background: rgb(209 250 229); color: rgb(4 120 87); }   /* emerald */
+.pill-medium { background: rgb(254 243 199); color: rgb(146 64 14); }  /* amber */
+.pill-low    { background: rgb(254 226 226); color: rgb(159 18 57); }  /* rose */
+
+/* ============================================================
+   /v100 primitives — original "design tokens" comment continues
+   ============================================================ */
 /* ===== Custom polish on top of Tailwind CDN ===== */
 
 /* ============================================================

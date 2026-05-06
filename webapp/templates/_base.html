@@ -6,6 +6,14 @@
   <meta name="theme-color" content="#f5f3eb">
   <title>{% block title %}HSE Detector{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- v100 rebuild: Inter for the app shell. preconnect saves
+       ~100 ms on first paint by warming the TLS handshake before
+       the @font-face rules ask for it. display=swap so we paint
+       the system fallback immediately and hot-swap to Inter when
+       it lands — no FOIT. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/static/app.css">
   <!-- Favicon: monochrome ink "HSE" mark on paper background.
        Matches the drafting-paper landing theme — no more emerald
