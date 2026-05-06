@@ -559,14 +559,26 @@
         </div>
         <!-- Expandable AI rationale (UX backlog B3). Default state =
              clamped to 2 lines with a "Show more" toggle; clicking
-             expands. Toggle text swaps to "Show less" when expanded.
-             The actual text fills .rationale; .rationale-toggle is
-             only shown when the text overflows. -->
+             expands. Toggle text swaps to "Show less" when expanded. -->
         <div class="rationale text-xs text-slate-500 italic mt-2 line-clamp-2"></div>
         <button type="button"
                 class="rationale-toggle hidden text-xs text-emerald-700 hover:text-emerald-900 underline-offset-2 hover:underline mt-1">
           <span data-i18n="rationale_show_more">Show full reasoning</span>
         </button>
+
+        <!-- v103 rebuild: alts ABOVE Confirm, not below.
+             Inspectors evaluate top-down: read AI's pick, glance at
+             alternatives, then commit. Putting alt-chips below the
+             Confirm button forced an extra scroll-and-look-back step
+             when the user wanted to override. Now: AI-pick → alts
+             → Confirm in one downward read. -->
+        <div class="alt-section hidden mt-2.5">
+          <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-1.5" data-i18n="alt_label">
+            Was it one of these?
+          </div>
+          <div class="alt-row-hse flex flex-wrap gap-1 mb-1"></div>
+          <div class="alt-row-loc flex flex-wrap gap-1"></div>
+        </div>
 
         <div class="mt-3 flex gap-2">
           <button type="button" class="btn-confirm flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
@@ -580,20 +592,13 @@
           </button>
           <button type="button" class="btn-edit bg-white border border-slate-300 hover:bg-slate-50 active:bg-slate-100
                                        text-slate-700 text-sm font-medium rounded-lg px-3 py-2
-                                       flex items-center justify-center gap-1 transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                       flex items-center justify-center gap-1 transition-colors"
+                  aria-label="Edit classification" title="Edit classification">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.687a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13L2.25 21.75l.798-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125"/>
             </svg>
             <span class="hidden sm:inline" data-i18n="btn_edit">Edit</span>
           </button>
-        </div>
-
-        <div class="alt-section hidden mt-2.5 pt-2.5 border-t border-slate-100">
-          <div class="text-xs uppercase tracking-wider text-slate-500 font-medium mb-1.5" data-i18n="alt_label">
-            Was it one of these?
-          </div>
-          <div class="alt-row-hse flex flex-wrap gap-1 mb-1"></div>
-          <div class="alt-row-loc flex flex-wrap gap-1"></div>
         </div>
 
         <form class="edit-form hidden mt-3 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
