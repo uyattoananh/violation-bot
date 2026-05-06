@@ -62,6 +62,63 @@ body {
 }
 
 /* ============================================================
+   v115.2 TYPE SYSTEM — read this before editing text styles.
+   ============================================================
+   FAMILY
+     Atkinson Hyperlegible everywhere. One family. No serif, no mono
+     (the only mono usage was the kbd glyph in the help modal,
+     deleted in v115.1).
+
+   SIZE SCALE  (use Tailwind utilities)
+     11 px  text-[11px]   — chips, status pills, uppercase labels
+     12 px  text-xs       — meta lines, secondary captions
+     14 px  text-sm       — buttons, dense-list secondary content
+     16 px  text-base     — body, primary list-row title (default)
+     18 px  text-lg       — picker dialog title, screen subhead
+     22 px  via clamp()   — page h1 only (uses inline clamp(18, 5vw, 22))
+     ─────
+     Six steps. Anything outside this scale is a bug — extend the
+     scale before adding a one-off size.
+
+   WEIGHT  (only TWO available)
+     400  font-normal    — body, meta, descriptions, labels
+     700  font-bold      — titles, primary actions, emphasis
+     ─────
+     Atkinson Hyperlegible only ships weight 400 and 700. Tailwind's
+     font-medium (500) and font-semibold (600) used to render as
+     "browser-faked bold" or fall back to 400 — neither was the
+     designer's intent. The override below maps both to 700 so
+     existing markup using font-medium / font-semibold actually
+     reads as bold instead of silently regressing to regular.
+
+   COLOR — neutrals (4 levels)
+     slate-900  ink         primary text — titles, body
+     slate-700  ink-soft    secondary text
+     slate-500  ink-mute    tertiary, muted captions
+     slate-400  ink-faint   decorative, dividers, disabled glyphs
+     ─────
+     Don't use slate-600 or slate-800 — they're between scale steps.
+     If you find one in existing code it's grandfathered, not aspirational.
+
+   COLOR — semantic states (one shade per role)
+     emerald-700  success text     emerald-50  bg     emerald-200  ring
+     amber-700    warning text     amber-50    bg     amber-200    ring
+     rose-700     danger text      rose-50     bg     rose-200     ring
+     ─────
+     One shade per role. Don't reach for emerald-500/600/900 etc.
+     The ramp exists in Tailwind but we only use the 700/50/200 trio
+     so a status indicator reads consistently across the app.
+
+   BRAND
+     accent       safety-orange #F97316   only the workflow-driving
+                                          CTA (Start new inspection)
+   ============================================================ */
+
+/* Atkinson 400+700 only — collapse the missing weights so existing
+   font-medium / font-semibold markup actually renders bold. */
+.font-medium, .font-semibold { font-weight: 700; }
+
+/* ============================================================
    v100 primitives
    These class names are NEW. Use them in new markup; existing
    .card / .fp-item / .btn-confirm rules below stay intact for
@@ -86,7 +143,7 @@ body {
 /* Section header — a small uppercase label above content groups. */
 .section-label {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -138,7 +195,7 @@ body {
   padding: 8px 16px;
   background: transparent;
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
   border: 1px solid var(--rule-strong);
   border-radius: 10px;
@@ -296,7 +353,7 @@ details.more-tools[open] .more-tools-chevron {
 .conf-ring > span {
   position: relative;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: rgb(51 65 85);
   font-variant-numeric: tabular-nums;
 }
@@ -526,7 +583,7 @@ body.fp-modal-open {
   color: rgb(15 23 42);
   font-size: 16px;
   line-height: 1.4;
-  font-weight: 500;
+  font-weight: 400;
   transition: background 120ms ease;
 }
 .fp-list .fp-item:hover { background: rgb(241 245 249); }    /* slate-100 */
