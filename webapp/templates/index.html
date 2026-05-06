@@ -947,8 +947,6 @@ const I18N = {
     batch_rename_prompt: "Rename inspection:",
     batch_rename_done: "Inspection renamed",
     quick_batch_label: "Take a photo to start a new inspection",
-    batch_delete_confirm: (n) =>
-      `Delete this inspection and all ${n} of its photo${n === 1 ? "" : "s"}? This cannot be undone.`,
     batch_delete_done: (n) => `Deleted inspection (${n} photo${n === 1 ? "" : "s"})`,
     batch_delete_failed: "Delete failed",
     state_failed: "Classification failed",
@@ -1171,8 +1169,6 @@ const I18N = {
     batch_rename_prompt: "Đổi tên đợt kiểm tra:",
     batch_rename_done: "Đã đổi tên đợt kiểm tra",
     quick_batch_label: "Chụp ảnh để bắt đầu đợt kiểm tra mới",
-    batch_delete_confirm: (n) =>
-      `Xóa đợt kiểm tra này và toàn bộ ${n} ảnh trong đó? Hành động này không thể hoàn tác.`,
     batch_delete_done: (n) => `Đã xóa đợt kiểm tra (${n} ảnh)`,
     batch_delete_failed: "Xóa thất bại",
     state_failed: "Phân loại thất bại",
@@ -1395,8 +1391,6 @@ const I18N = {
     batch_rename_prompt: "Renombrar inspección:",
     batch_rename_done: "Inspección renombrada",
     quick_batch_label: "Toma una foto para iniciar una nueva inspección",
-    batch_delete_confirm: (n) =>
-      `¿Eliminar esta inspección y sus ${n} foto${n === 1 ? "" : "s"}? Esta acción no se puede deshacer.`,
     batch_delete_done: (n) => `Inspección eliminada (${n} foto${n === 1 ? "" : "s"})`,
     batch_delete_failed: "Error al eliminar",
     state_failed: "Falló la clasificación",
@@ -1619,8 +1613,6 @@ const I18N = {
     batch_rename_prompt: "重命名检查：",
     batch_rename_done: "检查已重命名",
     quick_batch_label: "拍一张照片以开始新检查",
-    batch_delete_confirm: (n) =>
-      `删除此检查及其全部 ${n} 张照片？此操作无法撤销。`,
     batch_delete_done: (n) => `检查已删除（${n} 张照片）`,
     batch_delete_failed: "删除失败",
     state_failed: "分类失败",
@@ -5531,13 +5523,16 @@ function _isBatchTombstoned(id) {
 // the user's currently-open one, also clear the persisted CURRENT_BATCH_ID
 // so they don't re-enter a tombstoned batch on next page load.
 async function deleteBatch(batchId, photoCount, label) {
+  // v115.6 — replace window.confirm with an undo-toast pattern.
+  // The native dialog is jarring (system chrome inside the app), and
+  // confirms-before-action are slower than the alternative: do the
+  // mutation immediately, surface a 5 s "Undo" toast, only fire the
+  // server DELETE when the toast expires unactioned. Same pattern as
+  // Gmail / iOS Mail. If the user changes their mind they get a real
+  // out without nuking the batch first.
   const n = photoCount || 0;
-  const confirmMsg = t("batch_delete_confirm")(n);
-  if (!window.confirm(confirmMsg)) return;
 
-  // Optimistic UI: yank the card out of the grid right away so the
-  // user gets immediate feedback. Tombstone the id so the next
-  // refreshBatchesList doesn't recreate it from a stale read.
+  // Optimistic UI: yank the card out of the grid right away.
   _batchTombstones.set(batchId, Date.now());
   _persistBatchTombs();
   const grid = el("#batches-grid");
@@ -5549,8 +5544,6 @@ async function deleteBatch(batchId, photoCount, label) {
           node.style.transform = "scale(0.96)";
           setTimeout(() => node.remove(), 200);
         });
-    // If that was the only card, surface the empty state immediately
-    // instead of waiting for the next refreshBatchesList.
     const remaining = grid.querySelectorAll('[data-batch-id]').length - 1;
     if (remaining <= 0) {
       const empty = el("#batches-empty");
@@ -5558,31 +5551,54 @@ async function deleteBatch(batchId, photoCount, label) {
     }
   }
 
-  try {
-    const r = await fetch("/api/batches/" + encodeURIComponent(batchId), {
-      method: "DELETE",
-    });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const data = await r.json();
-    if (CURRENT_BATCH_ID === batchId) {
-      // Don't strand the user inside a deleted batch — bounce them to
-      // a fresh batch id so the next /api/pending poll has clean state.
-      CURRENT_BATCH_ID = _uuid4();
-      CURRENT_BATCH_LABEL = "";
-      localStorage.setItem("violation-ai-batch-id", CURRENT_BATCH_ID);
-      localStorage.removeItem("violation-ai-batch-label");
+  // Undo window: 5 s before we fire DELETE on the server. The closure
+  // here is the actual server call; the toast's Undo handler flips
+  // `cancelled` so the timeout fires a no-op.
+  let cancelled = false;
+  const fireDelete = async () => {
+    if (cancelled) return;
+    try {
+      const r = await fetch("/api/batches/" + encodeURIComponent(batchId), {
+        method: "DELETE",
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json();
+      if (CURRENT_BATCH_ID === batchId) {
+        // Don't strand the user inside a deleted batch — bounce them
+        // to a fresh batch id so the next /api/pending poll has clean
+        // state.
+        CURRENT_BATCH_ID = _uuid4();
+        CURRENT_BATCH_LABEL = "";
+        localStorage.setItem("violation-ai-batch-id", CURRENT_BATCH_ID);
+        localStorage.removeItem("violation-ai-batch-label");
+      }
+      // Reconcile with the server. Tombstones in the render path
+      // will hide the deleted batch even if it briefly appears in
+      // the read-after-write window.
+      refreshBatchesList();
+    } catch (e) {
+      showError(`${t("batch_delete_failed")}: ${e.message}`);
+      // Server rejected — un-tombstone and restore the visible list.
+      _batchTombstones.delete(batchId);
+      _persistBatchTombs();
+      refreshBatchesList();
     }
-    showToast(t("batch_delete_done")(data.deleted ?? n));
-    // Reconcile with the server. Tombstones in the render path will
-    // hide the deleted batch even if it briefly appears in the read.
-    refreshBatchesList();
-  } catch (e) {
-    showError(`${t("batch_delete_failed")}: ${e.message}`);
-    // Server rejected — un-tombstone and restore the visible list.
-    _batchTombstones.delete(batchId);
-    _persistBatchTombs();
-    refreshBatchesList();
-  }
+  };
+
+  showToast(t("batch_delete_done")(n), {
+    action: {
+      label: t("undo") || "Undo",
+      handler: () => {
+        cancelled = true;
+        _batchTombstones.delete(batchId);
+        _persistBatchTombs();
+        refreshBatchesList();   // re-renders with cached batch back in place
+      },
+    },
+    timeoutMs: 5000,
+  });
+
+  setTimeout(fireDelete, 5000);
 }
 
 function openBatch(batchId, label, opts = {}) {
