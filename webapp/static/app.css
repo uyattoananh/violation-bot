@@ -506,13 +506,10 @@ body.fp-modal-open {
   display: none;
 }
 .fp-list .fp-item {
-  /* v85 overhaul: was 70 px tall card boxes (border + radius +
-     bg-slate-50 + 16 px padding + 10 px gap). With 29 categories
-     that was ~2 000 px of scroll. Now: hairline divider rows, no
-     border or border-radius, 12 px vertical padding. Roughly 48 px
-     per row → 1 400 px scroll. Same content, 30 % less scroll.
-     Hover state stays as a subtle bg tint instead of the old
-     "card highlight" treatment.
+  /* v113 rebuild: bumped 48 px → 56 px to match Apple HIG touch
+     target with comfortable margin. Larger 16 px label so the
+     parent name reads as primary content; .fp-meta below stays
+     12 px slate-500 for the count / breadcrumb supplement.
      flex/min-height/font-size kept from v72 — those fix the
      <button> "doesn't auto-grow on overflow" Chromium bug. */
   display: flex;
@@ -520,15 +517,16 @@ body.fp-modal-open {
   justify-content: center;
   width: 100%;
   text-align: left;
-  min-height: 48px;
-  padding: 12px 16px;
+  min-height: 56px;
+  padding: 14px 16px;
   border: 0;
   border-bottom: 1px solid rgb(226 232 240);   /* slate-200 hairline */
   border-radius: 0;
   background: transparent;
   color: rgb(15 23 42);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 16px;
+  line-height: 1.4;
+  font-weight: 500;
   transition: background 120ms ease;
 }
 .fp-list .fp-item:hover { background: rgb(241 245 249); }    /* slate-100 */

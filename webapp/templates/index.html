@@ -3677,9 +3677,12 @@ function _fpRender() {
   if (!isSearch && !drilledParent) {
     const recentSlugs = _getRecentParents();
     if (recentSlugs.length) {
+      // v113: more prominent section header. Was 12 px slate-500
+      // uppercase; now 11 px slate-700 + recent-icon + heavier weight.
       const header = document.createElement("div");
-      header.className = "px-4 py-2 text-xs uppercase tracking-wider font-semibold text-slate-500 border-b border-slate-200 bg-slate-50";
-      header.textContent = LANG === "vn" ? "Gần đây"
+      header.className = "fp-section-header flex items-center gap-2 px-4 pt-3 pb-1.5 text-[11px] uppercase tracking-wider font-bold text-slate-700 bg-white";
+      header.innerHTML = `<svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span></span>`;
+      header.querySelector('span').textContent = LANG === "vn" ? "Gần đây"
                          : LANG === "es" ? "Recientes"
                          : LANG === "zh" ? "最近使用"
                          : "Recently used";
@@ -3713,8 +3716,9 @@ function _fpRender() {
       }
       // Visual separator between Recent and the alphabetical list.
       const divider = document.createElement("div");
-      divider.className = "px-4 py-2 text-xs uppercase tracking-wider font-semibold text-slate-500 border-b border-slate-200 bg-slate-50 mt-1";
-      divider.textContent = LANG === "vn" ? "Tất cả nhóm"
+      divider.className = "fp-section-header flex items-center gap-2 px-4 pt-3 pb-1.5 text-[11px] uppercase tracking-wider font-bold text-slate-700 bg-white mt-1";
+      divider.innerHTML = `<svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 5.25h16.5M3.75 12h16.5M3.75 18.75h16.5"/></svg><span></span>`;
+      divider.querySelector('span').textContent = LANG === "vn" ? "Tất cả nhóm"
                           : LANG === "es" ? "Todas las categorías"
                           : LANG === "zh" ? "所有分类"
                           : "All categories";

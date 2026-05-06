@@ -743,13 +743,15 @@
                 sm:h-auto sm:max-h-[78vh] sm:max-w-[480px]
                 sm:mx-auto sm:my-12 sm:rounded-2xl overflow-hidden">
 
-      <!-- Header: title + currently-selected hint + close X -->
-      <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-200 flex-shrink-0">
+      <!-- v113 header: bolder title, no separate "currently selected"
+           hint (the picker shows the current pick via .is-current
+           highlight on the row itself). Close button stays 44 px. -->
+      <div class="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-slate-200 flex-shrink-0">
         <div class="flex-1 min-w-0">
-          <div class="text-xs uppercase tracking-wider font-semibold text-slate-500" data-i18n="picker_title">
+          <h2 class="text-lg font-semibold text-slate-900 leading-tight" data-i18n="picker_title">
             Pick violation type
-          </div>
-          <div class="fp-current text-xs text-emerald-700 truncate mt-0.5"></div>
+          </h2>
+          <div class="fp-current text-xs text-emerald-700 truncate mt-0.5 hidden"></div>
         </div>
         <button type="button" class="fp-close bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-full w-11 h-11 grid place-items-center flex-shrink-0 transition-colors" aria-label="Close">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
