@@ -3,23 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f5f3eb">
+  <meta name="theme-color" content="#f8fafc">
   <title>{% block title %}HSE Detector{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- v100 rebuild: Inter for the app shell. preconnect saves
-       ~100 ms on first paint by warming the TLS handshake before
-       the @font-face rules ask for it. display=swap so we paint
-       the system fallback immediately and hot-swap to Inter when
-       it lands — no FOIT. -->
+  <!-- v110 rebuild: Atkinson Hyperlegible.
+       Designed by the Braille Institute for low-vision readers;
+       the letterforms keep distinguishing features (b vs d, I vs l)
+       even at low contrast or with motion blur. Wins on a phone in
+       direct sunlight on a dusty job site, which is where this app
+       lives. preconnect warms the TLS handshake before @font-face
+       fires; display=swap paints the system fallback immediately
+       and hot-swaps when Atkinson lands. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
   <link rel="stylesheet" href="/static/app.css">
   <!-- Favicon: monochrome ink "HSE" mark on paper background.
        Matches the drafting-paper landing theme — no more emerald
        check-mark circle. -->
   <link rel="icon" type="image/svg+xml"
-        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%23f5f3eb'/%3E%3Crect x='4' y='4' width='92' height='92' rx='15' fill='none' stroke='%230a0a0a' stroke-width='3'/%3E%3Ctext x='50' y='62' text-anchor='middle' font-family='ui-sans-serif,system-ui,sans-serif' font-size='34' font-weight='700' fill='%230a0a0a' letter-spacing='-1'%3EHSE%3C/text%3E%3C/svg%3E">
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%230f172a'/%3E%3Ctext x='50' y='62' text-anchor='middle' font-family='ui-sans-serif,system-ui,sans-serif' font-size='34' font-weight='700' fill='%23f8fafc' letter-spacing='-1'%3EHSE%3C/text%3E%3Crect x='62' y='14' width='24' height='24' rx='6' fill='%23f97316'/%3E%3C/svg%3E">
 
   <!-- ===== PWA: installable on phone home-screen + offline app shell =====
        The manifest tells browsers this is an installable app; the
@@ -32,41 +35,44 @@
   <meta name="apple-mobile-web-app-title" content="HSE Detector">
   <meta name="mobile-web-app-capable" content="yes">
 
-  <!-- ===== Drafting-paper theme overlay =====
-       Brings the app shell in line with the landing page: off-white
-       paper tone with a fine + heavy grid, ink-toned typography,
-       drafting-marker accent. Tailwind utility classes still apply
-       throughout the app for layout / spacing; this only rewrites
-       the chrome (body bg, header, footer, brand). -->
+  <!-- ===== v110 Industrial theme =====
+       Construction-site palette per UI/UX skill design system:
+       slate-50 background, slate-900 ink, safety-orange CTA.
+       The drafting-paper aesthetic was visually nice in showcase
+       screenshots but disappeared under sun glare; flat
+       high-contrast surfaces hold up better. Naming kept as
+       theme-paper for code-coupling reasons (no JS impact, just
+       avoids a wide rename). -->
   <style>
     :root {
-      --paper:        #f5f3eb;
-      --paper-warm:   #efece1;
-      --paper-soft:   #fbfaf4;
-      --ink:          #0a0a0a;
-      --ink-soft:     #3a3a3a;
-      --ink-mute:     #6b7280;
-      --ink-faint:    #9ca3af;
-      --rule:         rgba(10, 10, 10, 0.07);
-      --rule-strong:  rgba(10, 10, 10, 0.13);
-      --hairline:     rgba(10, 10, 10, 0.4);
-      --accent:       #b45309;
+      /* Industrial neutrals — slate ramp.
+         AA contrast on white: --ink 16:1, --ink-soft 8:1,
+         --ink-mute 5:1, --ink-faint fails — only used for
+         decorative dividers, never body text. */
+      --paper:        #f8fafc;   /* slate-50  */
+      --paper-warm:   #f1f5f9;   /* slate-100 */
+      --paper-soft:   #ffffff;
+      --ink:          #0f172a;   /* slate-900 */
+      --ink-soft:     #334155;   /* slate-700 */
+      --ink-mute:     #475569;   /* slate-600 */
+      --ink-faint:    #94a3b8;   /* slate-400 */
+      --rule:         rgba(15, 23, 42, 0.08);
+      --rule-strong:  rgba(15, 23, 42, 0.16);
+      --hairline:     rgba(15, 23, 42, 0.32);
+      /* Safety orange — industry standard for high-vis on
+         construction sites. Replaces the drafting-marker amber. */
+      --accent:       #f97316;
+      --accent-hover: #ea580c;
     }
     body.theme-paper {
       background-color: var(--paper) !important;
       color: var(--ink);
-      background-image:
-        linear-gradient(var(--rule) 1px, transparent 1px),
-        linear-gradient(90deg, var(--rule) 1px, transparent 1px),
-        linear-gradient(var(--rule-strong) 1px, transparent 1px),
-        linear-gradient(90deg, var(--rule-strong) 1px, transparent 1px);
-      background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
-      background-position: 0 0, 0 0, 0 0, 0 0;
     }
     /* Re-skin the sticky header to paper-warm with an ink hairline. */
     body.theme-paper > header {
-      background: rgba(245, 243, 235, 0.94) !important;
-      border-bottom: 1px solid var(--hairline) !important;
+      background: rgba(248, 250, 252, 0.94) !important;   /* slate-50 / ~94% */
+      border-bottom: 1px solid var(--rule-strong) !important;
+      backdrop-filter: saturate(140%) blur(8px);
     }
     body.theme-paper .brand-link {
       color: var(--ink);
@@ -78,9 +84,10 @@
     body.theme-paper .brand-link .em { color: var(--accent); font-weight: 600; }
     /* Footer + chips on paper */
     body.theme-paper #app-footer {
-      background: rgba(245, 243, 235, 0.94) !important;
-      border-top: 1px solid var(--hairline) !important;
+      background: rgba(248, 250, 252, 0.94) !important;   /* slate-50 / ~94% */
+      border-top: 1px solid var(--rule-strong) !important;
       color: var(--ink-soft);
+      backdrop-filter: saturate(140%) blur(8px);
     }
     /* Footer text on warm-cream needs more contrast than --ink-mute
        (#6b7280 = 4.38:1, fails WCAG AA). Map slate-500/600 to

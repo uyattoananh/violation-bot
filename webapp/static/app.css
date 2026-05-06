@@ -1,40 +1,47 @@
 /* ============================================================
-   v100 REBUILD layer
+   v110 REBUILD foundation
    ============================================================
-   Industrial-inspector design language. The HSE Detector is used
-   in bright sunlight on construction sites by people wearing
-   gloves. Priority order: contrast, density, single-tap actions,
-   no decorative chrome.
+   Industrial-inspector design language. Used in bright sunlight on
+   construction sites by people wearing gloves. Priority order:
+   contrast, density, single-tap actions, no decorative chrome.
 
-   Typography: Inter (loaded in _base.html). Falls back to system
-   sans. The whole app reads in 14-16 px sizes — large enough at
-   arm's-length on a phone, dense enough that 12 photos fit on a
-   single screen.
+   Typography: Atkinson Hyperlegible (loaded in _base.html). Designed
+   by the Braille Institute to keep b/d/I/l distinguishable at low
+   contrast. Beats Inter on a sun-glared phone. 16 px body minimum
+   per WCAG AAA, 18 px primary text. No 12 px text outside chips.
 
-   Color: keep the warm-cream brand bg (--paper) and ink primary;
-   tighten the secondary palette to JUST emerald (action) +
-   amber (warning) + slate (neutrals). Drop incidental colours.
+   Color: construction palette (slate-50 bg, slate-900 ink,
+   safety-orange #F97316 CTA). Tokens defined in _base.html under
+   :root. Drop the drafting-paper grid background — flat surfaces
+   read better in glare.
 
-   Spacing: 4px grid. Tight. Section gaps are 12 px (--space-3),
-   element gaps within sections are 8 px (--space-2). No more
-   gradient of 8/12/16/20.
-
-   Motion: the previous tokens stand. 200 ms is the default;
-   prefers-reduced-motion blanket-suppresses (kept from v77).
+   Motion: 120 ms transitions for hover / focus. prefers-reduced-
+   motion blanket-suppresses (kept from v77).
    ============================================================ */
 
 html {
-  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system,
-               'Segoe UI', Roboto, sans-serif;
+  font-family: 'Atkinson Hyperlegible', ui-sans-serif, system-ui,
+               -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'cv11', 'ss01', 'ss03';   /* Inter stylistic sets */
 }
 
 body {
-  /* Tighter line-height than browser default 1.5. Text reads more
-     compact and the 4 px grid is preserved. */
-  line-height: 1.4;
+  /* WCAG-recommended 1.5 line-height for body text — keeps reading
+     ergonomic for AHL's tall x-height. */
+  line-height: 1.5;
+  font-size: 16px;
+  /* iOS Safari ships a 300 ms tap-delay unless touch-action says
+     otherwise. manipulation lets pinch-zoom pass through but kills
+     the tap delay — felt instantly on every button. */
+  touch-action: manipulation;
+  /* Stop pull-to-refresh from firing inside the app shell. The
+     dropzone needs a swipe-up gesture; rubber-banding away from
+     it accidentally triggers a full reload. */
+  overscroll-behavior-y: contain;
+  /* dvh accounts for mobile browser chrome (Safari address bar)
+     unlike vh which can leave 100-px gaps when the bar collapses. */
+  min-height: 100dvh;
 }
 
 /* Snappier base transition speed for hover/focus changes — most
@@ -42,6 +49,16 @@ body {
    minimum the eye registers as smooth. */
 *, *::before, *::after {
   transition-duration: 120ms;
+}
+
+/* Visible focus rings for keyboard navigation. 3 px ring +
+   2 px offset matches the design-system Accessible & Ethical
+   spec. :focus-visible only fires for keyboard, not mouse, so
+   the ring doesn't appear on every click. */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* ============================================================
@@ -75,29 +92,40 @@ body {
   color: var(--ink-soft);
 }
 
-/* Primary action button. Replaces the assortment of bg-emerald-600
-   buttons across the app for new markup. The paper-theme override
-   maps emerald → ink so this also works in the drafting palette. */
+/* Primary CTA. Safety-orange filled — used for the "Start new
+   inspection" headline button. Reserved for the workflow-driving
+   action; all other affirmative buttons (Confirm AI pick) stay
+   emerald, which carries the success connotation. */
 .btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   min-height: 44px;
-  padding: 8px 16px;
-  background: var(--ink);
-  color: var(--paper);
-  font-weight: 600;
+  /* Mobile-first padding — keeps the headline title room on a 375 px
+     viewport. Tablet+ widens via the breakpoint below. */
+  padding: 10px 12px;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 700;
   font-size: 14px;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.005em;
   border: 0;
   border-radius: 10px;
   cursor: pointer;
-  transition: opacity 120ms ease;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: background 120ms ease, transform 60ms ease;
 }
-.btn-primary:hover { opacity: 0.92; }
-.btn-primary:active { opacity: 0.85; }
-.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+@media (min-width: 640px) {
+  .btn-primary { padding: 10px 18px; font-size: 15px; gap: 8px; }
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:active { transform: translateY(1px); }
+.btn-primary:disabled {
+  background: var(--ink-faint); color: var(--paper); cursor: not-allowed;
+  box-shadow: none;
+}
 
 /* Secondary action button. Outlined version of btn-primary for
    "less important" actions like Edit, Cancel, etc. */
