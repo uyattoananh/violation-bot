@@ -820,15 +820,14 @@
        tabindex="0"
        data-batch-id="">
     <div class="flex-1 min-w-0">
-      <!-- Line 1: name (truncates) + percentage (right-aligned, tabular).
-           items-baseline so the % digits sit on the same baseline as the
-           title — items-center makes mixed text-base / text-sm look like
-           the smaller text is floating above the bigger one. -->
+      <!-- Title + percentage on line 1. Percentage matched to title's
+         text-base so the baseline align is clean (no smaller text
+         floating above). slate-500 keeps it visually secondary
+         versus the slate-900 title. -->
       <div class="flex items-baseline gap-2">
         <div class="batch-card-label font-semibold text-slate-900 text-base truncate flex-1 min-w-0"></div>
-        <span class="batch-card-pct text-sm font-semibold text-slate-600 tabular-nums flex-shrink-0"></span>
+        <span class="batch-card-pct text-base font-semibold text-slate-500 tabular-nums flex-shrink-0"></span>
       </div>
-      <!-- Line 2: photos · reviewed · expiry · timestamp (smaller, muted). -->
       <div class="text-xs text-slate-600 flex items-center flex-wrap gap-x-2 mt-0.5 tabular-nums">
         <span class="batch-card-photos"></span>
         <span class="batch-card-reviewed text-emerald-700"></span>
