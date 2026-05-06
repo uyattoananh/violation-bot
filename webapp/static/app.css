@@ -119,6 +119,35 @@ body {
 .font-medium, .font-semibold { font-weight: 700; }
 
 /* ============================================================
+   v115.5 — collapse off-scale text colors to the canonical
+   trio per the type-system spec above. Templates kept their
+   ad-hoc shades (text-emerald-600 from a v62 commit, text-rose-
+   500 from a v74 commit, etc.); rather than rewrite ~200 utility
+   classes across 6900 lines of templates, we alias the shades
+   here. Same approach as the font-weight collapse above —
+   markup unchanged, rule actually holds.
+
+   Neutral scale: 900 / 700 / 500 / 400 only. The 600/800 shades
+   that crept in get nudged to the closer canonical step.
+
+   Semantic colors: one shade per role (700 for text, 50 for bg,
+   200 for ring). The 500/600/900 emeralds and 600/800/900 ambers
+   that scatter across the codebase fold into the 700.
+   ============================================================ */
+.text-slate-600 { color: rgb(51 65 85); }    /* alias → slate-700 */
+.text-slate-800 { color: rgb(15 23 42); }    /* alias → slate-900 */
+
+.text-emerald-500,
+.text-emerald-600,
+.text-emerald-900 { color: rgb(4 120 87); }  /* alias → emerald-700 */
+.text-amber-600,
+.text-amber-800,
+.text-amber-900  { color: rgb(180 83 9); }   /* alias → amber-700 */
+.text-rose-500,
+.text-rose-600,
+.text-rose-800   { color: rgb(190 18 60); }  /* alias → rose-700 */
+
+/* ============================================================
    v100 primitives
    These class names are NEW. Use them in new markup; existing
    .card / .fp-item / .btn-confirm rules below stay intact for
