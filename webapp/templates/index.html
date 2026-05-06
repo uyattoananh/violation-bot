@@ -86,13 +86,22 @@
       <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
     </svg>
   </div>
-  <div class="flex-1 min-w-0">
+  <!-- v115.9: editable title with a subtle hover wash + a faint
+       pencil glyph hint, so the user sees this is tap-to-rename
+       even when the auto-generated date label is already filled
+       in. Without these signals the input read like a static
+       title. -->
+  <div class="flex-1 min-w-0 relative group">
     <input type="text" id="batch-label-input"
-           class="w-full bg-transparent text-base sm:text-lg font-semibold text-slate-900 focus:outline-none focus:bg-slate-50 rounded px-1 py-0.5 truncate"
+           class="w-full bg-transparent text-base sm:text-lg font-semibold text-slate-900 focus:outline-none focus:bg-slate-100 hover:bg-slate-100 transition-colors rounded px-1.5 py-1 pr-7 truncate"
            placeholder="Tap to name this inspection"
            aria-label="Inspection name"
            autocomplete="off">
-    <div id="batch-subtitle" class="text-xs text-slate-600 px-1 mt-0.5 truncate"></div>
+    <svg class="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-0 transition-opacity"
+         fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
+    </svg>
+    <div id="batch-subtitle" class="text-xs text-slate-600 px-1.5 mt-0.5 truncate"></div>
   </div>
   <button type="button" id="btn-add-photos"
           class="flex-shrink-0 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-xl w-11 h-11 sm:w-auto sm:h-11 sm:px-4 shadow-sm transition-colors"
