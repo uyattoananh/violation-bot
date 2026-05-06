@@ -5203,18 +5203,45 @@ let currentView = VIEW_LIST;
 const viewListEl   = el("#view-list");
 const viewDetailEl = el("#view-detail");
 
-function switchView(v) {
+function switchView(v, opts = {}) {
   currentView = v;
   localStorage.setItem("violation-ai-view", v);
   viewListEl.classList.toggle("hidden", v !== VIEW_LIST);
   viewDetailEl.classList.toggle("hidden", v !== VIEW_DETAIL);
   document.title = v === VIEW_LIST ? "HSE Detector · inspections" : "HSE Detector · upload";
+
+  // v115.3 — wire SPA navigation into the browser history so
+  // back/forward actually work. Without this, hitting the back
+  // button leaves the app entirely (URL was unchanged across
+  // view swaps). User-initiated calls push a new entry; popstate-
+  // driven calls pass {pushHistory: false} to avoid loops; the
+  // initial boot call uses {replaceHistory: true} so the very
+  // first stack frame already carries a state object.
+  if (opts.pushHistory !== false) {
+    const state = { view: v, id: v === VIEW_DETAIL ? CURRENT_BATCH_ID : null };
+    const url = v === VIEW_LIST ? "/" : ("#b=" + (CURRENT_BATCH_ID || ""));
+    if (opts.replaceHistory) history.replaceState(state, "", url);
+    else history.pushState(state, "", url);
+  }
+
   if (v === VIEW_LIST) {
     refreshBatchesList();
   } else {
     poll();   // pull current batch's photos
   }
 }
+
+// Browser back/forward navigation. e.state was set by switchView()
+// above; we replay it without pushing another history entry (the
+// browser already moved the pointer for us).
+window.addEventListener("popstate", (e) => {
+  const s = e.state || { view: VIEW_LIST };
+  if (s.view === VIEW_DETAIL && s.id) {
+    openBatch(s.id, "", { pushHistory: false });
+  } else {
+    switchView(VIEW_LIST, { pushHistory: false });
+  }
+});
 
 // Guard against concurrent refreshBatchesList calls that interleaved
 // their innerHTML writes and rendered duplicates. We tag each call
@@ -5223,146 +5250,198 @@ function switchView(v) {
 // dropped on arrival. Net effect: rapid-fire delete + reload + view
 // switches no longer leave the user staring at a doubled list.
 let _refreshBatchesToken = 0;
-async function refreshBatchesList() {
-  const myToken = ++_refreshBatchesToken;
+
+// v115.3 — stale-while-revalidate cache.
+// On switchView('list'), the JS used to: fetch /api/batches → wait
+// the network round-trip + DB aggregation (~1 s on a slow link) →
+// THEN paint. Cold open meant a full second of empty list every
+// single time. Now: render synchronously from a localStorage mirror
+// of the last good response (~0 ms), then refetch in background and
+// re-render if anything changed. Mutations (delete, rename) update
+// the cache directly so the next render reflects them without a
+// round-trip.
+const _BATCHES_CACHE_KEY = "violation-ai-batches-v1";
+const _BATCHES_CACHE_TTL_MS = 30_000;
+let _batchesCachedData = null;
+let _batchesCachedAt = 0;
+
+function _readBatchesCache() {
+  try {
+    const raw = localStorage.getItem(_BATCHES_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) { return null; }
+}
+
+function _writeBatchesCache(data) {
+  try {
+    localStorage.setItem(_BATCHES_CACHE_KEY, JSON.stringify(data));
+  } catch (_) { /* quota — drop silently */ }
+}
+
+function _renderBatches(data) {
   const grid = el("#batches-grid");
   const empty = el("#batches-empty");
+  grid.innerHTML = "";
+  // Filter out batches the user just deleted client-side. The server
+  // can return them for a few seconds after DELETE returns 200 due
+  // to read-after-write delay; without this the card resurrects.
+  const batches = (data.batches || []).filter(b => !_isBatchTombstoned(b.batch_id));
+  if (!batches.length) {
+    empty.classList.remove("hidden");
+    grid.classList.add("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+  grid.classList.remove("hidden");
+  const tmpl = el("#batch-card-template");
+  batches.forEach(b => {
+    const node = tmpl.content.firstElementChild.cloneNode(true);
+    node.dataset.batchId = b.batch_id;
+    // Friendlier fallback for batches the user didn't name. Build a
+    // date-stamped placeholder ("Inspection Apr 30") off the batch's
+    // first photo timestamp so the list isn't a wall of "(unnamed)".
+    let fallbackLabel = "";
+    if (b.created_at || b.first_photo_at) {
+      const ts = new Date(b.created_at || b.first_photo_at);
+      if (!isNaN(ts.getTime())) {
+        const opts = { month: "short", day: "numeric" };
+        const d = ts.toLocaleDateString(_BCP47[LANG] || "en", opts);
+        const prefix = LANG === "vn" ? "Kiểm tra"
+                     : LANG === "es" ? "Inspección"
+                     : LANG === "zh" ? "检查"
+                     : "Inspection";
+        fallbackLabel = `${prefix} · ${d}`;
+      }
+    }
+    if (!fallbackLabel) {
+      fallbackLabel = LANG === "vn" ? "Chưa đặt tên"
+                    : LANG === "es" ? "Sin título"
+                    : LANG === "zh" ? "未命名检查"
+                    : "Untitled inspection";
+    }
+    el(".batch-card-label", node).textContent = b.label || fallbackLabel;
+    el(".batch-card-photos", node).textContent = b.photo_count + (LANG === "vn" ? " ảnh" : (b.photo_count === 1 ? " photo" : " photos"));
+    el(".batch-card-reviewed", node).textContent = `${b.reviewed_count}/${b.photo_count}`;
+    const pct = b.photo_count ? Math.round(b.reviewed_count / b.photo_count * 100) : 0;
+    el(".batch-card-progress", node).style.width = pct + "%";
+    el(".batch-card-pct", node).textContent = pct + "%";
+    // Always render as a numeric short date (UX backlog D2). The
+    // previous "yesterday / 3 days ago" format is ambiguous over
+    // longer time spans and inspectors prefer a date they can
+    // reference precisely. Tooltip carries the full timestamp for
+    // when the user wants the exact upload time.
+    try {
+      const d = new Date(b.latest_uploaded_at);
+      if (!isNaN(d.getTime())) {
+        const localeMap = { en: "en", vn: "vi", es: "es", zh: "zh-CN" };
+        const opts = { year: "numeric", month: "short", day: "numeric" };
+        const when = d.toLocaleDateString(localeMap[LANG] || "en", opts);
+        const elt = el(".batch-card-when", node);
+        elt.textContent = when;
+        elt.title = d.toLocaleString(localeMap[LANG] || "en");
+      }
+    } catch (e) { /* ignore */ }
+    // Localize the delete button's tooltip + aria-label so VN users
+    // see the right text on hover / via screen reader.
+    const delBtn = el(".batch-card-delete", node);
+    if (delBtn) {
+      delBtn.title = t("batch_delete");
+      delBtn.setAttribute("aria-label", t("batch_delete"));
+      delBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        deleteBatch(b.batch_id, b.photo_count, b.label);
+      });
+    }
+    // Inline rename (UX backlog D3). One tap pops a window.prompt
+    // pre-filled with the current label; Enter saves via the new
+    // PATCH /api/batches/{id} endpoint, Esc/empty cancels. Optimistic
+    // UI: we update the visible label immediately + the cache so the
+    // next render shows the new name without a round-trip, and roll
+    // back on error.
+    const renameBtn = el(".batch-card-rename", node);
+    if (renameBtn) {
+      renameBtn.title = t("batch_rename") || "Rename inspection";
+      renameBtn.setAttribute("aria-label", renameBtn.title);
+      renameBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const labelEl = el(".batch-card-label", node);
+        const current = b.label || labelEl.textContent || "";
+        const next = window.prompt(t("batch_rename_prompt") || "Rename inspection:", current);
+        if (next === null) return;
+        const trimmed = next.trim().slice(0, 80);
+        if (trimmed === current) return;
+        const prev = labelEl.textContent;
+        labelEl.textContent = trimmed || (LANG === "vn" ? "Chưa đặt tên" : LANG === "es" ? "Sin título" : LANG === "zh" ? "未命名检查" : "Untitled inspection");
+        try {
+          const fd = new FormData();
+          fd.append("label", trimmed);
+          const resp = await fetch("/api/batches/" + encodeURIComponent(b.batch_id), {
+            method: "PATCH", body: fd,
+          });
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          b.label = trimmed;
+          // Optimistically update the cached list so navigating away
+          // and back doesn't briefly flash the old name.
+          if (_batchesCachedData?.batches) {
+            const cached = _batchesCachedData.batches.find(x => x.batch_id === b.batch_id);
+            if (cached) cached.label = trimmed;
+            _writeBatchesCache(_batchesCachedData);
+          }
+          showToast(t("batch_rename_done") || "Inspection renamed", { timeoutMs: 2500 });
+        } catch (e) {
+          labelEl.textContent = prev;
+          showError("Rename failed: " + e.message);
+        }
+      });
+    }
+    // Whole-card click = open the batch, but ONLY if the click didn't
+    // originate inside one of the action buttons.
+    node.addEventListener("click", (ev) => {
+      if (ev.target.closest(".batch-card-delete")) return;
+      if (ev.target.closest(".batch-card-rename")) return;
+      openBatch(b.batch_id, b.label);
+    });
+    node.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openBatch(b.batch_id, b.label);
+      }
+    });
+    if (b.expires_at) {
+      const expiryEl = el(".batch-card-expiry-text", node);
+      if (expiryEl) expiryEl.textContent = _formatExpiry(b.expires_at);
+    }
+    node.tabIndex = 0;
+    grid.appendChild(node);
+  });
+}
+
+async function refreshBatchesList(opts = {}) {
+  const myToken = ++_refreshBatchesToken;
+
+  // Step 1: render from cache instantly so the user never sees
+  // an empty grid on view-list switch.
+  if (_batchesCachedData === null) _batchesCachedData = _readBatchesCache();
+  if (_batchesCachedData) _renderBatches(_batchesCachedData);
+
+  // Step 2: skip the network call if cache is fresh enough AND the
+  // caller didn't force a refresh. Mutations call with {force: true}
+  // to bypass the TTL guard.
+  if (!opts.force && _batchesCachedAt && (Date.now() - _batchesCachedAt) < _BATCHES_CACHE_TTL_MS) {
+    return;
+  }
+
+  // Step 3: refetch in background, re-render + persist on success.
   try {
     const r = await fetch("/api/batches?limit=100");
     if (!r.ok) throw new Error("HTTP " + r.status);
     const data = await r.json();
-    if (myToken !== _refreshBatchesToken) return;   // a newer call already rendered
-    grid.innerHTML = "";
-    // Filter out batches the user just deleted client-side. The server
-    // can return them for a few seconds after DELETE returns 200 due
-    // to read-after-write delay; without this the card resurrects.
-    const batches = (data.batches || []).filter(b => !_isBatchTombstoned(b.batch_id));
-    if (!batches.length) {
-      empty.classList.remove("hidden");
-      grid.classList.add("hidden");
-      return;
-    }
-    empty.classList.add("hidden");
-    grid.classList.remove("hidden");
-    const tmpl = el("#batch-card-template");
-    batches.forEach(b => {
-      const node = tmpl.content.firstElementChild.cloneNode(true);
-      node.dataset.batchId = b.batch_id;
-      // Friendlier fallback for batches the user didn't name. Build a
-      // date-stamped placeholder ("Inspection Apr 30") off the batch's
-      // first photo timestamp so the list isn't a wall of "(unnamed)".
-      let fallbackLabel = "";
-      if (b.created_at || b.first_photo_at) {
-        const ts = new Date(b.created_at || b.first_photo_at);
-        if (!isNaN(ts.getTime())) {
-          const opts = { month: "short", day: "numeric" };
-          const d = ts.toLocaleDateString(_BCP47[LANG] || "en", opts);
-          const prefix = LANG === "vn" ? "Kiểm tra"
-                       : LANG === "es" ? "Inspección"
-                       : LANG === "zh" ? "检查"
-                       : "Inspection";
-          fallbackLabel = `${prefix} · ${d}`;
-        }
-      }
-      if (!fallbackLabel) {
-        fallbackLabel = LANG === "vn" ? "Chưa đặt tên"
-                      : LANG === "es" ? "Sin título"
-                      : LANG === "zh" ? "未命名检查"
-                      : "Untitled inspection";
-      }
-      el(".batch-card-label", node).textContent = b.label || fallbackLabel;
-      el(".batch-card-photos", node).textContent = b.photo_count + (LANG === "vn" ? " ảnh" : (b.photo_count === 1 ? " photo" : " photos"));
-      el(".batch-card-reviewed", node).textContent = `${b.reviewed_count}/${b.photo_count}`;
-      const pct = b.photo_count ? Math.round(b.reviewed_count / b.photo_count * 100) : 0;
-      el(".batch-card-progress", node).style.width = pct + "%";
-      el(".batch-card-pct", node).textContent = pct + "%";
-      // (Was: batch-card-id rendered the UUID prefix here. Removed per
-      // UX backlog D1 — internal value, not useful to users.)
-      // Always render as a numeric short date (UX backlog D2). The
-      // previous "yesterday / 3 days ago" format is ambiguous over
-      // longer time spans and inspectors prefer a date they can
-      // reference precisely. Tooltip carries the full timestamp for
-      // when the user wants the exact upload time.
-      try {
-        const d = new Date(b.latest_uploaded_at);
-        if (!isNaN(d.getTime())) {
-          const localeMap = { en: "en", vn: "vi", es: "es", zh: "zh-CN" };
-          const opts = { year: "numeric", month: "short", day: "numeric" };
-          const when = d.toLocaleDateString(localeMap[LANG] || "en", opts);
-          const elt = el(".batch-card-when", node);
-          elt.textContent = when;
-          elt.title = d.toLocaleString(localeMap[LANG] || "en");
-        }
-      } catch (e) { /* ignore */ }
-      // Localize the delete button's tooltip + aria-label so VN users
-      // see the right text on hover / via screen reader.
-      const delBtn = el(".batch-card-delete", node);
-      if (delBtn) {
-        delBtn.title = t("batch_delete");
-        delBtn.setAttribute("aria-label", t("batch_delete"));
-        delBtn.addEventListener("click", (ev) => {
-          // Prevent the outer card's open-batch click from firing
-          ev.stopPropagation();
-          deleteBatch(b.batch_id, b.photo_count, b.label);
-        });
-      }
-      // Inline rename (UX backlog D3). One tap pops a window.prompt
-      // pre-filled with the current label; Enter saves via the new
-      // PATCH /api/batches/{id} endpoint, Esc/empty cancels. Optimistic
-      // UI: we update the visible label immediately and roll back on
-      // error.
-      const renameBtn = el(".batch-card-rename", node);
-      if (renameBtn) {
-        renameBtn.title = t("batch_rename") || "Rename inspection";
-        renameBtn.setAttribute("aria-label", renameBtn.title);
-        renameBtn.addEventListener("click", async (ev) => {
-          ev.stopPropagation();
-          const labelEl = el(".batch-card-label", node);
-          const current = b.label || labelEl.textContent || "";
-          const next = window.prompt(t("batch_rename_prompt") || "Rename inspection:", current);
-          if (next === null) return;             // user cancelled
-          const trimmed = next.trim().slice(0, 80);
-          if (trimmed === current) return;       // no change
-          const prev = labelEl.textContent;
-          labelEl.textContent = trimmed || (LANG === "vn" ? "Chưa đặt tên" : LANG === "es" ? "Sin título" : LANG === "zh" ? "未命名检查" : "Untitled inspection");
-          try {
-            const fd = new FormData();
-            fd.append("label", trimmed);
-            const resp = await fetch("/api/batches/" + encodeURIComponent(b.batch_id), {
-              method: "PATCH", body: fd,
-            });
-            if (!resp.ok) throw new Error("HTTP " + resp.status);
-            b.label = trimmed;   // keep local copy in sync
-            showToast(t("batch_rename_done") || "Inspection renamed", { timeoutMs: 2500 });
-          } catch (e) {
-            labelEl.textContent = prev;
-            showError("Rename failed: " + e.message);
-          }
-        });
-      }
-      // Whole-card click = open the batch, but ONLY if the click didn't
-      // originate inside one of the action buttons in the top-right
-      // strip (defensive — stopPropagation above should already block).
-      node.addEventListener("click", (ev) => {
-        if (ev.target.closest(".batch-card-delete")) return;
-        if (ev.target.closest(".batch-card-rename")) return;
-        openBatch(b.batch_id, b.label);
-      });
-      node.addEventListener("keydown", e => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          openBatch(b.batch_id, b.label);
-        }
-      });
-      // Per-batch expiry countdown
-      if (b.expires_at) {
-        const expiryEl = el(".batch-card-expiry-text", node);
-        if (expiryEl) expiryEl.textContent = _formatExpiry(b.expires_at);
-      }
-      node.tabIndex = 0;
-      grid.appendChild(node);
-    });
-  } catch (e) { /* silent */ }
+    if (myToken !== _refreshBatchesToken) return;
+    _batchesCachedData = data;
+    _batchesCachedAt = Date.now();
+    _writeBatchesCache(data);
+    _renderBatches(data);
+  } catch (_) { /* keep showing cache */ }
 }
 
 // ---------- Photo expiry helpers ----------
@@ -5503,7 +5582,14 @@ async function deleteBatch(batchId, photoCount, label) {
   }
 }
 
-function openBatch(batchId, label) {
+function openBatch(batchId, label, opts = {}) {
+  // If popstate triggered this and we have a cached label for the
+  // batch, recover it from the cache so the title input doesn't
+  // flash empty during the back-button replay.
+  if (!label && _batchesCachedData?.batches) {
+    const cached = _batchesCachedData.batches.find(b => b.batch_id === batchId);
+    if (cached?.label) label = cached.label;
+  }
   CURRENT_BATCH_ID = batchId;
   CURRENT_BATCH_LABEL = label || "";
   localStorage.setItem("violation-ai-batch-id", batchId);
@@ -5529,7 +5615,7 @@ function openBatch(batchId, label) {
   _setDropzonePanelOpen(false);
   // Sync batch label input
   el("#batch-label-input").value = label || "";
-  switchView(VIEW_DETAIL);
+  switchView(VIEW_DETAIL, opts);   // forwards pushHistory:false on popstate
 }
 
 el("#btn-back-to-list").addEventListener("click", () => switchView(VIEW_LIST));
@@ -5601,9 +5687,18 @@ if (_quickBatchBtn) {
 applyLang();
 applyFilter();
 updateStats();
-// Always start on the batches list. The user can drill into a specific
-// batch from there.
-switchView(VIEW_LIST);
+// Boot view: respect a #b=BATCH_ID URL hash so a refresh inside a
+// detail view stays there (and a deep link works). Otherwise default
+// to the inspections list. replaceHistory: true overwrites the
+// landing-page entry instead of stacking, so the user can press
+// back and leave the app cleanly.
+const _bootHash = (location.hash || "").replace(/^#/, "");
+const _bootBatchId = _bootHash.startsWith("b=") ? _bootHash.slice(2) : null;
+if (_bootBatchId) {
+  openBatch(_bootBatchId, "", { replaceHistory: true });
+} else {
+  switchView(VIEW_LIST, { replaceHistory: true });
+}
 setInterval(poll, 4000);
 // Cost ticker — refresh on load + every 60s
 refreshCostTicker();
