@@ -779,3 +779,29 @@ body.select-mode-active main {
     margin-top: 8px;
   }
 }
+
+/* ============================================================
+   Inspection-list meta line column alignment (v116.3).
+
+   Each row's meta line is "12 photos · 9/47 · expires in 11h".
+   Without min-widths the columns are just flex children so the
+   "9/47" landed wherever "12 photos" happened to end, and "expires
+   in" landed wherever "9/47" happened to end. Across rows with
+   varying counts (8 photos → 47 photos, 0/8 → 12/12) the columns
+   walked left and right by a couple of characters each, so the
+   eye couldn't track any of them as a column.
+
+   Fix: pin each leading column to a min-width that fits its worst-
+   case content. tabular-nums (already on the parent) keeps digit
+   widths stable so ch-based mins are predictable. With these mins
+   the reviewed count and the "expires in" label both start at the
+   same X across every row.
+
+   Why these values:
+     batch-card-photos: "100 photos" worst-case = 10 ch.
+     batch-card-reviewed: "99/99" worst-case = 5 ch.
+   In VN/ES/ZH the photo word is shorter so the ch min just leaves
+   a touch of trailing space — still better than walking columns.
+   ============================================================ */
+.batch-card-photos { min-width: 10ch; }
+.batch-card-reviewed { min-width: 5ch; }
