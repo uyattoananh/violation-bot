@@ -187,12 +187,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:  # noqa: BLE001
         log.error("Failed to resolve default tenant/project: %s", e)
 
-    # Cleanup expired photos on startup (best-effort).
+    # Cleanup expired photos on startup (best-effort). Whole-batch
+    # cleanup runs first so the per-photo sweeper only has to handle
+    # unbatched leftovers.
     if _PHOTO_EXPIRY_DAYS > 0:
         try:
+            nb = _cleanup_expired_batches()
+            if nb:
+                log.info("startup cleanup: removed %d photos across expired batches", nb)
             n = _cleanup_expired_photos()
             if n:
-                log.info("startup cleanup: removed %d expired photos", n)
+                log.info("startup cleanup: removed %d unbatched expired photos", n)
         except Exception as e:  # noqa: BLE001
             log.warning("startup cleanup failed: %s", e)
     yield
@@ -483,14 +488,90 @@ def _cleanup_expired_photos() -> int:
     return deleted
 
 
+def _cleanup_expired_batches() -> int:
+    """Delete every photo (and R2 object) belonging to a batch whose
+    EARLIEST upload is past the cutoff — i.e. the batch's displayed
+    `expires_at` (computed as earliest_uploaded_at + _PHOTO_EXPIRY_DAYS
+    in /api/batches) is in the past.
+
+    Why this exists separately from _cleanup_expired_photos: the
+    per-photo sweep deletes photos older than cutoff one at a time, so
+    a batch whose 'expires in' countdown hit zero stays in the list as
+    a perpetually-shrinking row — its earliest photo gets pruned, the
+    next-earliest becomes the new earliest, the displayed expiry slips
+    forward by the upload cadence, and the batch never quite goes
+    away. Users reasonably expect the whole batch to disappear when
+    the countdown hits zero, so we wipe the whole batch in one pass
+    instead of letting the per-photo sweeper drain it.
+
+    Returns total photo rows removed (across all expired batches)."""
+    if _PHOTO_EXPIRY_DAYS <= 0:
+        return 0
+    from datetime import datetime, timezone, timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=_PHOTO_EXPIRY_DAYS)).isoformat()
+    db = get_db()
+    try:
+        # Any batched photo older than the cutoff identifies a batch
+        # that is past its displayed expiry. Pull batch_ids only — we
+        # re-query for the full photo set per batch below so we also
+        # capture younger siblings that haven't individually expired.
+        old_rows = (
+            db.table("photos")
+              .select("batch_id")
+              .lt("uploaded_at", cutoff)
+              .not_.is_("batch_id", "null")
+              .limit(2000)
+              .execute().data or []
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("expired-batch query failed: %s", e)
+        return 0
+    expired_batches = sorted({r["batch_id"] for r in old_rows if r.get("batch_id")})
+    if not expired_batches:
+        return 0
+    deleted = 0
+    r2 = get_r2()
+    for bid in expired_batches:
+        try:
+            photos = (
+                db.table("photos")
+                  .select("id, storage_key")
+                  .eq("batch_id", bid)
+                  .limit(1000)
+                  .execute().data or []
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("expired-batch photo-list failed for %s: %s", bid, e)
+            continue
+        for p in photos:
+            try:
+                r2.delete_object(Bucket=R2_BUCKET, Key=p["storage_key"])
+            except Exception as e:  # noqa: BLE001
+                log.warning("R2 delete failed for %s: %s", p["storage_key"], e)
+            try:
+                db.table("photos").delete().eq("id", p["id"]).execute()
+                deleted += 1
+            except Exception as e:  # noqa: BLE001
+                log.warning("DB delete failed for photo %s: %s", p["id"], e)
+    log.info("cleanup: deleted %d photos across %d expired batches",
+             deleted, len(expired_batches))
+    return deleted
+
+
 def _maybe_cleanup():
-    """Run cleanup at most once per hour (best-effort, non-blocking)."""
+    """Run cleanup at most once per hour (best-effort, non-blocking).
+
+    Order matters: drop expired batches first (whole-batch wipe), then
+    fall through to the per-photo sweeper for any unbatched / orphan
+    rows that aren't covered by the batch pass.
+    """
     import time
     if _PHOTO_EXPIRY_DAYS <= 0:
         return
     if time.time() - _last_cleanup_ts < 3600:
         return
     try:
+        _cleanup_expired_batches()
         _cleanup_expired_photos()
     except Exception:  # noqa: BLE001
         pass
