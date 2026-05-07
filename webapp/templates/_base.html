@@ -117,7 +117,14 @@
     /* v115 ghost variant: drop the outlined-pill chrome so the
        language switcher reads as a peer of the help button + auth
        avatar — all three sit as flat controls on the header bar.
-       44 px min-height holds the touch target. */
+       44 px min-height holds the touch target.
+
+       v116 changeover: from native <select> to a button + popover so
+       iOS Safari stops drawing the Prev | Next | Done accessory bar
+       above the wheel picker (those buttons exist to tab between
+       form fields, but we have only one form control on the page —
+       so they're decorative system chrome). The button reuses the
+       same chevron + ghost styling as the old <select>. */
     .lang-select {
       border: 0; background: transparent; color: var(--ink);
       border-radius: 22px; padding: 0 22px 0 12px;
@@ -132,6 +139,39 @@
     }
     .lang-select:hover { background-color: rgb(241 245 249); }   /* slate-100 */
     .lang-select:focus-visible { outline: none; background-color: rgb(241 245 249); }
+
+    /* Popover anchored under the lang button. Right-aligned to the
+       button so the dropdown doesn't overhang the right edge of a
+       narrow viewport. Items are full-width buttons with a left-side
+       check on the active language. */
+    .lang-menu {
+      position: absolute; top: calc(100% + 4px); right: 0;
+      min-width: 180px;
+      background: var(--paper); color: var(--ink);
+      border: 1px solid rgb(226 232 240);   /* slate-200 */
+      border-radius: 10px;
+      box-shadow: 0 10px 24px -8px rgba(15, 23, 42, 0.18);
+      padding: 4px;
+      z-index: 40;
+    }
+    .lang-menu button {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%; min-height: 40px;
+      padding: 6px 10px;
+      font-size: 13px; font-weight: 500; color: var(--ink);
+      text-align: left; background: transparent; border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .lang-menu button:hover,
+    .lang-menu button:focus-visible { background: rgb(241 245 249); outline: none; }
+    .lang-menu button .lang-code {
+      font-weight: 700; letter-spacing: 0.04em;
+      width: 22px; text-align: left;
+      color: var(--ink-mute);
+    }
+    .lang-menu button[aria-checked="true"] .lang-code { color: var(--accent); }
+    .lang-menu button[aria-checked="true"] { background: rgb(248 250 252); }   /* slate-50 */
 
     /* Responsive utilities used across the app shell. Width-based,
        not media-query-based, because the same shell renders into a
@@ -536,12 +576,37 @@
            of equally-weighted controls instead of three different
            container shapes competing for attention. -->
       <div class="flex items-center gap-0.5 sm:gap-1 min-w-0">
-        <select id="lang-select" class="lang-select" aria-label="Language">
-          <option value="en">EN</option>
-          <option value="vn">VN</option>
-          <option value="es">ES</option>
-          <option value="zh">ZH</option>
-        </select>
+        <!-- Custom language picker (v116). Replaces the native <select>
+             so iOS Safari stops attaching its Prev | Next | Done form
+             accessory bar above the wheel picker. Order: EN, ES, ZH,
+             VN — Vietnamese moved to the bottom (per UX request — the
+             two big-character locales now sit between the Latin two,
+             and VN reads as the 'lower-traffic' option in line with
+             the actual user split). -->
+        <div class="relative">
+          <button id="lang-btn" type="button"
+                  class="lang-select"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                  aria-label="Language">
+            <span id="lang-current">EN</span>
+          </button>
+          <div id="lang-menu" role="menu" aria-labelledby="lang-btn"
+               class="lang-menu hidden">
+            <button type="button" role="menuitemradio" aria-checked="true"  data-lang="en">
+              <span class="lang-code">EN</span><span>English</span>
+            </button>
+            <button type="button" role="menuitemradio" aria-checked="false" data-lang="es">
+              <span class="lang-code">ES</span><span>Español</span>
+            </button>
+            <button type="button" role="menuitemradio" aria-checked="false" data-lang="zh">
+              <span class="lang-code">ZH</span><span>中文</span>
+            </button>
+            <button type="button" role="menuitemradio" aria-checked="false" data-lang="vn">
+              <span class="lang-code">VN</span><span>Tiếng Việt</span>
+            </button>
+          </div>
+        </div>
 
         <!-- PWA install button. Hidden by default; JS in this file reveals
              it once we detect either:

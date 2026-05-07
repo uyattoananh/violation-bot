@@ -1111,6 +1111,7 @@ const I18N = {
     expiry_expired: "expired",
     expiry_hours: (h) => `${h}h`,
     expiry_days_hours: (d, h) => `${d}d ${h}h`,
+    expires_in_inline: "expires in",
     notif_done_title: "Inspection complete",
     notif_done_body: (n) => `${n} photos finished classifying. Open the tab to review.`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
@@ -1332,6 +1333,7 @@ const I18N = {
     expiry_expired: "đã hết hạn",
     expiry_hours: (h) => `${h} giờ`,
     expiry_days_hours: (d, h) => `${d} ngày ${h} giờ`,
+    expires_in_inline: "hết hạn sau",
     notif_done_title: "Đợt kiểm tra hoàn tất",
     notif_done_body: (n) => `${n} ảnh đã phân loại xong. Mở tab để xét duyệt.`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
@@ -1553,6 +1555,7 @@ const I18N = {
     expiry_expired: "expirado",
     expiry_hours: (h) => `${h}h`,
     expiry_days_hours: (d, h) => `${d}d ${h}h`,
+    expires_in_inline: "caduca en",
     notif_done_title: "Inspección completada",
     notif_done_body: (n) => `${n} fotos terminaron de clasificarse. Abre la pestaña para revisar.`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
@@ -1774,6 +1777,7 @@ const I18N = {
     expiry_expired: "已过期",
     expiry_hours: (h) => `${h}小时`,
     expiry_days_hours: (d, h) => `${d}天${h}小时`,
+    expires_in_inline: "剩余",
     notif_done_title: "检查完成",
     notif_done_body: (n) => `${n} 张照片分类完成。打开标签页审核。`,
     tab_progress: (done, total) => `(${done}/${total}) HSE Detector`,
@@ -1823,9 +1827,13 @@ function applyLang() {
   document.querySelectorAll(".fine-picker-search").forEach(i => {
     i.placeholder = t("fine_picker_placeholder");
   });
-  // Sync the language <select> dropdown in the header
-  const langSelect = document.getElementById("lang-select");
-  if (langSelect && langSelect.value !== LANG) langSelect.value = LANG;
+  // Sync the language picker in the header (v116 popover replaces
+  // the old <select>): button label + which menuitemradio is checked.
+  const _curBtnLabel = document.getElementById("lang-current");
+  if (_curBtnLabel) _curBtnLabel.textContent = LANG.toUpperCase();
+  document.querySelectorAll('#lang-menu [role="menuitemradio"]').forEach(b => {
+    b.setAttribute("aria-checked", b.dataset.lang === LANG ? "true" : "false");
+  });
   // Re-render labels on existing cards
   els(".card", cardsEl).forEach(c => {
     const cached = photoCache.get(c.dataset.photoId);
@@ -1849,17 +1857,57 @@ function applyLang() {
   }
 }
 
-// 4-language selector: en / vn / es / zh. The select itself lives in
-// _base.html so admin and main pages share the same chooser.
-const _langSelect = document.getElementById("lang-select");
-if (_langSelect) {
-  _langSelect.value = LANG;   // initial value
-  _langSelect.addEventListener("change", () => {
-    LANG = _langSelect.value;
-    localStorage.setItem("violation-ai-lang", LANG);
-    applyLang();
+// 4-language picker (v116): EN / ES / ZH / VN. Custom popover lives
+// in _base.html so admin and main pages share the same chooser. The
+// switch from native <select> kills the iOS Safari Prev | Next | Done
+// accessory bar that appeared above the wheel picker (those buttons
+// only make sense when there are sibling form fields to tab between,
+// and we have one).
+(function () {
+  const btn  = document.getElementById("lang-btn");
+  const menu = document.getElementById("lang-menu");
+  if (!btn || !menu) return;
+
+  // Initial UI sync. applyLang() will keep this in step on later
+  // changes; we still need it on first load before anything fires.
+  const cur = document.getElementById("lang-current");
+  if (cur) cur.textContent = LANG.toUpperCase();
+  menu.querySelectorAll('[role="menuitemradio"]').forEach(b => {
+    b.setAttribute("aria-checked", b.dataset.lang === LANG ? "true" : "false");
   });
-}
+
+  function open()  { menu.classList.remove("hidden"); btn.setAttribute("aria-expanded", "true"); }
+  function close() { menu.classList.add("hidden");    btn.setAttribute("aria-expanded", "false"); }
+  function isOpen() { return !menu.classList.contains("hidden"); }
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    isOpen() ? close() : open();
+  });
+
+  menu.addEventListener("click", (e) => {
+    const item = e.target.closest('[role="menuitemradio"]');
+    if (!item) return;
+    const next = item.dataset.lang;
+    if (next && next !== LANG) {
+      LANG = next;
+      localStorage.setItem("violation-ai-lang", LANG);
+      applyLang();
+    }
+    close();
+    btn.focus();
+  });
+
+  // Click-outside + Escape to dismiss.
+  document.addEventListener("click", (e) => {
+    if (!isOpen()) return;
+    if (menu.contains(e.target) || btn.contains(e.target)) return;
+    close();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isOpen()) { close(); btn.focus(); }
+  });
+})();
 
 // =================== Constants ===================
 const TAXONOMY = {{ taxonomy | tojson }};
@@ -5411,7 +5459,17 @@ function _renderBatches(data) {
     });
     if (b.expires_at) {
       const expiryEl = el(".batch-card-expiry-text", node);
-      if (expiryEl) expiryEl.textContent = _formatExpiry(b.expires_at);
+      if (expiryEl) {
+        // Prefix "expires in" so the standalone "48h" reads as a
+        // countdown rather than an unlabelled duration. Suppress the
+        // prefix when the photo set has actually expired — "expires
+        // in expired" is nonsense; just show "expired".
+        const formatted = _formatExpiry(b.expires_at);
+        const expiredWord = t("expiry_expired") || "expired";
+        expiryEl.textContent = formatted === expiredWord
+          ? formatted
+          : `${t("expires_in_inline") || "expires in"} ${formatted}`;
+      }
     }
     node.tabIndex = 0;
     grid.appendChild(node);
