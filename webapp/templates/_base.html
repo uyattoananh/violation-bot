@@ -737,24 +737,20 @@
     <img id="lightbox-img" src="" alt="">
   </div>
 
-  <!-- Multi-select bottom action bar (v84 overhaul). Hidden by default;
-       revealed when the inspector taps the "Select" toolbar button.
-       sits above the sticky stats footer (bottom-12 = 48px =
-       ~footer height). -->
+  <!-- Multi-select bottom action bar (v84 overhaul; v116 narrowed scope).
+       Hidden by default; revealed when the inspector taps "Select" in
+       the toolbar. Bulk actions are deliberately limited to UNDO and
+       DELETE — bulk-confirm was removed because confirming an HSE
+       photo silently locks in the AI's call without a human checking
+       it, and inspectors should not be able to greenlight dozens at
+       once. Confirm stays per-card. Undo and Delete are recoverable /
+       inherently safer (delete shows a destructive-confirm modal). -->
   <div id="select-bar"
        class="hidden fixed bottom-12 inset-x-0 z-40 bg-slate-900 text-white shadow-lg"
        role="toolbar" aria-label="Bulk actions">
     <div class="max-w-6xl mx-auto px-4 py-2 flex items-center gap-2">
       <span id="select-count" class="font-semibold tabular-nums" aria-live="polite">0 selected</span>
       <div class="flex-1"></div>
-      <button id="select-confirm" type="button"
-              class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] flex items-center gap-1.5 transition-colors"
-              disabled>
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-        </svg>
-        <span data-i18n="select_confirm">Confirm</span>
-      </button>
       <button id="select-undo" type="button"
               class="bg-slate-700 hover:bg-slate-600 active:bg-slate-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] flex items-center gap-1.5 transition-colors"
               disabled>
@@ -763,9 +759,52 @@
         </svg>
         <span data-i18n="select_undo">Undo</span>
       </button>
+      <button id="select-delete" type="button"
+              class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] flex items-center gap-1.5 transition-colors"
+              disabled>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+        </svg>
+        <span data-i18n="select_delete">Delete</span>
+      </button>
       <button id="select-cancel" type="button"
               class="text-slate-300 hover:text-white text-sm rounded-lg px-3 py-2 min-h-[44px] transition-colors"
               data-i18n="select_cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Bulk-delete confirmation modal. Same shell as #email-modal so it
+       picks up the modal h3 sizing rule from app.css (v115.8). The
+       single-photo delete is recoverable (toast-undo, v115.6); bulk
+       delete is not — once dozens of files leave R2 we can't bring
+       them back, so this dialog blocks the action behind an explicit
+       "Delete N photos" press with the count interpolated into the
+       button label so the user sees what they're about to do. -->
+  <div id="bulk-delete-modal" role="dialog" aria-modal="true"
+       aria-labelledby="bulk-delete-title"
+       class="hidden fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl">
+      <div class="flex items-start gap-3 mb-3">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-rose-100 grid place-items-center">
+          <svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zm-9.75-3.75a9.75 9.75 0 1119.5 0 9.75 9.75 0 01-19.5 0z"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h3 id="bulk-delete-title" class="font-semibold text-slate-900" data-i18n="bulk_delete_title">Delete selected photos?</h3>
+          <p id="bulk-delete-msg" class="text-sm text-slate-600 mt-1"></p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" id="bulk-delete-cancel"
+                class="text-slate-600 hover:text-slate-900 text-sm font-medium rounded-lg px-4 py-2 min-h-[44px] transition-colors"
+                data-i18n="bulk_delete_cancel">Cancel</button>
+        <button type="button" id="bulk-delete-confirm"
+                class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-sm font-semibold rounded-lg px-4 py-2 min-h-[44px] transition-colors">
+          <span id="bulk-delete-confirm-label" data-i18n="bulk_delete_confirm">Delete</span>
+        </button>
+      </div>
     </div>
   </div>
 

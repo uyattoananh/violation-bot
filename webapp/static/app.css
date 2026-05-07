@@ -650,36 +650,90 @@ body.fp-modal-open {
 .stat-bump { animation: statBump 320ms ease-out; }
 
 /* ============================================================
-   Multi-select mode (v84 overhaul). When the inspector enters
-   select mode (via toolbar Select button), every .card gains
-   .select-mode; individually-picked cards add .is-selected.
-   Selected cards get a 3 px emerald outline + a checkmark badge
-   in the top-left corner. Pad <main> so the photo grid clears
-   the sticky bottom action bar. ============================================================ */
+   Multi-select mode (v84 overhaul, v116 hardened).
+
+   When the inspector enters select mode (toolbar Select button),
+   every .card gains .select-mode; individually-picked cards add
+   .is-selected. Pad <main> so the grid clears the sticky bottom
+   bar.
+
+   v116 fixes a "sometimes the green check disappears" bug: the
+   v112 photo card put a status-pill at top-left with z-index 10,
+   exactly where the old selected ✓ sat — close-enough to look
+   ambiguous when the pill was opaque white and the conf-badge
+   was at top-right. Three changes here:
+
+     1. The selected ✓ badge moved to the bottom-right corner,
+        clear of every existing thumb overlay (status-pill TL,
+        quality-pill TL, conf-badge TR, btn-delete TR).
+     2. Z-index bumped to 30 so it always paints above any
+        photo overlay (badges max out at 11).
+     3. A second indicator — a soft emerald wash over the
+        thumbnail — runs in tandem so the card reads as
+        "selected" even if the badge ever gets cropped (small
+        viewport, narrow aspect ratio, etc.). Belt-and-braces
+        because mis-reading selection state on a destructive
+        bulk action is exactly the kind of mistake we should
+        prevent at the visual layer, not the logic layer.
+   ============================================================ */
 .card.select-mode { cursor: pointer; }
 .card.select-mode.is-selected {
   outline: 3px solid rgb(16 185 129);
   outline-offset: -3px;
 }
+/* Tinted wash so "selected" is unmistakable even from a thumbnail
+   glance. The wash sits between the photo and the overlay badges so
+   it doesn't fight the ✓. */
+.card.select-mode.is-selected .thumb-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(16 185 129 / 0.28);
+  z-index: 5;
+  pointer-events: none;
+}
 .card.select-mode.is-selected::after {
   content: "✓";
   position: absolute;
-  top: 8px;
-  left: 8px;
-  width: 28px;
-  height: 28px;
+  bottom: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
   background: rgb(16 185 129);
   color: white;
   border-radius: 9999px;
   display: grid;
   place-items: center;
   font-weight: 700;
-  z-index: 11;
+  font-size: 18px;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  z-index: 30;
   pointer-events: none;
 }
 body.select-mode-active main {
   /* sticky #app-footer (~48 px) + #select-bar (~56 px) = 104 px clearance. */
   padding-bottom: 7rem;
+}
+
+/* Toolbar Select button "on" state. Defaults match the rest of the
+   toolbar (white card, slate text). When pressed, swap to filled
+   safety-orange so the user can tell at a glance they're still in
+   select mode — without this, the only clue was the action bar
+   appearing 80 px below their thumb, easy to miss.
+
+   !important is required because there's a sibling theme rule
+   (body.theme-paper main .bg-white) that already uses !important to
+   re-skin Tailwind's white surface to the paper tone — which would
+   otherwise win and keep this button white in pressed state. */
+#btn-select-mode[aria-pressed="true"] {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+#btn-select-mode[aria-pressed="true"]:hover {
+  background-color: var(--accent-hover) !important;
+  border-color: var(--accent-hover) !important;
 }
 
 /* ============================================================

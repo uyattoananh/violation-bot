@@ -1102,11 +1102,14 @@ const I18N = {
     expiry_banner_cta_compact: "download report",
     add_photos_short: "Add",
     select_mode: "Select",
-    select_confirm: "Confirm",
     select_undo: "Undo",
+    select_delete: "Delete",
     select_cancel: "Cancel",
     select_n_one: "1 selected",
     select_n_many: (n) => `${n} selected`,
+    bulk_delete_title: "Delete selected photos?",
+    bulk_delete_cancel: "Cancel",
+    bulk_delete_confirm: "Delete",
     expiry_banner_cta: "Download your report before then.",
     expiry_expired: "expired",
     expiry_hours: (h) => `${h}h`,
@@ -1324,11 +1327,14 @@ const I18N = {
     expiry_banner_cta_compact: "tải báo cáo",
     add_photos_short: "Thêm",
     select_mode: "Chọn",
-    select_confirm: "Xác nhận",
     select_undo: "Hoàn tác",
+    select_delete: "Xóa",
     select_cancel: "Hủy",
     select_n_one: "Đã chọn 1",
     select_n_many: (n) => `Đã chọn ${n}`,
+    bulk_delete_title: "Xóa các ảnh đã chọn?",
+    bulk_delete_cancel: "Hủy",
+    bulk_delete_confirm: "Xóa",
     expiry_banner_cta: "Tải báo cáo trước thời hạn.",
     expiry_expired: "đã hết hạn",
     expiry_hours: (h) => `${h} giờ`,
@@ -1546,11 +1552,14 @@ const I18N = {
     expiry_banner_cta_compact: "descargar informe",
     add_photos_short: "Añadir",
     select_mode: "Seleccionar",
-    select_confirm: "Confirmar",
     select_undo: "Deshacer",
+    select_delete: "Eliminar",
     select_cancel: "Cancelar",
     select_n_one: "1 seleccionada",
     select_n_many: (n) => `${n} seleccionadas`,
+    bulk_delete_title: "¿Eliminar las fotos seleccionadas?",
+    bulk_delete_cancel: "Cancelar",
+    bulk_delete_confirm: "Eliminar",
     expiry_banner_cta: "Descarga tu informe antes.",
     expiry_expired: "expirado",
     expiry_hours: (h) => `${h}h`,
@@ -1768,11 +1777,14 @@ const I18N = {
     expiry_banner_cta_compact: "下载报告",
     add_photos_short: "添加",
     select_mode: "选择",
-    select_confirm: "确认",
     select_undo: "撤销",
+    select_delete: "删除",
     select_cancel: "取消",
     select_n_one: "已选择 1 张",
     select_n_many: (n) => `已选择 ${n} 张`,
+    bulk_delete_title: "删除所选照片？",
+    bulk_delete_cancel: "取消",
+    bulk_delete_confirm: "删除",
     expiry_banner_cta: "请在此之前下载报告。",
     expiry_expired: "已过期",
     expiry_hours: (h) => `${h}小时`,
@@ -4942,18 +4954,18 @@ function _renderSelectMode() {
     ? (t("select_n_one") || "1 selected")
     : (t("select_n_many")?.(n) || `${n} selected`);
 
-  // Confirm: only enabled if at least one selected card is in the
-  // predicted state (eligible for confirm). Undo: only enabled if at
-  // least one selected card is reviewed.
-  let anyPredicted = false, anyReviewed = false;
+  // Undo: only enabled if at least one selected card is reviewed.
+  // Delete: enabled whenever something is selected — any photo can
+  // be deleted regardless of state. Confirm was removed in v116;
+  // greenlighting an HSE inspection should be a per-card decision.
+  let anyReviewed = false;
   for (const id of _selectMode.ids) {
     const card = cardsEl.querySelector(`.card[data-photo-id="${id}"]`);
     if (!card) continue;
-    if (card.dataset.status === "predicted") anyPredicted = true;
     if (card.dataset.status === "reviewed") anyReviewed = true;
   }
-  el("#select-confirm").disabled = !anyPredicted;
   el("#select-undo").disabled = !anyReviewed;
+  el("#select-delete").disabled = n === 0;
 }
 
 function _enterSelectMode() {
@@ -4982,24 +4994,9 @@ el("#btn-select-mode")?.addEventListener("click", () => {
 el("#select-cancel")?.addEventListener("click", _exitSelectMode);
 
 // Bulk actions iterate the selected card set, gating each card on
-// its current state so we don't confirm an already-reviewed photo
-// or undo a never-reviewed one.
-async function _bulkConfirm() {
-  const ids = Array.from(_selectMode.ids);
-  let did = 0;
-  for (const id of ids) {
-    const card = cardsEl.querySelector(`.card[data-photo-id="${id}"]`);
-    if (!card || card.dataset.status !== "predicted") continue;
-    try {
-      // Pass {silent: true} so we don't show a per-photo toast for
-      // each card — one summary toast at the end is enough.
-      await confirmCard(card, {silent: true});
-      did++;
-    } catch (e) { /* keep going */ }
-  }
-  showToast(`Confirmed ${did} photo${did === 1 ? "" : "s"}`, {timeoutMs: 3000});
-  _exitSelectMode();
-}
+// its current state so we don't undo a never-reviewed one. Bulk
+// confirm was removed in v116 — see the rationale in _base.html
+// next to #select-bar.
 async function _bulkUndo() {
   const ids = Array.from(_selectMode.ids);
   let did = 0;
@@ -5018,8 +5015,90 @@ async function _bulkUndo() {
   _exitSelectMode();
   poll({force: true});
 }
-el("#select-confirm")?.addEventListener("click", _bulkConfirm);
+
+// Bulk delete is destructive and irreversible — single-photo delete
+// has the toast-undo escape hatch (v115.6), but unwinding a bulk
+// delete is not feasible (R2 objects gone, DB rows gone). Gate it
+// behind an explicit "Delete N photos" modal instead. The single
+// path is: open modal -> confirm -> fan out DELETEs.
+function _bulkDeleteAsk() {
+  const n = _selectMode.ids.size;
+  if (!n) return;
+  const modal = el("#bulk-delete-modal");
+  if (!modal) return;
+  // Per-locale message body. Spelled out as "n photos will be
+  // permanently deleted" so the user reads it as a quantity, not a
+  // generic confirm-prompt.
+  const msg = (LANG === "vn"
+    ? `${n} ảnh sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.`
+    : LANG === "es"
+    ? `Se eliminarán ${n} foto${n === 1 ? "" : "s"} permanentemente. Esta acción no se puede deshacer.`
+    : LANG === "zh"
+    ? `${n} 张照片将被永久删除。此操作无法撤销。`
+    : `${n} photo${n === 1 ? "" : "s"} will be permanently deleted. This action cannot be undone.`);
+  el("#bulk-delete-msg").textContent = msg;
+  // Button label carries the count so the "Delete" press lands as
+  // "Delete 7 photos" — matches Gmail / iOS Mail bulk-delete copy.
+  const btnLabel = (LANG === "vn"
+    ? `Xóa ${n} ảnh`
+    : LANG === "es"
+    ? `Eliminar ${n}`
+    : LANG === "zh"
+    ? `删除 ${n} 张`
+    : `Delete ${n}`);
+  el("#bulk-delete-confirm-label").textContent = btnLabel;
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  el("#bulk-delete-cancel")?.focus();
+}
+
+function _bulkDeleteClose() {
+  const modal = el("#bulk-delete-modal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+async function _bulkDeleteRun() {
+  const ids = Array.from(_selectMode.ids);
+  _bulkDeleteClose();
+  // Optimistic UI: tombstone everything first so the next poll
+  // can't resurrect a half-deleted card while we're firing the
+  // network requests.
+  for (const id of ids) {
+    _photoTombstones.set(id, Date.now());
+    photoCache.delete(id);
+    const card = cardsEl.querySelector(`.card[data-photo-id="${id}"]`);
+    if (card) card.remove();
+  }
+  _persistPhotoTombs();
+  applyFilter();
+  refreshSummary();
+  let did = 0, failed = 0;
+  for (const id of ids) {
+    try {
+      const r = await fetch(`/api/photos/${id}`, {method: "DELETE"});
+      if (r.ok) did++; else failed++;
+    } catch (_) { failed++; }
+  }
+  if (failed === 0) {
+    showToast(`Deleted ${did} photo${did === 1 ? "" : "s"}`, {timeoutMs: 3000});
+  } else {
+    showToast(`Deleted ${did}, ${failed} failed`, {timeoutMs: 4000});
+  }
+  _exitSelectMode();
+  poll({force: true});
+}
+
 el("#select-undo")?.addEventListener("click", _bulkUndo);
+el("#select-delete")?.addEventListener("click", _bulkDeleteAsk);
+el("#bulk-delete-cancel")?.addEventListener("click", _bulkDeleteClose);
+el("#bulk-delete-confirm")?.addEventListener("click", _bulkDeleteRun);
+// Backdrop click closes (clicking the white card itself doesn't,
+// because the inner div stops propagation of intentional clicks).
+el("#bulk-delete-modal")?.addEventListener("click", (e) => {
+  if (e.target === el("#bulk-delete-modal")) _bulkDeleteClose();
+});
 
 // While in select mode, intercept any click inside a .card and
 // toggle its selected state instead of the per-card action that
@@ -5034,11 +5113,13 @@ cardsEl.addEventListener("click", (e) => {
   _toggleSelected(card.dataset.photoId);
 }, true);
 
-// Esc exits select mode (matches the picker modal's Esc handler).
+// Esc dismisses the bulk-delete modal first, otherwise exits select
+// mode. Picker modal has its own Esc handler so this doesn't conflict.
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && _selectMode.active) {
-    _exitSelectMode();
-  }
+  if (e.key !== "Escape") return;
+  const m = el("#bulk-delete-modal");
+  if (m && !m.classList.contains("hidden")) { _bulkDeleteClose(); return; }
+  if (_selectMode.active) _exitSelectMode();
 });
 
 // =================== Keyboard nav ===================
@@ -5169,6 +5250,14 @@ async function poll(opts = {}) {
       // if you want to add more.
       _setDropzonePanelOpen(false);
     }
+    // v116: re-apply select-mode classes to whatever cards exist now.
+    // poll() can insert new cards or replace updated ones, and without
+    // this re-apply they'd render without .select-mode / .is-selected
+    // even though _selectMode.ids still tracks them. The result was a
+    // selected card silently losing its emerald ring after a 4 s poll
+    // tick — the kind of state desync that makes a user mis-fire a
+    // bulk action.
+    if (_selectMode.active) _renderSelectMode();
   } catch (e) {
     // On error, still hide loading state so user isn't stuck on spinner
     el("#loading-state").classList.add("hidden");
