@@ -659,21 +659,23 @@ body.fp-modal-open {
 
    v116 fixes a "sometimes the green check disappears" bug: the
    v112 photo card put a status-pill at top-left with z-index 10,
-   exactly where the old selected ✓ sat — close-enough to look
-   ambiguous when the pill was opaque white and the conf-badge
-   was at top-right. Three changes here:
+   exactly where the selected ✓ sat — close-enough to look ambiguous
+   when the pill was opaque white. v116.4 keeps the ✓ at the natural
+   top-left corner (per UX request — left-anchored matches list
+   conventions and reads from the same scan position the eye uses
+   for the row's primary subject) and resolves the collision by
+   hiding the status-pill while the card is selected. Selection is
+   the dominant state at that moment; the per-photo status glyph
+   becomes redundant. Three layers ensure selection is unmistakable:
 
-     1. The selected ✓ badge moved to the bottom-right corner,
-        clear of every existing thumb overlay (status-pill TL,
-        quality-pill TL, conf-badge TR, btn-delete TR).
-     2. Z-index bumped to 30 so it always paints above any
-        photo overlay (badges max out at 11).
-     3. A second indicator — a soft emerald wash over the
-        thumbnail — runs in tandem so the card reads as
-        "selected" even if the badge ever gets cropped (small
-        viewport, narrow aspect ratio, etc.). Belt-and-braces
-        because mis-reading selection state on a destructive
-        bulk action is exactly the kind of mistake we should
+     1. ✓ badge at top-left, z-30 (above any thumb overlay; badges
+        max out at z-11).
+     2. Status-pill hidden on selected cards so the corner is clear.
+     3. Soft emerald wash over the thumbnail in tandem with the
+        badge — the card reads as "selected" even if the badge
+        scrolls under a sticky element on small viewports. Belt-
+        and-braces because mis-reading selection state on a
+        destructive bulk action is exactly the kind of mistake we
         prevent at the visual layer, not the logic layer.
    ============================================================ */
 .card.select-mode { cursor: pointer; }
@@ -692,11 +694,15 @@ body.fp-modal-open {
   z-index: 5;
   pointer-events: none;
 }
+/* Hide the per-photo status glyph while the card is selected — its
+   slot is taken by the ✓ badge below, and "selected" is the more
+   important state to read at this moment anyway. */
+.card.select-mode.is-selected .status-pill { visibility: hidden; }
 .card.select-mode.is-selected::after {
   content: "✓";
   position: absolute;
-  bottom: 8px;
-  right: 8px;
+  top: 8px;
+  left: 8px;
   width: 32px;
   height: 32px;
   background: rgb(16 185 129);
