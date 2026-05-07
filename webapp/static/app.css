@@ -718,22 +718,24 @@ body.select-mode-active main {
 
 /* Toolbar Select button "on" state. Defaults match the rest of the
    toolbar (white card, slate text). When pressed, swap to filled
-   safety-orange so the user can tell at a glance they're still in
-   select mode — without this, the only clue was the action bar
-   appearing 80 px below their thumb, easy to miss.
+   emerald — same hue as the .is-selected ::after badge + outline so
+   the button reads as the trigger for the selection signal it
+   produces. (Was safety-orange in v116.1; orange is the primary CTA
+   colour elsewhere in the shell, which made the Select toggle look
+   like a destructive action it isn't.)
 
    !important is required because there's a sibling theme rule
    (body.theme-paper main .bg-white) that already uses !important to
    re-skin Tailwind's white surface to the paper tone — which would
    otherwise win and keep this button white in pressed state. */
 #btn-select-mode[aria-pressed="true"] {
-  background-color: var(--accent) !important;
-  border-color: var(--accent) !important;
+  background-color: rgb(16 185 129) !important;   /* emerald-500 */
+  border-color: rgb(16 185 129) !important;
   color: #fff !important;
 }
 #btn-select-mode[aria-pressed="true"]:hover {
-  background-color: var(--accent-hover) !important;
-  border-color: var(--accent-hover) !important;
+  background-color: rgb(5 150 105) !important;    /* emerald-600 */
+  border-color: rgb(5 150 105) !important;
 }
 
 /* ============================================================
