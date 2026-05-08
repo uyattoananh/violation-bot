@@ -838,3 +838,33 @@ body.select-mode-active main {
 .alt-chip-selected .text-amber-600 {
   color: rgb(5 150 105) !important;                /* emerald-600 — the % badge */
 }
+
+/* AI chip distinguishing treatment (v116.9). The chip needs to
+   read as "this is the AI's pick" without being visually noisier
+   than the runner-ups. Slate-tinted base so it stands apart from
+   the amber runner-up chips; the ".AI" tag inside is the fast
+   semantic cue. When selected it shifts to emerald via
+   .alt-chip-selected (no override needed). */
+.alt-chip-ai {
+  background-color: rgb(241 245 249) !important;   /* slate-100 */
+  color: rgb(15 23 42) !important;                 /* slate-900 */
+  border-color: rgb(203 213 225) !important;       /* slate-300 */
+}
+.alt-chip-ai:hover {
+  background-color: rgb(226 232 240) !important;   /* slate-200 */
+}
+.alt-chip-ai .text-amber-600 {
+  color: rgb(71 85 105) !important;                /* slate-600 — the % badge default */
+}
+.alt-chip-ai .ai-tag {
+  color: rgb(71 85 105);                           /* slate-600 */
+  letter-spacing: 0.05em;
+}
+
+/* "Custom" chip — user self-picked via the picker. Always
+   .alt-chip-selected (emerald) when present. The YOU tag mirrors
+   the AI chip's tag layout so the row reads as a row of equally-
+   weighted picks: AI · alt · alt · YOU. */
+.alt-chip-custom .ai-tag {
+  letter-spacing: 0.05em;
+}
