@@ -839,32 +839,43 @@ body.select-mode-active main {
   color: rgb(5 150 105) !important;                /* emerald-600 — the % badge */
 }
 
-/* AI chip distinguishing treatment (v116.9). The chip needs to
-   read as "this is the AI's pick" without being visually noisier
-   than the runner-ups. Slate-tinted base so it stands apart from
-   the amber runner-up chips; the ".AI" tag inside is the fast
-   semantic cue. When selected it shifts to emerald via
-   .alt-chip-selected (no override needed). */
-.alt-chip-ai {
-  background-color: rgb(241 245 249) !important;   /* slate-100 */
-  color: rgb(15 23 42) !important;                 /* slate-900 */
-  border-color: rgb(203 213 225) !important;       /* slate-300 */
+/* ============================================================
+   AI / picker source indicators (v116.10).
+
+   Three pick sources, three visible zones, one indicator each:
+     AI active     → emerald wash on .primary-block (the headline)
+     Runner-up     → emerald on .alt-chip-selected (handled above)
+     Picker active → emerald wash on .fine-picker-trigger
+
+   Driven entirely by card.dataset.stageSource (or its absence)
+   so JS only has to set/unset the attribute and the indicators
+   update without manual class manipulation across three zones.
+   ============================================================ */
+
+/* AI is the default state — no data-stage-source on the card means
+   the headline block carries the emerald wash. The cursor + role
+   from the markup advertise that it's tappable to "go back to AI". */
+.card:not([data-stage-source]) .primary-block {
+  background-color: rgb(209 250 229);     /* emerald-100 */
+  outline: 1px solid rgb(110 231 183);    /* emerald-300 */
 }
-.alt-chip-ai:hover {
-  background-color: rgb(226 232 240) !important;   /* slate-200 */
+.primary-block:hover {
+  background-color: rgb(241 245 249);     /* slate-100 — subtle hover when AI not active */
 }
-.alt-chip-ai .text-amber-600 {
-  color: rgb(71 85 105) !important;                /* slate-600 — the % badge default */
+.card:not([data-stage-source]) .primary-block:hover {
+  background-color: rgb(167 243 208);     /* emerald-200 */
 }
-.alt-chip-ai .ai-tag {
-  color: rgb(71 85 105);                           /* slate-600 */
-  letter-spacing: 0.05em;
+.primary-block:focus-visible {
+  outline: 2px solid rgb(16 185 129);
+  outline-offset: 2px;
 }
 
-/* "Custom" chip — user self-picked via the picker. Always
-   .alt-chip-selected (emerald) when present. The YOU tag mirrors
-   the AI chip's tag layout so the row reads as a row of equally-
-   weighted picks: AI · alt · alt · YOU. */
-.alt-chip-custom .ai-tag {
-  letter-spacing: 0.05em;
+/* Picker is the active source: emerald wash on the picker trigger.
+   The trigger is inside the edit form so it's only visible when the
+   form is open — that's the natural moment for this indicator,
+   since the user picked via picker by definition. */
+.card[data-stage-source="picker"] .fine-picker-trigger {
+  background-color: rgb(209 250 229) !important;     /* emerald-100 */
+  border-color: rgb(110 231 183) !important;         /* emerald-300 */
+  box-shadow: 0 0 0 2px rgb(16 185 129);             /* emerald-500 ring */
 }

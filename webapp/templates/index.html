@@ -586,7 +586,15 @@
           <span data-i18n="ai_suggests">AI suggests</span>
           <span class="conf-pct font-semibold text-slate-700 tabular-nums normal-case tracking-normal"></span>
         </div>
-        <div class="space-y-0.5">
+        <!-- v116.10 — the headline block is the "back to AI" affordance.
+             Tapping it (when in alt/picker-staged state) reverts to the
+             AI's prediction. Cursor + role=button so it reads as an
+             actionable element; emerald wash applied via CSS when the
+             card is in AI-active state (i.e. no data-stage-source). -->
+        <div class="primary-block space-y-0.5 -mx-1.5 px-1.5 py-1 rounded-md cursor-pointer transition-colors"
+             role="button"
+             tabindex="0"
+             aria-label="Use the AI's suggestion">
           <!-- Fine sub-type is the primary user-visible label when Stage 2
                picked one. When fine is null, the parent (.primary-hse) is
                displayed prominently instead — handled in updateCard JS. -->
@@ -2917,6 +2925,22 @@ function getOrCreateCard(photo) {
   el(".btn-confirm", card).addEventListener("click", () => confirmCard(card));
   el(".btn-edit",    card).addEventListener("click", () => toggleEdit(card));
   el(".btn-edit-cancel", card).addEventListener("click", () => toggleEdit(card));
+
+  // v116.10 — the headline block is the "back to AI" affordance.
+  // Click / Enter / Space all call _resetToAI; CSS supplies the
+  // emerald wash whenever dataset.stageSource is unset (= AI is
+  // the active source). No-op when AI is already the active state
+  // (resetToAI is idempotent in that case).
+  const primaryBlock = el(".primary-block", card);
+  if (primaryBlock) {
+    primaryBlock.addEventListener("click", () => _resetToAI(card));
+    primaryBlock.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        _resetToAI(card);
+      }
+    });
+  }
   el(".btn-delete",  card).addEventListener("click", (e) => {
     e.stopPropagation();
     // Delete is destructive and irreversible — confirm first.
@@ -3062,19 +3086,16 @@ function _reflectStagedClass(card, parentSlug, fineSlug) {
   if (saveBtn) saveBtn.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-// Stage a chip pick (AI or runner-up) as the proposed classification.
-// Does NOT submit and does NOT open the edit form. The staged state
-// lives in:
+// Stage a runner-up chip as the proposed classification. Does NOT
+// submit and does NOT open the edit form. The staged state lives in:
 //   - the hidden .hse-select (used by confirmCard / correctCard)
 //   - the picker hidden value cleared (chip is parent-only)
-//   - card.dataset.staged = "1" + dataset.stageSource = source
-//   - one chip in .alt-row-hse carries .alt-chip-selected (emerald)
-// The visible .primary-hse/.primary-fine labels are NOT touched —
-// the highlighted chip box is the entire signal of what's staged.
-// Tapping Confirm commits the staged alt; tapping the AI chip
-// (source='ai') effectively just re-stages the AI's own slug, but
-// _resetToAI is the canonical "back to AI" path because it also
-// restores the AI's fine sub-type and clears dataset.staged.
+//   - card.dataset.staged = "1" + dataset.stageSource = "alt"
+//   - the matching .alt-chip carries .alt-chip-selected (emerald)
+// The headline "AI is active" emerald wash on .primary-block clears
+// automatically because that wash is gated by
+// :not([data-stage-source]) in CSS — setting dataset.stageSource
+// here makes the headline lose its emerald in the same paint.
 function _stageCandidatePick(card, slug, source) {
   if (!slug) return;
 
@@ -3085,10 +3106,6 @@ function _stageCandidatePick(card, slug, source) {
   card.dataset.staged = "1";
   card.dataset.stageSource = source || "alt";
 
-  // Picker self-pick custom chip is mutually exclusive with chip
-  // staging — drop it when the user moves selection back to a chip.
-  card.querySelector(".alt-chip-custom")?.remove();
-
   // Emerald on the matching chip; clear from the rest.
   card.querySelectorAll(".alt-chip").forEach(c => {
     if (c.dataset.altSlug === slug) c.classList.add("alt-chip-selected");
@@ -3096,10 +3113,12 @@ function _stageCandidatePick(card, slug, source) {
   });
 }
 
-// Reset the card to the AI's original prediction. Clears any staged
-// state (chip or picker), restores the AI's hse + fine onto the
-// hidden select + picker, and moves the emerald highlight to the
-// AI chip. Wired to a click on .alt-chip-ai.
+// Reset the card to the AI's original prediction. Wired to a click
+// on .primary-block (the big headline text). Clears staged state,
+// restores AI's hse + fine onto the hidden select + picker, and
+// removes any emerald from runner-up chips. The headline's own
+// emerald wash returns automatically once dataset.stageSource is
+// unset (CSS-driven, see app.css).
 function _resetToAI(card) {
   const aiHse = card.dataset.aiHseSlug;
   const aiFine = card.dataset.aiFineSlug;
@@ -3112,21 +3131,14 @@ function _resetToAI(card) {
   if (hseSel) hseSel.value = aiHse;
   _finePickerSetValue(card, aiFine || "");
 
-  // Custom chip is no longer relevant.
-  card.querySelector(".alt-chip-custom")?.remove();
-
-  // Emerald moves to the AI chip; everything else loses it.
-  card.querySelectorAll(".alt-chip").forEach(c => {
-    if (c.dataset.aiChip === "1") c.classList.add("alt-chip-selected");
-    else c.classList.remove("alt-chip-selected");
-  });
+  card.querySelectorAll(".alt-chip").forEach(c => c.classList.remove("alt-chip-selected"));
 }
 
 // Stage a self-pick from the fine-picker as the proposed
 // classification. Different shape from chip staging because the
-// picker carries a fine_hse_type_slug, not just a parent. Renders
-// (or refreshes) a "Custom" chip in the alt row so the staged
-// state is visible even with the edit form closed.
+// picker carries a fine_hse_type_slug, not just a parent. The
+// picker trigger gets emerald via CSS keyed off
+// card[data-stage-source="picker"] (see app.css).
 function _stageFromPicker(card, hseSlug, fineSlug) {
   const hseSel = el(".hse-select", card);
   if (hseSel) hseSel.value = hseSlug || "";
@@ -3137,50 +3149,6 @@ function _stageFromPicker(card, hseSlug, fineSlug) {
 
   // Drop chip-emerald state — picker is now the active source.
   card.querySelectorAll(".alt-chip").forEach(c => c.classList.remove("alt-chip-selected"));
-
-  // Render or refresh the "Custom" chip.
-  _renderCustomChip(card);
-}
-
-// Render the "Custom" chip representing a self-pick via the picker.
-// Idempotent — call after staged state changes; a no-op when the
-// stageSource isn't 'picker'. Always emerald when present.
-function _renderCustomChip(card) {
-  let chip = card.querySelector(".alt-chip-custom");
-  const isPickerStaged = card.dataset.stageSource === "picker";
-  if (!isPickerStaged) {
-    chip?.remove();
-    return;
-  }
-
-  const fineSlug = el(".fine-picker-value", card)?.value || "";
-  const hseSlug = el(".hse-select", card)?.value || "";
-  let label = "";
-  if (fineSlug && FINE_BY_SLUG[fineSlug]) {
-    label = _finePickerLabel(FINE_BY_SLUG[fineSlug]);
-  } else if (hseSlug) {
-    label = displayLabel(HSE_BY_SLUG, hseSlug);
-  } else {
-    chip?.remove();
-    return;
-  }
-
-  if (!chip) {
-    chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "alt-chip alt-chip-custom alt-chip-selected inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-200 rounded-full px-2.5 py-1 text-xs font-medium transition-colors";
-    chip.dataset.altSlug = "_custom";
-    // Tap → re-open the picker so the user can adjust the fine pick.
-    chip.addEventListener("click", () => {
-      const trigger = card.querySelector(".fine-picker-trigger");
-      trigger?.click();
-    });
-    el(".alt-row-hse", card)?.appendChild(chip);
-  }
-  chip.innerHTML =
-    `<span class="ai-tag inline-block text-[10px] font-bold uppercase tracking-wider opacity-80">YOU</span> ` +
-    `${escapeHtml(label)}`;
-  chip.classList.add("alt-chip-selected");
 }
 
 function setConfidenceRing(card, conf, band) {
@@ -3522,9 +3490,9 @@ function updateCard(card, photo) {
     }
   }
 
-  // v116.9 — snapshot the AI's prediction onto the card so the AI
-  // chip + _resetToAI helper know what to revert to. Stored on
-  // dataset (cheaper than walking photoCache every reset).
+  // v116.9 — snapshot the AI's prediction onto the card so
+  // _resetToAI knows what to revert to. Stored on dataset (cheaper
+  // than walking photoCache every reset).
   card.dataset.aiHseSlug = cls.hse_type_slug || "";
   card.dataset.aiFineSlug = cls.fine_hse_type_slug || "";
 
@@ -3534,40 +3502,11 @@ function updateCard(card, photo) {
   hseRow.innerHTML = "";
   if (locRow) locRow.innerHTML = "";   // keep DOM clean even though we hide it
   const altsHse = cls.hse_type_alternatives || [];
-  // v116.9: show the alt section whenever there's any AI prediction —
-  // we always want the "AI" reset chip available, not just when alts
-  // exist. Hide only when there's literally no classification yet.
-  if (cls.hse_type_slug) {
+  if (altsHse.length) {
     altSection.classList.remove("hidden");
   } else {
     altSection.classList.add("hidden");
   }
-
-  // === AI chip (v116.9) ===
-  // Always rendered first when there's a prediction. Acts as the
-  // "return to AI suggestion" button + indicator that the AI's pick
-  // is currently active. Default state (after a fresh poll, no
-  // staged user override) carries .alt-chip-selected = emerald.
-  if (cls.hse_type_slug) {
-    const aiChip = document.createElement("button");
-    aiChip.type = "button";
-    aiChip.className = "alt-chip alt-chip-ai inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-200 rounded-full px-2.5 py-1 text-xs font-medium transition-colors";
-    aiChip.dataset.altSlug = cls.hse_type_slug;
-    aiChip.dataset.aiChip = "1";
-    aiChip.innerHTML =
-      `<span class="ai-tag inline-block text-[10px] font-bold uppercase tracking-wider opacity-80">AI</span> ` +
-      `${displayLabel(HSE_BY_SLUG, cls.hse_type_slug)} ` +
-      `<span class="text-amber-600 tabular-nums">${Math.round((cls.confidence || 0) * 100)}%</span>`;
-    // No staged-flag stamp on the card → AI is currently active →
-    // start the AI chip emerald.
-    if (card.dataset.staged !== "1") {
-      aiChip.classList.add("alt-chip-selected");
-    }
-    aiChip.addEventListener("click", () => _resetToAI(card));
-    hseRow.appendChild(aiChip);
-  }
-
-  // === Runner-up chips ===
   altsHse.forEach(a => {
     const b = document.createElement("button");
     b.type = "button";
@@ -3581,13 +3520,6 @@ function updateCard(card, photo) {
     b.addEventListener("click", () => _stageCandidatePick(card, a.slug, "alt"));
     hseRow.appendChild(b);
   });
-
-  // === Custom (self-pick via picker) chip ===
-  // Only present when stageSource === 'picker'. Carries the picked
-  // fine label, always emerald. _stageFromPicker creates / updates
-  // it; _resetToAI removes it. Live-renders via the helper because
-  // its presence depends on user state, not on the AI prediction.
-  _renderCustomChip(card);
 
   applyFilter();
 }
