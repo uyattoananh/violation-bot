@@ -3063,18 +3063,20 @@ function _reflectStagedClass(card, parentSlug, fineSlug) {
 }
 
 // Stage a runner-up alt as the proposed classification on the card.
-// Does NOT submit and does NOT open the edit form (the v100 version
-// did open it; inspectors said the form-expansion was noise — the
-// chip already conveys intent). The staged state is reflected in:
+// Does NOT submit and does NOT open the edit form. The staged state
+// is reflected in:
 //   - the hidden .hse-select (used by confirmCard / correctCard)
-//   - the picker label (parent name shown in place of placeholder
-//     since _finePickerSetValue('') falls back to the parent label
-//     when no fine is picked)
-//   - the visible .primary-fine / .primary-hse via _reflectStagedClass
-//   - a ring on the picked chip (clears any stale ring from a prior pick)
+//   - the picker hidden value cleared (the alt is parent-only)
 //   - card.dataset.staged = "1" so confirmCard knows to commit as a
 //     correction instead of accepting the AI's original prediction
-// Tapping Confirm afterwards commits the staged alt.
+//   - a green box-highlight + ring on the picked chip
+// Crucially v116.8: the visible primary-hse/fine labels stay on the
+// AI's original prediction. Earlier we repainted them via
+// _reflectStagedClass; inspector feedback was that swapping the
+// headline text obscured what the AI had said and made it hard to
+// compare the AI's call to the chosen alt at a glance. Now: AI text
+// stays, the highlighted chip box is the entire signal of what's
+// staged. Tapping Confirm commits the staged alt.
 function _stageCandidatePick(card, slug) {
   if (!slug) return;
 
@@ -3087,21 +3089,23 @@ function _stageCandidatePick(card, slug) {
   if (hseSel) hseSel.value = slug;
   _finePickerSetValue(card, "");
 
-  // Reflect the staged parent in the primary labels (hides
-  // .primary-fine, swaps .primary-hse to the alt's label).
-  _reflectStagedClass(card, slug, "");
-
   // Mark the card as carrying a staged change so Confirm routes
   // through correctCard instead of accepting the AI's original.
   card.dataset.staged = "1";
 
-  // Ring highlight on the picked chip; clear ring on the others.
+  // Emerald box-highlight on the picked chip; clear it on the
+  // others. Emerald (not amber) so the SELECTED state visually
+  // matches the rest of the app's "you picked this" colour
+  // (selected list rows, active toggle, ✓ badge — all emerald).
+  // The unselected chips keep their amber base from the static
+  // alt-chip class — that signals "AI alternative, not yet
+  // chosen". One picked → emerald.
   const allChips = card.querySelectorAll(".alt-chip");
   allChips.forEach(c => {
     if (c.dataset.altSlug === slug) {
-      c.classList.add("ring-2", "ring-amber-500", "ring-offset-1", "bg-amber-100");
+      c.classList.add("alt-chip-selected");
     } else {
-      c.classList.remove("ring-2", "ring-amber-500", "ring-offset-1", "bg-amber-100");
+      c.classList.remove("alt-chip-selected");
     }
   });
 }

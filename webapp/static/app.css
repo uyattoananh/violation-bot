@@ -811,3 +811,30 @@ body.select-mode-active main {
    ============================================================ */
 .batch-card-photos { min-width: 10ch; }
 .batch-card-reviewed { min-width: 5ch; }
+
+/* ============================================================
+   Runner-up alt-chip selected state (v116.8).
+
+   The alt chips render in amber by default (the static class set
+   on the button: bg-amber-50 text-amber-900 border-amber-200…).
+   When the inspector taps a chip, _stageCandidatePick adds
+   .alt-chip-selected. That should override the amber palette with
+   emerald to match the rest of the app's "you picked this"
+   surface (the list-row selection, the toggle "on" state, the ✓
+   badge). All set with !important because the base utilities
+   include hover/active overrides that would otherwise win on
+   tap-and-hold.
+   ============================================================ */
+.alt-chip-selected {
+  background-color: rgb(209 250 229) !important;   /* emerald-100 */
+  color: rgb(6 95 70) !important;                  /* emerald-800 */
+  border-color: rgb(110 231 183) !important;       /* emerald-300 */
+  box-shadow: 0 0 0 2px rgb(16 185 129);           /* emerald-500 ring */
+}
+.alt-chip-selected:hover,
+.alt-chip-selected:active {
+  background-color: rgb(167 243 208) !important;   /* emerald-200 */
+}
+.alt-chip-selected .text-amber-600 {
+  color: rgb(5 150 105) !important;                /* emerald-600 — the % badge */
+}
