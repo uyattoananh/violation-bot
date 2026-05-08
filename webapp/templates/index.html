@@ -3062,40 +3062,6 @@ function _reflectStagedClass(card, parentSlug, fineSlug) {
   if (saveBtn) saveBtn.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-// Stage a candidate-chip pick on the card. Does NOT submit — just
-// updates the form so the inspector sees the proposed classification
-// in context. They review and tap "Save correction" to commit.
-// (UX request: "when choosing other hse types, replace the title
-// first, don't confirm right away".)
-function _stageCandidatePick(card, slug) {
-  if (!slug) return;
-  // Open the edit form so the user sees the staged classification
-  // and the Save / Cancel buttons.
-  const editForm = el(".edit-form", card);
-  if (editForm && editForm.classList.contains("hidden")) toggleEdit(card);
-
-  // Stage the parent class on the hidden select. Clear the fine
-  // sub-type — the candidate chip carries only the parent. The
-  // inspector can pick a fine via the picker if they want
-  // refinement, otherwise Save commits a parent-only correction.
-  const hseSel = el(".hse-select", card);
-  if (hseSel) hseSel.value = slug;
-  _finePickerSetValue(card, "");
-
-  // Reflect the staged parent in the primary labels (hides .primary-fine).
-  _reflectStagedClass(card, slug, "");
-
-  // Ring highlight on the picked chip; clear ring on the others.
-  const allChips = card.querySelectorAll(".alt-chip");
-  allChips.forEach(c => {
-    if (c.dataset.altSlug === slug) {
-      c.classList.add("ring-2", "ring-amber-500", "ring-offset-1", "bg-amber-100");
-    } else {
-      c.classList.remove("ring-2", "ring-amber-500", "ring-offset-1", "bg-amber-100");
-    }
-  });
-}
-
 function setConfidenceRing(card, conf, band) {
   const ring = el(".conf-ring", card);
   const colors = bandColors(band);
@@ -3451,13 +3417,17 @@ function updateCard(card, photo) {
     b.className = "alt-chip inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-200 rounded-full px-2.5 py-1 text-xs font-medium transition-colors";
     b.dataset.altSlug = a.slug;
     b.innerHTML = `${displayLabel(HSE_BY_SLUG, a.slug)} <span class="text-amber-600 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
-    // STAGE — no auto-submit (UX request: "replace the title first,
-    // don't confirm right away"). Opens the edit form and stages
-    // this candidate as the proposed pick. The inspector reviews
-    // the form (can pick a fine sub-type via the picker) and then
-    // taps "Save correction" to commit. Tapping a different chip
-    // re-stages without submitting.
-    b.addEventListener("click", () => _stageCandidatePick(card, a.slug));
+    // ONE-CLICK COMMIT (v116.6). Earlier this opened the edit form
+    // and staged the alt as a candidate, leaving "Save correction"
+    // as the explicit commit step. Inspector feedback was that the
+    // expanded form is noise when the user has already made the
+    // call by tapping a runner-up — the chip IS the choice. Route
+    // straight into correctCard with an override so we land in the
+    // already-existing "one-click runner-up pick" code path on the
+    // server (note string preserved at correctCard line ~4685),
+    // and the edit form stays collapsed. The standard 6 s undo
+    // toast lets the inspector recover from a misclick.
+    b.addEventListener("click", () => correctCard(card, {hse_type_slug: a.slug}));
     hseRow.appendChild(b);
   });
 
