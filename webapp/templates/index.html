@@ -3062,6 +3062,50 @@ function _reflectStagedClass(card, parentSlug, fineSlug) {
   if (saveBtn) saveBtn.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+// Stage a runner-up alt as the proposed classification on the card.
+// Does NOT submit and does NOT open the edit form (the v100 version
+// did open it; inspectors said the form-expansion was noise — the
+// chip already conveys intent). The staged state is reflected in:
+//   - the hidden .hse-select (used by confirmCard / correctCard)
+//   - the picker label (parent name shown in place of placeholder
+//     since _finePickerSetValue('') falls back to the parent label
+//     when no fine is picked)
+//   - the visible .primary-fine / .primary-hse via _reflectStagedClass
+//   - a ring on the picked chip (clears any stale ring from a prior pick)
+//   - card.dataset.staged = "1" so confirmCard knows to commit as a
+//     correction instead of accepting the AI's original prediction
+// Tapping Confirm afterwards commits the staged alt.
+function _stageCandidatePick(card, slug) {
+  if (!slug) return;
+
+  // Stage the parent class on the hidden select. Clear the fine
+  // sub-type — the candidate chip carries only the parent. The
+  // inspector can still drill into a fine via the picker if they
+  // want refinement; otherwise Confirm commits a parent-only
+  // correction.
+  const hseSel = el(".hse-select", card);
+  if (hseSel) hseSel.value = slug;
+  _finePickerSetValue(card, "");
+
+  // Reflect the staged parent in the primary labels (hides
+  // .primary-fine, swaps .primary-hse to the alt's label).
+  _reflectStagedClass(card, slug, "");
+
+  // Mark the card as carrying a staged change so Confirm routes
+  // through correctCard instead of accepting the AI's original.
+  card.dataset.staged = "1";
+
+  // Ring highlight on the picked chip; clear ring on the others.
+  const allChips = card.querySelectorAll(".alt-chip");
+  allChips.forEach(c => {
+    if (c.dataset.altSlug === slug) {
+      c.classList.add("ring-2", "ring-amber-500", "ring-offset-1", "bg-amber-100");
+    } else {
+      c.classList.remove("ring-2", "ring-amber-500", "ring-offset-1", "bg-amber-100");
+    }
+  });
+}
+
 function setConfidenceRing(card, conf, band) {
   const ring = el(".conf-ring", card);
   const colors = bandColors(band);
@@ -3312,9 +3356,13 @@ function updateCard(card, photo) {
   // _reflectStagedClass). The 4 s poll re-running updateCard would
   // otherwise clobber the stage with the AI's original prediction —
   // making the user's pick visually disappear until they re-pick.
+  // v116.7 adds the _staged guard for the runner-up-tap flow where
+  // the form stays closed but the user has still staged a different
+  // HSE type via an alt chip.
   const _editOpen = !el(".edit-form", card)?.classList.contains("hidden");
+  const _staged = card.dataset.staged === "1";
 
-  if (!_editOpen) {
+  if (!_editOpen && !_staged) {
     el(".primary-hse", card).textContent = displayLabel(HSE_BY_SLUG, cls.hse_type_slug);
     // Fine-grained label (Stage 2 of the two-stage classifier). When the
     // model's Stage 2 picked a specific item with confidence above floor,
@@ -3387,7 +3435,7 @@ function updateCard(card, photo) {
   // (_editOpen was computed at the top of updateCard for the .primary-*
   // label gate; same value applies here.)
   const _pickerOpen = _fp && _fp.activeCard === card;
-  if (!_pickerOpen && !_editOpen) {
+  if (!_pickerOpen && !_editOpen && !_staged) {
     el(".hse-select", card).value = cls.hse_type_slug;
     refreshFineSelect(card, cls.hse_type_slug);
     if (cls.fine_hse_type_slug) {
@@ -3417,17 +3465,15 @@ function updateCard(card, photo) {
     b.className = "alt-chip inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-200 rounded-full px-2.5 py-1 text-xs font-medium transition-colors";
     b.dataset.altSlug = a.slug;
     b.innerHTML = `${displayLabel(HSE_BY_SLUG, a.slug)} <span class="text-amber-600 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
-    // ONE-CLICK COMMIT (v116.6). Earlier this opened the edit form
-    // and staged the alt as a candidate, leaving "Save correction"
-    // as the explicit commit step. Inspector feedback was that the
-    // expanded form is noise when the user has already made the
-    // call by tapping a runner-up — the chip IS the choice. Route
-    // straight into correctCard with an override so we land in the
-    // already-existing "one-click runner-up pick" code path on the
-    // server (note string preserved at correctCard line ~4685),
-    // and the edit form stays collapsed. The standard 6 s undo
-    // toast lets the inspector recover from a misclick.
-    b.addEventListener("click", () => correctCard(card, {hse_type_slug: a.slug}));
+    // STAGE without auto-submit (v116.7 settles the v116.6 misstep).
+    // Tapping a runner-up updates the staged HSE type, refills the
+    // picker label, and re-paints the primary line — but does NOT
+    // commit and does NOT open the edit form. The user reviews the
+    // visible state and presses Confirm to commit (Confirm now
+    // routes through correctCard when the staged state differs from
+    // the AI's original prediction). Tapping a different chip
+    // re-stages.
+    b.addEventListener("click", () => _stageCandidatePick(card, a.slug));
     hseRow.appendChild(b);
   });
 
@@ -4488,6 +4534,21 @@ async function confirmCard(card, opts = {}) {
   // buggy" — partly that was no immediate visual feedback if the tap
   // happened a moment after a poll re-render).
   if (card.dataset.status === "reviewed" || card.dataset.busy === "1") return;
+
+  // v116.7 — if the inspector tapped a runner-up chip earlier in
+  // this session, _stageCandidatePick stamps card.dataset.staged="1"
+  // and updates the hidden .hse-select. Pressing Confirm in that
+  // state should commit the STAGED alt (route through /correct),
+  // not the AI's original (which /confirm would lock in). Without
+  // this branch the chip-stage flow looked like it worked but
+  // silently saved the wrong label.
+  if (card.dataset.staged === "1") {
+    const stagedHse = el(".hse-select", card)?.value;
+    if (stagedHse) {
+      delete card.dataset.staged;
+      return correctCard(card, {hse_type_slug: stagedHse});
+    }
+  }
   card.dataset.busy = "1";
   const confirmBtn = el(".btn-confirm", card);
   if (confirmBtn) confirmBtn.disabled = true;
