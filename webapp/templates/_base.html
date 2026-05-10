@@ -5,17 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f8fafc">
   <title>{% block title %}HSE Detector{% endblock %}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- v110 rebuild: Atkinson Hyperlegible.
-       Designed by the Braille Institute for low-vision readers;
-       the letterforms keep distinguishing features (b vs d, I vs l)
-       even at low contrast or with motion blur. Wins on a phone in
-       direct sunlight on a dusty job site, which is where this app
-       lives. preconnect warms the TLS handshake before @font-face
-       fires; display=swap paints the system fallback immediately
-       and hot-swaps when Atkinson lands. -->
+
+  <!-- v116.11 — preconnect FIRST so DNS + TLS handshakes for the
+       three blocking external origins (Tailwind CDN, Google Fonts
+       CSS, Google Fonts woff2 binaries) start in parallel with HTML
+       parse instead of serially after the first <script> blocks the
+       parser. On cold loads this shaves the time-to-first-paint by
+       roughly the slowest handshake (typically 100-200 ms on mobile
+       LTE, more on 3G) since the browser can begin all three the
+       moment it sees the head. -->
+  <link rel="preconnect" href="https://cdn.tailwindcss.com">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Tailwind CDN runs synchronously (it must inject styles before
+       paint to avoid FOUC). It IS the slowest blocking script in
+       the head. Its preconnect above ensures we don't pay the
+       handshake cost twice if a network round-trip happens
+       between this script and the next external resource. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- v110 rebuild: Atkinson Hyperlegible. Designed by the Braille
+       Institute for low-vision readers; letterforms keep their
+       distinguishing features (b vs d, I vs l) even at low contrast
+       or with motion blur. Wins on a phone in direct sunlight on a
+       dusty job site, which is where this app lives. display=swap
+       paints the system fallback immediately and hot-swaps when
+       Atkinson lands so the page text never holds up paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
   <link rel="stylesheet" href="/static/app.css">
   <!-- Favicon: monochrome ink "HSE" mark on paper background.
