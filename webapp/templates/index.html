@@ -2882,6 +2882,51 @@ function closeProposeModal() {
 }
 
 // =================== Card DOM ===================
+//
+// Lazy-update plumbing (v116.12). The first updateCard() call per card
+// is deferred until the card scrolls into view. updateCard does a lot
+// of work — populates the parent <select>, runs i18n, builds the
+// alt-chip row, runs setConfidenceRing, refreshes the fine-picker
+// candidate set, etc. When a batch has 200 photos that's ~5 s of
+// synchronous work that freezes the main thread on first paint.
+//
+// IntersectionObserver-based deferral fixes that: visible cards
+// render the next frame after insertion (the observer fires
+// asynchronously); off-screen cards stay as the skeleton template
+// from the <template id="card-template"> markup until the user
+// scrolls them in. Once a card has been updated once, subsequent
+// poll ticks update it directly via updateCard — that diff path is
+// cheap.
+//
+// Why a WeakMap instead of dataset: the photo payload includes the
+// classification object, alt list, etc. — not stringifiable cheaply.
+// WeakMap also auto-GCs when a card is removed from the DOM.
+const _pendingPhotoData = new WeakMap();
+const _lazyCardObserver = ("IntersectionObserver" in window)
+  ? new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const card = e.target;
+        const p = _pendingPhotoData.get(card);
+        _lazyCardObserver.unobserve(card);
+        if (p) {
+          _pendingPhotoData.delete(card);
+          updateCard(card, p);
+        }
+      }
+    }, { rootMargin: "300px 0px" })
+  : null;
+
+function _scheduleLazyUpdate(card, photo) {
+  if (!_lazyCardObserver) {
+    // Old browser — just render synchronously.
+    updateCard(card, photo);
+    return;
+  }
+  _pendingPhotoData.set(card, photo);
+  _lazyCardObserver.observe(card);
+}
+
 function getOrCreateCard(photo) {
   let entry = photoCache.get(photo.id);
   if (entry) return entry.card;
@@ -3522,6 +3567,10 @@ function updateCard(card, photo) {
   });
 
   applyFilter();
+  // v116.12 — mark the card as fully rendered. Subsequent polls take
+  // the eager-update path; the lazy-observer path is only for the
+  // first render of off-screen cards in a freshly-opened batch.
+  card.dataset.everUpdated = "1";
 }
 
 // =================== Fine-type searchable picker ===================
@@ -5279,7 +5328,27 @@ async function poll(opts = {}) {
       if (!p.batch_id) return;
 
       const card = getOrCreateCard(p);
-      updateCard(card, p);
+      // v116.12 — lazy-render new cards via IntersectionObserver so a
+      // 200-photo batch doesn't freeze the main thread for ~5 s on
+      // first paint. Cards in viewport (or within 300 px via
+      // rootMargin) render the next frame after the observer fires;
+      // off-screen cards stay as the <template>-cloned skeleton
+      // until scrolled in. Once a card has been updated once
+      // (dataset.everUpdated="1" set at the end of updateCard),
+      // subsequent polls update immediately — that path is cheap
+      // because the perf-cache fingerprint short-circuits no-op
+      // updates inside updateCard itself.
+      //
+      // photoCache.has(p.id) is NOT the right signal here:
+      // getOrCreateCard pre-populates photoCache on creation
+      // (line ~3075 stamps {status:'pending'}), so the cache is
+      // populated before any updateCard call. dataset.everUpdated
+      // is the correct "fully rendered once" marker.
+      if (card.dataset.everUpdated === "1") {
+        updateCard(card, p);
+      } else {
+        _scheduleLazyUpdate(card, p);
+      }
       if (!p.classification && !p.reviewed) pendingNow++;
     });
 
