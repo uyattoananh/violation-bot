@@ -1,0 +1,28 @@
+# AECIS photo bucket — public S3 base URL
+#
+# Paste the HTTPS base URL of AECIS's photo S3 bucket on the first
+# non-comment, non-empty line below. The seed pipeline reads this
+# file to construct download URLs for every IssuePhoto row in
+# Issue_Gen/result_after_query.csv.
+#
+# Format: just the origin + optional path prefix, NO trailing slash.
+#
+# Examples (illustrative, replace with the real bucket):
+#   https://aecis-issues.s3.ap-southeast-1.amazonaws.com
+#   https://d3xxxxxxxxxxxx.cloudfront.net
+#   https://files.aecis.com/photos
+#
+# When combined with each row's FilePath column it produces a full
+# downloadable URL:
+#   <base>/P_2374/Issue/U_12896/12_05_2026/<uuid>.jpeg
+#
+# Files that read this:
+#   - webapp/app.py                            /admin/seed/aecis-urls endpoint
+#   - scripts/seed_download_aecis_photos.py    bulk downloader
+#   - scripts/seed_assign_via_playwright.py    Playwright UI uploader
+#
+# Override with the AECIS_PHOTO_S3_BASE env var if needed; the env
+# var takes precedence over this file.
+
+# <-- paste URL on the next line -->
+

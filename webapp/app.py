@@ -252,12 +252,29 @@ _PHOTO_EXPIRY_DAYS = int(os.environ.get("PHOTO_EXPIRY_DAYS", "2"))
 
 # AECIS seed-dataset photo bucket. The Issue_Gen CSV ships only
 # relative FilePath strings like 'P_2374/Issue/U_12896/12_05_2026/<uuid>.jpeg';
-# AECIS hosts the binaries on their own S3 bucket. Set this env var
-# to the bucket's HTTPS base (no trailing slash) and /admin/seed/aecis-urls
-# will emit one downloadable URL per HSE-disciplined photo row.
-# Example: AECIS_PHOTO_S3_BASE=https://aecis-issues.s3.ap-southeast-1.amazonaws.com
-# Unset (None) disables the endpoint.
-_AECIS_PHOTO_S3_BASE = os.environ.get("AECIS_PHOTO_S3_BASE")
+# AECIS hosts the binaries on their own S3 bucket. Set EITHER the
+# env var OR paste the URL into Issue_Gen/PUBLIC_S3_URL.txt — the
+# env var wins when both are present. /admin/seed/aecis-urls emits
+# one downloadable URL per HSE-disciplined photo row.
+def _resolve_aecis_s3_base() -> str | None:
+    env = os.environ.get("AECIS_PHOTO_S3_BASE")
+    if env:
+        return env.rstrip("/")
+    # Fallback: first non-comment, non-empty line of the txt file.
+    try:
+        from pathlib import Path as _P
+        f = _P(__file__).resolve().parent.parent / "Issue_Gen" / "PUBLIC_S3_URL.txt"
+        if f.exists():
+            for line in f.read_text(encoding="utf-8").splitlines():
+                s = line.strip()
+                if s and not s.startswith("#"):
+                    return s.rstrip("/")
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+_AECIS_PHOTO_S3_BASE = _resolve_aecis_s3_base()
 _ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")    # None = admin disabled
 _ADMIN_COOKIE_NAME = "vai_admin"
 _ADMIN_COOKIE_MAX_AGE = 60 * 60 * 12   # 12 hours
