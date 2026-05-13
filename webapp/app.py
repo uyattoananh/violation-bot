@@ -164,58 +164,136 @@ def get_r2() -> Any:
 _aecis_doc_cache: dict[tuple[str, str], dict[str, str]] = {}
 
 
+def _aecis_api_raw(project_id: str, issue_id: str,
+                   endpoint: str = "Documents") -> dict:
+    """Make the §4.1 API call and return the raw verdict:
+        {url, status, headers, body, parsed, error}
+    Used by the probe endpoint AND _aecis_api_issue_documents below.
+    Doesn't raise — even on DNS failure / timeout it returns a dict
+    with `error` set so the caller can show the operator what
+    happened. Attempts the call WITHOUT auth too when no token is
+    configured — some AECIS endpoints might be open from the right
+    network, and the response (401 vs 404 vs 200) tells us what to
+    fix on the configuration side.
+    """
+    import urllib.request
+    import urllib.error
+    base = os.environ.get("AECIS_API_BASE", "").rstrip("/")
+    token = os.environ.get("AECIS_API_TOKEN", "")
+    timeout = int(os.environ.get("AECIS_API_TIMEOUT", "10"))
+
+    out = {
+        "url": "",
+        "status": None,
+        "headers": {},
+        "body": "",
+        "parsed": None,
+        "error": None,
+        "auth_used": bool(token),
+    }
+    if not base:
+        out["error"] = "AECIS_API_BASE not set"
+        return out
+
+    endpoint = endpoint.strip("/")
+    url = (
+        f"{base}/api/Projects/"
+        f"{urllib.parse.quote(str(project_id), safe='')}/Issues/"
+        f"{urllib.parse.quote(str(issue_id), safe='')}/{endpoint}"
+    )
+    out["url"] = url
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "hse-detector-seed/0.1",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read()
+            out["status"] = resp.status
+            out["headers"] = dict(resp.headers.items())
+            out["body"] = raw.decode("utf-8", errors="replace")[:8000]
+            try:
+                out["parsed"] = json.loads(out["body"])
+            except json.JSONDecodeError as e:
+                out["error"] = f"JSON decode failed: {e}"
+    except urllib.error.HTTPError as e:
+        out["status"] = e.code
+        try:
+            out["headers"] = dict(e.headers.items())
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            out["body"] = e.read().decode("utf-8", errors="replace")[:8000]
+        except Exception:  # noqa: BLE001
+            pass
+        out["error"] = f"HTTP {e.code} {e.reason}"
+    except urllib.error.URLError as e:
+        out["error"] = f"network: {e.reason}"
+    except Exception as e:  # noqa: BLE001
+        out["error"] = f"{type(e).__name__}: {e}"
+    return out
+
+
+def _extract_filepath_to_url(parsed) -> dict[str, str]:
+    """Liberal extractor — walks the parsed response looking for
+    objects that carry both a path-like field and a URL-like field.
+    The doc's example response is {"Files": [{FilePath, DocumentUrl}]}
+    but real APIs often wrap in {"Data": {...}}, paginate via {"Items":[...]},
+    or use camelCase / Pascal mix. Recursing handles all of those without
+    a per-shape special case."""
+    mapping: dict[str, str] = {}
+    PATH_KEYS = ("FilePath", "filePath", "filepath", "Path", "Key", "key", "KeyName")
+    URL_KEYS = ("DocumentUrl", "documentUrl", "Url", "url",
+                "SignedUrl", "signedUrl", "SecureLink", "S3Url", "s3Url")
+
+    def _walk(node):
+        if isinstance(node, dict):
+            fp = next((node[k] for k in PATH_KEYS if isinstance(node.get(k), str)), None)
+            url = next((node[k] for k in URL_KEYS if isinstance(node.get(k), str)), None)
+            if fp and url:
+                # Normalize path separators the same way AECIS does.
+                norm = fp.replace("\\\\", "/").replace("\\", "/")
+                mapping[norm] = url
+                mapping[fp] = url   # also keep the raw form as a backup
+            for v in node.values():
+                _walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                _walk(v)
+    _walk(parsed)
+    return mapping
+
+
 def _aecis_api_issue_documents(project_id: str, issue_id: str) -> dict[str, str] | None:
     """Fetch {filepath: document_url} for one issue via §4.1's
     GET /api/Projects/{projectID}/Issues/{issueID}/Documents.
 
-    Returns None when AECIS_API_BASE/AECIS_API_TOKEN aren't set
-    (caller falls through to SecureLink mode). Caches per-issue
-    so a bulk pass over /admin/seed/aecis-urls doesn't re-fetch
-    the same issue's document list 5 times when it has 5 photos.
+    Returns None when AECIS_API_BASE isn't set (caller falls through
+    to SecureLink mode). When AECIS_API_BASE is set but the request
+    fails / returns nothing useful, returns an empty dict so the
+    caller can still fall through cleanly. Caches per-issue so a
+    bulk pass over /admin/seed/aecis-urls doesn't re-fetch the
+    same issue's document list 5 times when it has 5 photos.
     """
     base = os.environ.get("AECIS_API_BASE")
-    token = os.environ.get("AECIS_API_TOKEN")
-    if not base or not token:
+    if not base:
         return None
     cache_key = (str(project_id), str(issue_id))
     if cache_key in _aecis_doc_cache:
         return _aecis_doc_cache[cache_key]
-    import urllib.request
-    import urllib.error
-    timeout = int(os.environ.get("AECIS_API_TIMEOUT", "10"))
-    url = (
-        f"{base.rstrip('/')}/api/Projects/"
-        f"{urllib.parse.quote(str(project_id), safe='')}/Issues/"
-        f"{urllib.parse.quote(str(issue_id), safe='')}/Documents"
-    )
-    req = urllib.request.Request(url, headers={
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-        "User-Agent": "hse-detector-seed/0.1",
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError) as e:
-        log.warning("AECIS API call failed for issue %s: %s", issue_id, e)
-        return None
-    # Per the doc the response is {"Files": [{FilePath, DocumentUrl, ...}, ...]}.
-    # Real responses may wrap that in {"Data": {...}} or similar — be liberal
-    # about where we find the Files list.
-    files = (
-        data.get("Files")
-        or (data.get("Data") or {}).get("Files")
-        or data.get("documents")
-        or []
-    )
-    mapping = {}
-    for f in files:
-        if not isinstance(f, dict):
-            continue
-        fp = f.get("FilePath") or f.get("filePath") or f.get("filepath")
-        url_v = f.get("DocumentUrl") or f.get("documentUrl") or f.get("Url") or f.get("url")
-        if fp and url_v:
-            mapping[fp] = url_v
+    raw = _aecis_api_raw(project_id, issue_id)
+    if raw["error"]:
+        log.warning(
+            "AECIS API call failed for issue %s/%s: %s (url=%s)",
+            project_id, issue_id, raw["error"], raw["url"],
+        )
+        _aecis_doc_cache[cache_key] = {}
+        return {}
+    mapping = _extract_filepath_to_url(raw["parsed"])
     _aecis_doc_cache[cache_key] = mapping
     return mapping
 
@@ -6196,7 +6274,13 @@ def admin_seed_aecis_urls(
     #                   MD5-hashed URL ourselves using NginxHashKey.
     #   3. IAM signed — boto3 SigV4 direct to S3 (off-path per doc).
     #   4. Unsigned   — bare <base>/<key>. Will 403 in production.
-    if os.environ.get("AECIS_API_BASE") and os.environ.get("AECIS_API_TOKEN"):
+    # APICALL activates the moment AECIS_API_BASE is set — even
+    # without AECIS_API_TOKEN. That lets an operator probe what
+    # AECIS returns (200? 401? 404?) before they have a token,
+    # using whatever they DO know about the API. The per-row
+    # _url_for falls through to SecureLink whenever the API
+    # response doesn't carry a usable URL, so this is safe.
+    if os.environ.get("AECIS_API_BASE"):
         mode = "apicall"
         aecis_client = None
     elif os.environ.get("AECIS_NGINX_HASH_KEY") and os.environ.get("AECIS_LINK_API_URL"):
@@ -6317,6 +6401,71 @@ def admin_seed_aecis_urls(
                 break
         yield "\n]"
     return StreamingResponse(_gen_json(), media_type="application/json")
+
+
+@app.get("/admin/seed/aecis-api-probe", include_in_schema=False)
+def admin_seed_aecis_api_probe(
+    request: Request,
+    project_id: str = "",
+    issue_id: str = "",
+    endpoint: str = "Documents",
+):
+    """Probe the §4.1 API call and surface the raw response.
+
+    Use this when AECIS hands over a partial config (just a base
+    URL, no token yet; or unsure which endpoint to call). Hit:
+
+      /admin/seed/aecis-api-probe?project_id=210&issue_id=237102
+
+    and inspect:
+      - status: 200 → great, response shape is in `body`
+                401 → endpoint exists, auth token wrong/missing
+                403 → endpoint exists, token rejected
+                404 → wrong path; try endpoint=Search or Activities
+                None → DNS/network error, base URL wrong
+      - body:   first 8 KB of whatever AECIS returned
+      - parsed: JSON if it decoded; None otherwise
+      - extracted: what _extract_filepath_to_url found
+                   (the (filepath, url) pairs we'd use in seeding)
+
+    When project_id/issue_id are blank, defaults to the first
+    HSE-disciplined row in the CSV so the operator can probe
+    without knowing AECIS issue IDs by heart.
+    """
+    if not _admin_authed(request):
+        raise HTTPException(403, "admin required")
+    if not project_id or not issue_id:
+        for row in _iter_aecis_hse_rows():
+            project_id = project_id or row["project_id"]
+            issue_id = issue_id or row["issue_id"]
+            break
+    if not project_id or not issue_id:
+        raise HTTPException(503, "no HSE rows in CSV; pass project_id + issue_id explicitly")
+
+    raw = _aecis_api_raw(project_id, issue_id, endpoint=endpoint)
+    extracted = _extract_filepath_to_url(raw["parsed"]) if raw["parsed"] is not None else {}
+    return {
+        "config": {
+            "base": os.environ.get("AECIS_API_BASE") or "(unset)",
+            "auth_used": raw["auth_used"],
+            "timeout_s": int(os.environ.get("AECIS_API_TIMEOUT", "10")),
+        },
+        "request": {
+            "project_id": project_id,
+            "issue_id": issue_id,
+            "endpoint": endpoint,
+            "url": raw["url"],
+        },
+        "response": {
+            "status": raw["status"],
+            "error": raw["error"],
+            "headers": raw["headers"],
+            "body_preview": raw["body"],
+            "parsed_keys": list(raw["parsed"].keys()) if isinstance(raw["parsed"], dict) else None,
+        },
+        "extracted_filepath_to_url": extracted,
+    }
+
 
 
 # ---------- phase 4: hse-class proposals (admin side) ----------
