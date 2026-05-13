@@ -249,6 +249,15 @@ _USER_COOKIE_NAME = "vai_uid"
 _USER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365   # 1 year
 _DAILY_QUOTA = int(os.environ.get("QUOTA_FREE_PER_DAY", "100"))
 _PHOTO_EXPIRY_DAYS = int(os.environ.get("PHOTO_EXPIRY_DAYS", "2"))
+
+# AECIS seed-dataset photo bucket. The Issue_Gen CSV ships only
+# relative FilePath strings like 'P_2374/Issue/U_12896/12_05_2026/<uuid>.jpeg';
+# AECIS hosts the binaries on their own S3 bucket. Set this env var
+# to the bucket's HTTPS base (no trailing slash) and /admin/seed/aecis-urls
+# will emit one downloadable URL per HSE-disciplined photo row.
+# Example: AECIS_PHOTO_S3_BASE=https://aecis-issues.s3.ap-southeast-1.amazonaws.com
+# Unset (None) disables the endpoint.
+_AECIS_PHOTO_S3_BASE = os.environ.get("AECIS_PHOTO_S3_BASE")
 _ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")    # None = admin disabled
 _ADMIN_COOKIE_NAME = "vai_admin"
 _ADMIN_COOKIE_MAX_AGE = 60 * 60 * 12   # 12 hours
@@ -5876,6 +5885,128 @@ def admin_stats(request: Request, days: int = 30):
     """Backwards-compat redirect — old bookmarks still work, just
     forward to the unified /admin panel."""
     return RedirectResponse(f"/admin?days={days}#stats", status_code=303)
+
+
+# ---------- AECIS seed-dataset S3 URL manifest (Issue_Gen) ----------
+#
+# Surfaces an S3 download URL per HSE-disciplined photo row in the
+# Issue_Gen/Issue_Gen/result_after_query.csv export from AECIS's MS SQL
+# IssuePhoto table. Each row's FilePath column is a relative path on
+# AECIS's photo bucket; combined with _AECIS_PHOTO_S3_BASE it produces
+# a directly-downloadable HTTPS URL. The endpoint emits this list
+# either as JSON (issue_id + URL + label context) or as plain text
+# (one URL per line) suitable for piping into `xargs curl -O` for a
+# bulk seed download.
+#
+# Scope: admin-only. The CSV path is read on every request because
+# it's only called rarely (once per seed-batch fetch).
+#
+# Filter rationale: DisciplineID = 10 is AECIS's HSE classification
+# tag. ~2,400 of 39 K photo rows match. See Issue_Gen/SEEDABLE.md for
+# the full audit + per-tier quality breakdown.
+
+_AECIS_CSV_REL_PATH = "Issue_Gen/Issue_Gen/result_after_query.csv"
+
+
+def _iter_aecis_hse_rows():
+    """Yield (issue_id, filepath, issue_name, description, project_id)
+    for every HSE-disciplined photo row in the CSV. Skips rows with
+    empty FilePath (orphan IssuePhoto records). Stream-reads so the
+    76 MB CSV doesn't materialise in memory."""
+    import csv as _csv
+    csv_path = REPO_ROOT / _AECIS_CSV_REL_PATH
+    if not csv_path.exists():
+        return
+    with csv_path.open(encoding="utf-8-sig", newline="") as f:
+        r = _csv.reader(f)
+        try:
+            next(r)   # skip header
+        except StopIteration:
+            return
+        for row in r:
+            if len(row) < 70:
+                continue
+            if row[6] != "10":      # DisciplineID = HSE
+                continue
+            filepath = (row[61] or "").strip()
+            if not filepath:
+                continue
+            yield {
+                "issue_id": row[0],
+                "project_id": row[2],
+                "issue_name": row[4],
+                "description": row[12],
+                "filepath": filepath,
+            }
+
+
+@app.get("/admin/seed/aecis-urls", include_in_schema=False)
+def admin_seed_aecis_urls(
+    request: Request,
+    fmt: str = "json",
+    limit: int = 0,
+):
+    """Emit S3 download URLs for the AECIS HSE seed dataset.
+
+    Query params:
+      fmt   = "json" (default, full record per row) or "text" (one URL per line)
+      limit = max rows to emit, 0 = all
+
+    Returns 503 if AECIS_PHOTO_S3_BASE is unset (so the endpoint
+    fails closed when there's nothing useful to emit). Returns 404
+    if the Issue_Gen CSV isn't present on the host (the dataset is
+    bundled with the repo but not deployed to the VPS by default —
+    runs locally, or after a manual scp of Issue_Gen/).
+    """
+    if not _admin_authed(request):
+        raise HTTPException(403, "admin required")
+    if not _AECIS_PHOTO_S3_BASE:
+        raise HTTPException(
+            503,
+            "AECIS_PHOTO_S3_BASE env var not set — no S3 base to construct URLs from",
+        )
+    base = _AECIS_PHOTO_S3_BASE.rstrip("/")
+    csv_path = REPO_ROOT / _AECIS_CSV_REL_PATH
+    if not csv_path.exists():
+        raise HTTPException(404, f"seed CSV not present at {_AECIS_CSV_REL_PATH}")
+
+    if fmt == "text":
+        def _gen_lines():
+            n = 0
+            for row in _iter_aecis_hse_rows():
+                yield f"{base}/{row['filepath']}\n"
+                n += 1
+                if limit and n >= limit:
+                    return
+        return StreamingResponse(_gen_lines(), media_type="text/plain")
+
+    if fmt != "json":
+        raise HTTPException(400, "fmt must be 'json' or 'text'")
+
+    def _gen_json():
+        # Stream JSON array manually so we don't materialise 2,400+
+        # records in memory before sending.
+        yield "[\n"
+        first = True
+        n = 0
+        for row in _iter_aecis_hse_rows():
+            if not first:
+                yield ",\n"
+            first = False
+            obj = {
+                "issue_id": row["issue_id"],
+                "project_id": row["project_id"],
+                "issue_name": row["issue_name"],
+                "description": row["description"],
+                "filepath": row["filepath"],
+                "s3_url": f"{base}/{row['filepath']}",
+            }
+            yield json.dumps(obj, ensure_ascii=False)
+            n += 1
+            if limit and n >= limit:
+                break
+        yield "\n]"
+    return StreamingResponse(_gen_json(), media_type="application/json")
 
 
 # ---------- phase 4: hse-class proposals (admin side) ----------
