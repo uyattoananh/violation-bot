@@ -1,6 +1,14 @@
 """Drive the HSE Detector UI via Playwright to upload + auto-assign
 the AECIS seed photos downloaded by seed_download_aecis_photos.py.
 
+LOCAL-ONLY: meant to point at a local dev server started by
+`scripts/seed_run_local.py` (defaults to http://127.0.0.1:8765/).
+You CAN aim it at the live VPS via --base https://hse.aecis.ca/
+but only do that after the is_seed migration from
+FUTURE_IMPLEMENTATIONS.txt has landed — otherwise seeded photos
+inflate the held-out eval accuracy + per-user quota counters
+visible in /admin/stats.
+
 Flow per chunk of N photos:
   1. Open the app shell (AUTH_REQUIRED=0 for local, or pre-auth
      cookie for VPS).

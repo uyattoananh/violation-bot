@@ -1,14 +1,21 @@
-"""Download HSE-disciplined photos from AECIS's public S3 bucket.
+"""Download HSE-disciplined photos from AECIS's photo bucket.
+
+LOCAL-ONLY: this script is meant to run on a workstation, not on
+the VPS service. Issue_Gen/ is bundled in the repo but isn't
+deployed to /root/violation-bot, and writing 2,400+ files into
+the running service's working tree is a poor fit for production.
+Use `scripts/seed_run_local.py` as the entry point if you want
+download + assign in one shot.
 
 Reads Issue_Gen/Issue_Gen/result_after_query.csv, filters to
-DisciplineID = 10, constructs S3 URLs from each row's FilePath
-column using the base URL in Issue_Gen/PUBLIC_S3_URL.txt (or the
-AECIS_PHOTO_S3_BASE env var), and downloads each photo to
+DisciplineID = 10, builds a URL per row via one of four signer
+modes (SecureLink / IAM / manifest / unsigned — see
+build_aecis_signer), and downloads each photo to
 Issue_Gen/photos/<filepath>.
 
 Resumable — skips files already present at full size. Manifests
-each download into Issue_Gen/photos/manifest.jsonl so a follow-up
-Playwright-driven assign script knows which photo maps to which
+each download into Issue_Gen/photos/manifest.jsonl so the
+Playwright-driven assigner knows which photo maps to which
 AECIS issue.
 
 Usage:
