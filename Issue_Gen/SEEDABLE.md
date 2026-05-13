@@ -1,5 +1,19 @@
 # Issue_Gen — seedability assessment
 
+> **Status as of 2026-05-13**: AECIS supplied read-only IAM credentials
+> for an `rnd-user` (file at `Issue_Gen/rnd-user_accessKeys.csv`,
+> gitignored). The seed download is **complete** — ~2,150 unique HSE
+> photos (dedup'd from the 2,444 CSV rows; the CSV is the
+> IssueActivity × IssuePhoto join so ~290 rows refer to photos shared
+> across multiple activities). Total disk usage ≈ 220 MB.
+>
+> **Next step is the schema migration**, NOT the Playwright assigner.
+> Run `scripts/add_is_seed_column.py` to print the SQL, apply it in
+> Supabase, then work through the AUDIT CHECKLIST in that script's
+> header before pointing the assigner at anything.
+
+
+
 Audit of the MS SQL dump in this folder for whether the data can feed
 the HSE Detector seed-backdoor path described in `FUTURE_IMPLEMENTATIONS.txt`
 and `CLAUDE.md`. Drafted 2026-05-10.
