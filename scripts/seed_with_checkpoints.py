@@ -77,19 +77,27 @@ except Exception:
     pass
 
 
-def load_manifest_chunks(chunk_size: int) -> list[list[dict]]:
-    """Read manifest.jsonl, dedup by filepath, split into batches.
+def load_manifest_chunks(chunk_size: int, manifest_path: Path | None = None) -> list[list[dict]]:
+    """Read a manifest.jsonl, dedup by filepath, split into batches.
+
+    Default path is Issue_Gen/photos/manifest.jsonl (the raw
+    downloader output). Pass manifest_path to point at a curated
+    manifest like manifest.validated.jsonl produced by
+    scripts/seed_validate_aecis.py.
 
     The manifest can have duplicate entries when the downloader was
     re-run; we keep the FIRST occurrence so the chunk boundaries
     are stable across re-runs (a particular photo always lands in
     the same batch number)."""
-    if not MANIFEST.exists():
-        sys.stderr.write(f"ERROR: manifest missing at {MANIFEST}\n"
-                         "Run scripts/seed_download_aecis_photos.py first.\n")
+    m_path = manifest_path or MANIFEST
+    if not m_path.exists():
+        sys.stderr.write(f"ERROR: manifest missing at {m_path}\n"
+                         "Run scripts/seed_download_aecis_photos.py first "
+                         "(or scripts/seed_validate_aecis.py for the "
+                         "validated variant).\n")
         sys.exit(2)
     seen, out = set(), []
-    with MANIFEST.open(encoding="utf-8") as f:
+    with m_path.open(encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -271,6 +279,10 @@ def run_assigner(chunk: list[dict], base: str, label_source: str) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--chunk-size", type=int, default=200)
+    ap.add_argument("--manifest", type=str, default=None,
+                    help="Path to manifest.jsonl (default: Issue_Gen/photos/manifest.jsonl). "
+                         "Use Issue_Gen/photos/manifest.validated.jsonl after the "
+                         "scripts/seed_validate_aecis.py VLM gate.")
     ap.add_argument("--eval-size", type=int, default=100,
                     help="(informational; the actual holdout is whatever the SQL set marked)")
     ap.add_argument("--base", default="http://127.0.0.1:8765/")
@@ -281,7 +293,8 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    chunks = load_manifest_chunks(args.chunk_size)
+    manifest_path = Path(args.manifest) if args.manifest else None
+    chunks = load_manifest_chunks(args.chunk_size, manifest_path)
     sys.stdout.write(
         f"manifest: {sum(len(c) for c in chunks)} photos, "
         f"{len(chunks)} chunks of up to {args.chunk_size}\n"
