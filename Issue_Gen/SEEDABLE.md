@@ -78,7 +78,7 @@ Worse, **DisciplineID = 10 is not a reliable HSE filter**. Many
 non-safety issues carry it. So even after disciplining, we need a
 content filter.
 
-## Photo binaries live on an AECIS S3 bucket
+## Photo binaries live on a PRIVATE AECIS S3 bucket
 
 Every row has a `FilePath` column like:
 
@@ -86,13 +86,73 @@ Every row has a `FilePath` column like:
 P_2374/Issue/U_12896/12_05_2026/1ea25976b0724935b6b93f257c3f0dff.jpeg
 ```
 
-This is a **bucket-relative key** — the JPEG/PNG bytes live on
-AECIS's S3 bucket. Combined with the bucket's HTTPS base URL it
-forms a direct download link, e.g.:
+This is a **bucket-relative key**. The JPEG/PNG bytes live on
+AECIS's S3 bucket — verified to be `aecis-app.s3.ap-southeast-1.amazonaws.com`
+(region `ap-southeast-1`, Singapore). Combined with the bucket's
+HTTPS base it forms an object URL:
 
 ```
-https://aecis-issues.s3.ap-southeast-1.amazonaws.com/P_2374/.../1ea25976...jpeg
+https://aecis-app.s3.ap-southeast-1.amazonaws.com/P_2374/.../<uuid>.jpeg
 ```
+
+**The bucket is private.** Hitting that URL unsigned returns
+`403 AccessDenied`. AECIS's app generates SigV4-presigned URLs
+for its own use (we've seen one valid signed example) but the
+bucket policy does not grant anonymous reads. The seed pipeline
+therefore needs one of two paths to actually fetch bytes:
+
+### Path A — IAM-signed (recommended for ongoing seeding)
+
+AECIS creates a read-only IAM user with `s3:GetObject` on
+`arn:aws:s3:::aecis-app/*` and hands us the access key pair. We
+sign URLs locally with boto3. Configured via four env vars on the
+host running the seed pipeline:
+
+```
+AECIS_S3_BUCKET=aecis-app
+AECIS_S3_REGION=ap-southeast-1
+AECIS_S3_ACCESS_KEY_ID=AKIA…
+AECIS_S3_SECRET_ACCESS_KEY=…
+AECIS_PRESIGN_EXPIRES=3600        # optional, default 1 h, max 7 d
+```
+
+When these are set, `/admin/seed/aecis-urls` and
+`scripts/seed_download_aecis_photos.py` both emit fresh SigV4
+URLs per row instead of bare composed URLs. Re-pulls cost
+nothing — we re-sign on demand.
+
+### Path B — AECIS-generated manifest (one-shot fallback)
+
+AECIS runs a small batch-presign script and ships us a JSON file:
+
+```json
+{
+  "P_2804/Issue/U_12811/.../ae58ec93….jpg": "https://aecis-app.s3.../?X-Amz-Signature=…",
+  …
+}
+```
+
+Or a JSON array of `{filepath, url}` records. We point the
+downloader at it:
+
+```
+AECIS_PRESIGNED_MANIFEST=/path/to/manifest.json
+```
+
+Downloader looks up the URL per row. AWS caps presigned URL TTL
+at 7 days; one manifest is enough for a single pass through the
+2,444-photo set.
+
+### Path C — Public bucket  ❌ DO NOT REQUEST
+
+Flipping the bucket to public-read would allow plain
+`<base>/<filepath>` GETs. It would also expose every construction
+photo (faces, license plates, project layouts, incident scenes)
+to anyone with the URL pattern. Compliance won't approve. The
+pipeline supports plain `<base>/<filepath>` URLs as a fallback
+mode (UNSIGNED) but they will 403 against the real bucket — kept
+only for dry-run inspection and future-public-bucket
+compatibility.
 
 The bucket base is wired via the `AECIS_PHOTO_S3_BASE` env var
 in `webapp/app.py`. Once that's set, the admin endpoint

@@ -137,6 +137,64 @@ def get_r2() -> Any:
     return _r2_client
 
 
+# AECIS source bucket client (seed pipeline only). Lazy/single-instance.
+# Configured via three env vars; when any is missing, the seed endpoint
+# falls back to emitting unsigned URLs (which will 403 against the
+# private bucket — explicit and obvious failure, not silent corruption).
+#   AECIS_S3_BUCKET             e.g. "aecis-app"
+#   AECIS_S3_REGION             e.g. "ap-southeast-1"
+#   AECIS_S3_ACCESS_KEY_ID      read-only IAM key id from AECIS
+#   AECIS_S3_SECRET_ACCESS_KEY  paired secret
+_aecis_s3_client = None
+
+
+def get_aecis_s3() -> Any | None:
+    """Return a boto3 S3 client for AECIS's photo bucket, or None when
+    credentials aren't configured. Callers handle None by skipping
+    signed-URL emission."""
+    global _aecis_s3_client
+    if _aecis_s3_client is not None:
+        return _aecis_s3_client
+    bucket = os.environ.get("AECIS_S3_BUCKET")
+    region = os.environ.get("AECIS_S3_REGION")
+    ak = os.environ.get("AECIS_S3_ACCESS_KEY_ID")
+    sk = os.environ.get("AECIS_S3_SECRET_ACCESS_KEY")
+    if not all([bucket, region, ak, sk]):
+        return None
+    import boto3
+    from botocore.config import Config
+    # Force SigV4 + virtual-hosted addressing. AECIS's bucket is in
+    # ap-southeast-1 which only accepts SigV4 — the boto3 default
+    # falls back to SigV2 / global endpoint when not pinned, which
+    # produces URLs that look right but 403 in this region.
+    _aecis_s3_client = boto3.client(
+        "s3",
+        region_name=region,
+        aws_access_key_id=ak,
+        aws_secret_access_key=sk,
+        config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+    )
+    return _aecis_s3_client
+
+
+def _aecis_presign(key: str, expires: int = 3600) -> str | None:
+    """Build a presigned GET URL for one key on AECIS's bucket.
+    Returns None if credentials aren't configured."""
+    client = get_aecis_s3()
+    if client is None:
+        return None
+    bucket = os.environ.get("AECIS_S3_BUCKET")
+    try:
+        return client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=expires,
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("AECIS presign failed for %s: %s", key, e)
+        return None
+
+
 # ---------- lifespan ----------
 
 @asynccontextmanager
@@ -5962,36 +6020,78 @@ def admin_seed_aecis_urls(
     request: Request,
     fmt: str = "json",
     limit: int = 0,
+    expires: int = 3600,
 ):
     """Emit S3 download URLs for the AECIS HSE seed dataset.
 
-    Query params:
-      fmt   = "json" (default, full record per row) or "text" (one URL per line)
-      limit = max rows to emit, 0 = all
+    Two URL modes, selected automatically by what env vars are set:
 
-    Returns 503 if AECIS_PHOTO_S3_BASE is unset (so the endpoint
-    fails closed when there's nothing useful to emit). Returns 404
-    if the Issue_Gen CSV isn't present on the host (the dataset is
-    bundled with the repo but not deployed to the VPS by default —
-    runs locally, or after a manual scp of Issue_Gen/).
+      • SIGNED  — AECIS_S3_BUCKET + AECIS_S3_REGION + AECIS_S3_ACCESS_KEY_ID
+                  + AECIS_S3_SECRET_ACCESS_KEY all set. Each emitted
+                  URL is a SigV4 presigned GET valid for `expires`
+                  seconds (default 3600, AWS max 604800). Bucket is
+                  private — only signed URLs actually work.
+
+      • UNSIGNED — AECIS_PHOTO_S3_BASE set, no credentials. Emits
+                   plain <base>/<key> URLs which WILL 403 against
+                   the private bucket. Kept as a fallback for sanity
+                   checks against a hypothetical future public bucket
+                   or for offline URL composition.
+
+    Query params:
+      fmt     = "json" (default) | "text" (one URL per line)
+      limit   = max rows to emit, 0 = all
+      expires = SIGNED-mode TTL in seconds (default 3600, max 604800)
+
+    Returns 503 when neither mode has its config. 404 when the CSV
+    isn't present on the host (the Issue_Gen dataset is bundled in
+    the repo but isn't auto-deployed to the VPS by default).
     """
     if not _admin_authed(request):
         raise HTTPException(403, "admin required")
-    if not _AECIS_PHOTO_S3_BASE:
-        raise HTTPException(
-            503,
-            "AECIS_PHOTO_S3_BASE env var not set — no S3 base to construct URLs from",
-        )
-    base = _AECIS_PHOTO_S3_BASE.rstrip("/")
+
     csv_path = REPO_ROOT / _AECIS_CSV_REL_PATH
     if not csv_path.exists():
         raise HTTPException(404, f"seed CSV not present at {_AECIS_CSV_REL_PATH}")
+
+    aecis_client = get_aecis_s3()
+    mode = "signed" if aecis_client else "unsigned"
+
+    if mode == "unsigned" and not _AECIS_PHOTO_S3_BASE:
+        raise HTTPException(
+            503,
+            "Neither AECIS S3 credentials nor AECIS_PHOTO_S3_BASE configured.\n"
+            "For signed URLs (the only ones that work against the private "
+            "bucket) set AECIS_S3_BUCKET + AECIS_S3_REGION + "
+            "AECIS_S3_ACCESS_KEY_ID + AECIS_S3_SECRET_ACCESS_KEY.",
+        )
+
+    # Cap expires at AWS's SigV4 max (7 days).
+    expires = max(60, min(int(expires), 604800))
+
+    bucket = os.environ.get("AECIS_S3_BUCKET")
+    base = (_AECIS_PHOTO_S3_BASE or "").rstrip("/")
+
+    def _url_for(filepath: str) -> str:
+        if mode == "signed":
+            try:
+                return aecis_client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": bucket, "Key": filepath},
+                    ExpiresIn=expires,
+                )
+            except Exception as e:  # noqa: BLE001
+                log.warning("AECIS presign failed for %s: %s", filepath, e)
+                return ""
+        return f"{base}/{filepath}"
 
     if fmt == "text":
         def _gen_lines():
             n = 0
             for row in _iter_aecis_hse_rows():
-                yield f"{base}/{row['filepath']}\n"
+                url = _url_for(row["filepath"])
+                if url:
+                    yield url + "\n"
                 n += 1
                 if limit and n >= limit:
                     return
@@ -6002,23 +6102,24 @@ def admin_seed_aecis_urls(
 
     def _gen_json():
         # Stream JSON array manually so we don't materialise 2,400+
-        # records in memory before sending.
+        # records in memory before sending. First yield is a header
+        # object carrying mode + expires so the consumer knows whether
+        # the URLs are time-bounded.
         yield "[\n"
-        first = True
+        meta = {"_meta": {"mode": mode, "expires_seconds": expires if mode == "signed" else None}}
+        yield json.dumps(meta, ensure_ascii=False)
         n = 0
         for row in _iter_aecis_hse_rows():
-            if not first:
-                yield ",\n"
-            first = False
+            url = _url_for(row["filepath"])
             obj = {
                 "issue_id": row["issue_id"],
                 "project_id": row["project_id"],
                 "issue_name": row["issue_name"],
                 "description": row["description"],
                 "filepath": row["filepath"],
-                "s3_url": f"{base}/{row['filepath']}",
+                "s3_url": url,
             }
-            yield json.dumps(obj, ensure_ascii=False)
+            yield ",\n" + json.dumps(obj, ensure_ascii=False)
             n += 1
             if limit and n >= limit:
                 break
