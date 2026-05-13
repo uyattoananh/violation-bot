@@ -101,12 +101,46 @@ for its own use (we've seen one valid signed example) but the
 bucket policy does not grant anonymous reads. The seed pipeline
 therefore needs one of two paths to actually fetch bytes:
 
-### Path A — IAM-signed (recommended for ongoing seeding)
+### Path A — SecureLink (the documented path; recommended)
 
-AECIS creates a read-only IAM user with `s3:GetObject` on
+AECIS doesn't grant direct S3 access. Their integration model is
+the `api.upload` proxy: we build a URL pointing at their
+`/Files/SecureLink` endpoint with an MD5 hash that proves we know
+the shared secret; that endpoint validates the hash server-side
+and streams the file (or 302s to a fresh AWS presigned URL).
+Method.txt §4.2 in this folder is the AECIS spec.
+
+```
+AECIS_NGINX_HASH_KEY=<shared MD5 secret from AECIS>
+AECIS_LINK_API_URL=https://upload.aecis.com        # the api.upload base
+AECIS_NGINX_EXPIRE_MIN=60                          # optional, default 60 min
+```
+
+When these are set, `/admin/seed/aecis-urls` and
+`scripts/seed_download_aecis_photos.py` build URLs like:
+
+```
+https://upload.aecis.com/Files/SecureLink
+  ?keyName=P_2804%2FIssue%2FU_12811%2F.../<uuid>.jpg
+  &expiredTime=1778648700
+  &md5hash=6361B0BCE2A8A8221526089EE9146E2D
+  &rename=site-photo.jpg
+```
+
+The URL TTL is `AECIS_NGINX_EXPIRE_MIN` minutes, rounded down to
+the minute (the server-side validator hashes against this exact
+number — off-by-one seconds invalidate the URL). Re-signing is
+free; the downloader generates URLs per-row at fetch time.
+
+This is the path AECIS documents — no IAM credentials shared, no
+direct bucket access, just the shared MD5 secret.
+
+### Path B — IAM-signed (fallback if AECIS prefers to share IAM)
+
+Off the documented path but works the same way. AECIS creates a
+read-only IAM user with `s3:GetObject` on
 `arn:aws:s3:::aecis-app/*` and hands us the access key pair. We
-sign URLs locally with boto3. Configured via four env vars on the
-host running the seed pipeline:
+sign URLs locally with boto3:
 
 ```
 AECIS_S3_BUCKET=aecis-app
@@ -116,12 +150,10 @@ AECIS_S3_SECRET_ACCESS_KEY=…
 AECIS_PRESIGN_EXPIRES=3600        # optional, default 1 h, max 7 d
 ```
 
-When these are set, `/admin/seed/aecis-urls` and
-`scripts/seed_download_aecis_photos.py` both emit fresh SigV4
-URLs per row instead of bare composed URLs. Re-pulls cost
-nothing — we re-sign on demand.
+Don't use this if Path A is available — Path A is what AECIS
+already supports.
 
-### Path B — AECIS-generated manifest (one-shot fallback)
+### Path C — AECIS-generated manifest (one-shot fallback)
 
 AECIS runs a small batch-presign script and ships us a JSON file:
 
@@ -143,7 +175,7 @@ Downloader looks up the URL per row. AWS caps presigned URL TTL
 at 7 days; one manifest is enough for a single pass through the
 2,444-photo set.
 
-### Path C — Public bucket  ❌ DO NOT REQUEST
+### Path D — Public bucket  ❌ DO NOT REQUEST
 
 Flipping the bucket to public-read would allow plain
 `<base>/<filepath>` GETs. It would also expose every construction

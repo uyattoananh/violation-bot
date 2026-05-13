@@ -137,13 +137,59 @@ def get_r2() -> Any:
     return _r2_client
 
 
-# AECIS source bucket client (seed pipeline only). Lazy/single-instance.
-# Configured via three env vars; when any is missing, the seed endpoint
-# falls back to emitting unsigned URLs (which will 403 against the
-# private bucket — explicit and obvious failure, not silent corruption).
+# AECIS SecureLink builder (the documented integration path — see
+# Issue_Gen/method.txt §4.2). AECIS does NOT expose the raw S3
+# bucket. Their public surface is api.upload's /Files/SecureLink
+# endpoint, which accepts a keyName + expiredTime + md5hash and
+# either serves the file or 302s to a fresh AWS presigned URL.
+# The hash is MD5("{filepath}.{expiredTime}.{NginxHashKey}").upper()
+# — NginxHashKey is the shared secret AECIS provisions per
+# integration partner. Required env vars:
+#   AECIS_NGINX_HASH_KEY       shared MD5 secret from AECIS
+#   AECIS_LINK_API_URL         e.g. "https://upload.aecis.com"
+#   AECIS_NGINX_EXPIRE_MIN     URL TTL, default 60 minutes
+def _aecis_securelink(file_path: str, user_title: str = "") -> str | None:
+    """Build a SecureLink URL per Issue_Gen/method.txt §3.1. Returns
+    None when the shared secret or base URL isn't configured."""
+    secret = os.environ.get("AECIS_NGINX_HASH_KEY")
+    base = os.environ.get("AECIS_LINK_API_URL")
+    if not secret or not base:
+        return None
+    import hashlib
+    import math
+    import time as _time
+    from urllib.parse import quote as _quote
+    if not file_path:
+        return None
+    # Normalize: backslash-separated paths come straight from the
+    # MS SQL dump (Windows-style); the SecureLink endpoint expects
+    # forward-slashes only.
+    key = file_path.replace("\\\\", "/").replace("\\", "/")
+    minutes = int(os.environ.get("AECIS_NGINX_EXPIRE_MIN", "60"))
+    expire_sec = _time.time() + minutes * 60
+    # Round down to whole minutes to match the C# implementation
+    # (CommonUtility.BuildNginxPath). Without this rounding the
+    # hash wouldn't match what api.upload computes server-side.
+    expire_min = int(math.floor(expire_sec / 60) * 60)
+    raw = f"{key}.{expire_min}.{secret}"
+    md5 = hashlib.md5(raw.encode("ascii")).hexdigest().upper()
+    return (
+        f"{base.rstrip('/')}/Files/SecureLink"
+        f"?keyName={_quote(key, safe='')}"
+        f"&expiredTime={expire_min}"
+        f"&md5hash={md5}"
+        f"&rename={_quote(user_title or '', safe='')}"
+    )
+
+
+# AECIS source bucket client (seed pipeline fallback only). Lazy/single-
+# instance. Configured via four env vars; only useful if AECIS hands
+# over read-only IAM credentials directly (not the documented path —
+# see Issue_Gen/method.txt §4 which uses SecureLink instead). Kept as
+# a fallback for the case where AECIS prefers to share IAM access.
 #   AECIS_S3_BUCKET             e.g. "aecis-app"
 #   AECIS_S3_REGION             e.g. "ap-southeast-1"
-#   AECIS_S3_ACCESS_KEY_ID      read-only IAM key id from AECIS
+#   AECIS_S3_ACCESS_KEY_ID      read-only IAM key id
 #   AECIS_S3_SECRET_ACCESS_KEY  paired secret
 _aecis_s3_client = None
 
@@ -6012,6 +6058,7 @@ def _iter_aecis_hse_rows():
                 "issue_name": row[4],
                 "description": row[12],
                 "filepath": filepath,
+                "user_title": (row[59] or "").strip(),
             }
 
 
@@ -6054,16 +6101,30 @@ def admin_seed_aecis_urls(
     if not csv_path.exists():
         raise HTTPException(404, f"seed CSV not present at {_AECIS_CSV_REL_PATH}")
 
-    aecis_client = get_aecis_s3()
-    mode = "signed" if aecis_client else "unsigned"
+    # Mode selection in documented-preference order:
+    #   1. SecureLink — Issue_Gen/method.txt §4.2 — uses AECIS's
+    #      api.upload proxy with MD5-hashed URLs. The integration
+    #      path AECIS documents for third-party web apps.
+    #   2. IAM signed — boto3 SigV4 direct to S3. Only if AECIS
+    #      hands over an access key pair (off-path per their doc).
+    #   3. Unsigned — bare <base>/<key>. Will 403 in production
+    #      but useful for inspecting URL composition offline.
+    if os.environ.get("AECIS_NGINX_HASH_KEY") and os.environ.get("AECIS_LINK_API_URL"):
+        mode = "securelink"
+        aecis_client = None
+    else:
+        aecis_client = get_aecis_s3()
+        mode = "iam-signed" if aecis_client else "unsigned"
 
     if mode == "unsigned" and not _AECIS_PHOTO_S3_BASE:
         raise HTTPException(
             503,
-            "Neither AECIS S3 credentials nor AECIS_PHOTO_S3_BASE configured.\n"
-            "For signed URLs (the only ones that work against the private "
-            "bucket) set AECIS_S3_BUCKET + AECIS_S3_REGION + "
-            "AECIS_S3_ACCESS_KEY_ID + AECIS_S3_SECRET_ACCESS_KEY.",
+            "No AECIS access configured. Pick one:\n"
+            "  • AECIS_NGINX_HASH_KEY + AECIS_LINK_API_URL  (the documented "
+            "SecureLink path — see Issue_Gen/method.txt)\n"
+            "  • AECIS_S3_BUCKET + AECIS_S3_REGION + AECIS_S3_ACCESS_KEY_ID "
+            "+ AECIS_S3_SECRET_ACCESS_KEY  (IAM fallback)\n"
+            "  • AECIS_PHOTO_S3_BASE  (dry-run only — will 403)",
         )
 
     # Cap expires at AWS's SigV4 max (7 days).
@@ -6072,8 +6133,10 @@ def admin_seed_aecis_urls(
     bucket = os.environ.get("AECIS_S3_BUCKET")
     base = (_AECIS_PHOTO_S3_BASE or "").rstrip("/")
 
-    def _url_for(filepath: str) -> str:
-        if mode == "signed":
+    def _url_for(filepath: str, user_title: str = "") -> str:
+        if mode == "securelink":
+            return _aecis_securelink(filepath, user_title) or ""
+        if mode == "iam-signed":
             try:
                 return aecis_client.generate_presigned_url(
                     "get_object",
@@ -6089,7 +6152,7 @@ def admin_seed_aecis_urls(
         def _gen_lines():
             n = 0
             for row in _iter_aecis_hse_rows():
-                url = _url_for(row["filepath"])
+                url = _url_for(row["filepath"], row.get("user_title", ""))
                 if url:
                     yield url + "\n"
                 n += 1
@@ -6106,11 +6169,21 @@ def admin_seed_aecis_urls(
         # object carrying mode + expires so the consumer knows whether
         # the URLs are time-bounded.
         yield "[\n"
-        meta = {"_meta": {"mode": mode, "expires_seconds": expires if mode == "signed" else None}}
+        # TTL semantics differ by mode: SecureLink rounds expiry to
+        # whole minutes via AECIS_NGINX_EXPIRE_MIN; IAM-signed uses the
+        # ?expires query param; unsigned has no expiry. Surface the
+        # right number per mode so the consumer knows when to refetch.
+        if mode == "securelink":
+            ttl = int(os.environ.get("AECIS_NGINX_EXPIRE_MIN", "60")) * 60
+        elif mode == "iam-signed":
+            ttl = expires
+        else:
+            ttl = None
+        meta = {"_meta": {"mode": mode, "expires_seconds": ttl}}
         yield json.dumps(meta, ensure_ascii=False)
         n = 0
         for row in _iter_aecis_hse_rows():
-            url = _url_for(row["filepath"])
+            url = _url_for(row["filepath"], row.get("user_title", ""))
             obj = {
                 "issue_id": row["issue_id"],
                 "project_id": row["project_id"],

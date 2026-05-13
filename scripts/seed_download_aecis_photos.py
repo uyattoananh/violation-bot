@@ -50,27 +50,65 @@ def resolve_s3_base() -> str:
     sys.exit(2)
 
 
-def build_aecis_signer():
-    """Returns (signer_fn, mode_label). signer_fn(key) -> URL.
+def _build_securelink(file_path: str, user_title: str = "") -> str | None:
+    """AECIS SecureLink URL builder — Issue_Gen/method.txt §4.2.
 
-    Three modes, picked by what's configured:
-      • IAM signing   — AECIS_S3_BUCKET + AECIS_S3_REGION +
-                        AECIS_S3_ACCESS_KEY_ID + AECIS_S3_SECRET_ACCESS_KEY
-                        set. Each call generates a fresh SigV4
-                        presigned GET URL via boto3. Right call when
-                        AECIS hands us read-only credentials.
-      • MANIFEST      — AECIS_PRESIGNED_MANIFEST=<path/to/file.json>
-                        points at a JSON map of {filepath -> url}
-                        AECIS pre-generated for us. signer_fn looks
-                        up the URL by key. Right call when AECIS
-                        won't share IAM creds but will run a
-                        batch-presign job.
-      • UNSIGNED      — fallback. Uses <base>/<key>, which fails 403
-                        on private buckets. Kept so dry-runs against
-                        a hypothetical future public bucket still
-                        work and so URL composition can be inspected
-                        offline.
+    Returns the api.upload SecureLink URL for the given keyName.
+    The endpoint validates the MD5 hash and either streams the
+    file or redirects to a fresh AWS presigned URL. None if config
+    is missing (caller falls through to the next signer mode).
     """
+    secret = os.environ.get("AECIS_NGINX_HASH_KEY")
+    base = os.environ.get("AECIS_LINK_API_URL")
+    if not secret or not base or not file_path:
+        return None
+    import hashlib, math, time as _t
+    from urllib.parse import quote as _q
+    key = file_path.replace("\\\\", "/").replace("\\", "/")
+    minutes = int(os.environ.get("AECIS_NGINX_EXPIRE_MIN", "60"))
+    # Round down to whole minutes; the C# implementation does the
+    # same and the server-side validator hashes against this exact
+    # number — off-by-one seconds invalidate the URL.
+    expire_min = int(math.floor((_t.time() + minutes * 60) / 60) * 60)
+    raw = f"{key}.{expire_min}.{secret}"
+    md5 = hashlib.md5(raw.encode("ascii")).hexdigest().upper()
+    return (
+        f"{base.rstrip('/')}/Files/SecureLink"
+        f"?keyName={_q(key, safe='')}"
+        f"&expiredTime={expire_min}"
+        f"&md5hash={md5}"
+        f"&rename={_q(user_title or '', safe='')}"
+    )
+
+
+def build_aecis_signer():
+    """Returns (signer_fn, mode_label).
+    signer_fn(filepath, user_title) -> URL string ("" if not buildable).
+
+    Four modes, picked in documented-preference order:
+
+      1. SECURELINK   — AECIS_NGINX_HASH_KEY + AECIS_LINK_API_URL
+                        set. THE documented integration path
+                        (Issue_Gen/method.txt §4.2). Builds URLs
+                        against AECIS's api.upload proxy; no IAM
+                        credentials needed.
+      2. IAM signing  — AECIS_S3_BUCKET + AECIS_S3_REGION +
+                        AECIS_S3_ACCESS_KEY_ID + AECIS_S3_SECRET_ACCESS_KEY.
+                        Only useful if AECIS hands over a read-
+                        only key pair (off-path per their doc).
+      3. MANIFEST     — AECIS_PRESIGNED_MANIFEST=<path/to/file.json>.
+                        AECIS pre-signs URLs for us, we look them
+                        up by filepath. Right call for a one-shot
+                        seed when AECIS won't share secrets.
+      4. UNSIGNED     — fallback. <base>/<filepath>. 403s on the
+                        real private bucket; kept for dry-runs.
+    """
+    if os.environ.get("AECIS_NGINX_HASH_KEY") and os.environ.get("AECIS_LINK_API_URL"):
+        minutes = int(os.environ.get("AECIS_NGINX_EXPIRE_MIN", "60"))
+        def _securelink(filepath: str, user_title: str = "") -> str:
+            return _build_securelink(filepath, user_title) or ""
+        return _securelink, f"securelink (TTL {minutes}m, base={os.environ['AECIS_LINK_API_URL']})"
+
     bucket = os.environ.get("AECIS_S3_BUCKET")
     region = os.environ.get("AECIS_S3_REGION")
     ak = os.environ.get("AECIS_S3_ACCESS_KEY_ID")
@@ -80,20 +118,17 @@ def build_aecis_signer():
     if all([bucket, region, ak, sk]):
         import boto3
         from botocore.config import Config
-        # SigV4 + virtual-hosted addressing is required by ap-southeast-1
-        # and is the right default for any post-2014 AWS region. Without
-        # this boto3 falls back to SigV2 which 403s on the real bucket.
         client = boto3.client(
             "s3", region_name=region,
             aws_access_key_id=ak, aws_secret_access_key=sk,
             config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
         )
         expires = int(os.environ.get("AECIS_PRESIGN_EXPIRES", "3600"))
-        expires = max(60, min(expires, 604800))   # AWS max 7 days
-        def _sign(key: str) -> str:
+        expires = max(60, min(expires, 604800))
+        def _sign(filepath: str, user_title: str = "") -> str:
             return client.generate_presigned_url(
                 "get_object",
-                Params={"Bucket": bucket, "Key": key},
+                Params={"Bucket": bucket, "Key": filepath},
                 ExpiresIn=expires,
             )
         return _sign, f"iam-signed (TTL {expires}s)"
@@ -105,20 +140,18 @@ def build_aecis_signer():
             sys.stderr.write(f"ERROR: manifest not found at {manifest_path}\n")
             sys.exit(2)
         urls = json.loads(p.read_text(encoding="utf-8"))
-        # Allow either a flat {filepath: url} dict OR a list of
-        # {filepath, url}/{filepath, s3_url} records.
         if isinstance(urls, list):
             urls = {
                 r.get("filepath", ""): (r.get("url") or r.get("s3_url") or "")
                 for r in urls if isinstance(r, dict)
             }
-        def _lookup(key: str) -> str:
-            return urls.get(key, "")
+        def _lookup(filepath: str, user_title: str = "") -> str:
+            return urls.get(filepath, "")
         return _lookup, f"manifest ({len(urls)} entries)"
 
     base = resolve_s3_base()
-    def _unsigned(key: str) -> str:
-        return f"{base}/{key}"
+    def _unsigned(filepath: str, user_title: str = "") -> str:
+        return f"{base}/{filepath}"
     return _unsigned, "UNSIGNED — will 403 against a private bucket"
 
 
@@ -146,6 +179,7 @@ def iter_hse_rows(limit: int = 0):
                 "issue_name": row[4],
                 "description": row[12],
                 "filepath": filepath,
+                "user_title": (row[59] or "").strip(),
             }
             n += 1
             if limit and n >= limit:
@@ -153,7 +187,12 @@ def iter_hse_rows(limit: int = 0):
 
 
 def download_one(url: str, dest: Path, timeout: int = 30) -> tuple[str, int]:
-    """Returns (status, bytes). status in {ok, skip, fail}."""
+    """Returns (status, bytes). status in {ok, skip, fail}.
+
+    urllib.request follows 302 redirects by default (HTTPRedirectHandler
+    is in the default opener). That matters because AECIS's SecureLink
+    endpoint may either stream the file inline OR 302 to a fresh AWS
+    presigned URL — both flows resolve transparently here."""
     if dest.exists() and dest.stat().st_size > 0:
         return ("skip", dest.stat().st_size)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -188,7 +227,7 @@ def main():
 
     if args.dry_run:
         for r in rows[:20]:
-            url = signer(r["filepath"]) or "<no URL — signer returned empty>"
+            url = signer(r["filepath"], r.get("user_title", "")) or "<no URL — signer returned empty>"
             sys.stdout.write(f"  {url[:200]}\n")
         if len(rows) > 20:
             sys.stdout.write(f"  ... {len(rows) - 20} more\n")
@@ -203,7 +242,7 @@ def main():
     t0 = time.perf_counter()
 
     def task(row):
-        url = signer(row["filepath"])
+        url = signer(row["filepath"], row.get("user_title", ""))
         if not url:
             sys.stderr.write(f"  SKIP {row['filepath']}: signer returned empty URL\n")
             return row, "fail", 0
