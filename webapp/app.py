@@ -148,6 +148,92 @@ def get_r2() -> Any:
 #   AECIS_NGINX_HASH_KEY       shared MD5 secret from AECIS
 #   AECIS_LINK_API_URL         e.g. "https://upload.aecis.com"
 #   AECIS_NGINX_EXPIRE_MIN     URL TTL, default 60 minutes
+# Cách 1 (Issue_Gen/method.txt §4.1) — call PP.API.Web directly and
+# read DocumentUrl out of the response. The recommended integration
+# path per AECIS docs: no shared MD5 secret, no hash math. Required
+# env vars:
+#   AECIS_API_BASE     PP.API.Web base, e.g. "https://api.aecis.com"
+#   AECIS_API_TOKEN    bearer token from AECIS (Authorization: Bearer …)
+# Optional:
+#   AECIS_API_TIMEOUT  per-request timeout in seconds (default 10)
+#
+# Two query shapes the doc lists; we use /Documents because it
+# returns the photo list for a single issue with DocumentUrl pre-
+# built. The /Search endpoint also returns DocumentUrl but is
+# project-scoped and may paginate — left for a future caller.
+_aecis_doc_cache: dict[tuple[str, str], dict[str, str]] = {}
+
+
+def _aecis_api_issue_documents(project_id: str, issue_id: str) -> dict[str, str] | None:
+    """Fetch {filepath: document_url} for one issue via §4.1's
+    GET /api/Projects/{projectID}/Issues/{issueID}/Documents.
+
+    Returns None when AECIS_API_BASE/AECIS_API_TOKEN aren't set
+    (caller falls through to SecureLink mode). Caches per-issue
+    so a bulk pass over /admin/seed/aecis-urls doesn't re-fetch
+    the same issue's document list 5 times when it has 5 photos.
+    """
+    base = os.environ.get("AECIS_API_BASE")
+    token = os.environ.get("AECIS_API_TOKEN")
+    if not base or not token:
+        return None
+    cache_key = (str(project_id), str(issue_id))
+    if cache_key in _aecis_doc_cache:
+        return _aecis_doc_cache[cache_key]
+    import urllib.request
+    import urllib.error
+    timeout = int(os.environ.get("AECIS_API_TIMEOUT", "10"))
+    url = (
+        f"{base.rstrip('/')}/api/Projects/"
+        f"{urllib.parse.quote(str(project_id), safe='')}/Issues/"
+        f"{urllib.parse.quote(str(issue_id), safe='')}/Documents"
+    )
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "User-Agent": "hse-detector-seed/0.1",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError) as e:
+        log.warning("AECIS API call failed for issue %s: %s", issue_id, e)
+        return None
+    # Per the doc the response is {"Files": [{FilePath, DocumentUrl, ...}, ...]}.
+    # Real responses may wrap that in {"Data": {...}} or similar — be liberal
+    # about where we find the Files list.
+    files = (
+        data.get("Files")
+        or (data.get("Data") or {}).get("Files")
+        or data.get("documents")
+        or []
+    )
+    mapping = {}
+    for f in files:
+        if not isinstance(f, dict):
+            continue
+        fp = f.get("FilePath") or f.get("filePath") or f.get("filepath")
+        url_v = f.get("DocumentUrl") or f.get("documentUrl") or f.get("Url") or f.get("url")
+        if fp and url_v:
+            mapping[fp] = url_v
+    _aecis_doc_cache[cache_key] = mapping
+    return mapping
+
+
+def _aecis_api_url_for(project_id: str, issue_id: str, file_path: str) -> str | None:
+    """Cách 1 entrypoint: returns the DocumentUrl AECIS pre-built for
+    one photo. None when API isn't configured or the issue's
+    document list doesn't include this filepath."""
+    docs = _aecis_api_issue_documents(project_id, issue_id)
+    if docs is None:
+        return None
+    # Normalize the filepath the same way AECIS does (forward slashes
+    # only) before lookup — our CSV column already uses forward
+    # slashes but defend against backslash variants.
+    norm = file_path.replace("\\\\", "/").replace("\\", "/")
+    return docs.get(norm) or docs.get(file_path)
+
+
 def _aecis_securelink(file_path: str, user_title: str = "") -> str | None:
     """Build a SecureLink URL per Issue_Gen/method.txt §3.1. Returns
     None when the shared secret or base URL isn't configured."""
@@ -6102,14 +6188,18 @@ def admin_seed_aecis_urls(
         raise HTTPException(404, f"seed CSV not present at {_AECIS_CSV_REL_PATH}")
 
     # Mode selection in documented-preference order:
-    #   1. SecureLink — Issue_Gen/method.txt §4.2 — uses AECIS's
-    #      api.upload proxy with MD5-hashed URLs. The integration
-    #      path AECIS documents for third-party web apps.
-    #   2. IAM signed — boto3 SigV4 direct to S3. Only if AECIS
-    #      hands over an access key pair (off-path per their doc).
-    #   3. Unsigned — bare <base>/<key>. Will 403 in production
-    #      but useful for inspecting URL composition offline.
-    if os.environ.get("AECIS_NGINX_HASH_KEY") and os.environ.get("AECIS_LINK_API_URL"):
+    #   1. APICALL    — method.txt §4.1 "Cách 1" (recommended). Calls
+    #                   PP.API.Web /Documents per issue; response
+    #                   carries the DocumentUrl AECIS pre-built.
+    #                   Needs AECIS_API_BASE + AECIS_API_TOKEN.
+    #   2. SecureLink — method.txt §4.2 "Cách 2". We build the
+    #                   MD5-hashed URL ourselves using NginxHashKey.
+    #   3. IAM signed — boto3 SigV4 direct to S3 (off-path per doc).
+    #   4. Unsigned   — bare <base>/<key>. Will 403 in production.
+    if os.environ.get("AECIS_API_BASE") and os.environ.get("AECIS_API_TOKEN"):
+        mode = "apicall"
+        aecis_client = None
+    elif os.environ.get("AECIS_NGINX_HASH_KEY") and os.environ.get("AECIS_LINK_API_URL"):
         mode = "securelink"
         aecis_client = None
     else:
@@ -6120,8 +6210,10 @@ def admin_seed_aecis_urls(
         raise HTTPException(
             503,
             "No AECIS access configured. Pick one:\n"
-            "  • AECIS_NGINX_HASH_KEY + AECIS_LINK_API_URL  (the documented "
-            "SecureLink path — see Issue_Gen/method.txt)\n"
+            "  • AECIS_API_BASE + AECIS_API_TOKEN  (Cách 1 — recommended, "
+            "see Issue_Gen/method.txt §4.1)\n"
+            "  • AECIS_NGINX_HASH_KEY + AECIS_LINK_API_URL  (Cách 2 — "
+            "SecureLink, §4.2)\n"
             "  • AECIS_S3_BUCKET + AECIS_S3_REGION + AECIS_S3_ACCESS_KEY_ID "
             "+ AECIS_S3_SECRET_ACCESS_KEY  (IAM fallback)\n"
             "  • AECIS_PHOTO_S3_BASE  (dry-run only — will 403)",
@@ -6133,7 +6225,26 @@ def admin_seed_aecis_urls(
     bucket = os.environ.get("AECIS_S3_BUCKET")
     base = (_AECIS_PHOTO_S3_BASE or "").rstrip("/")
 
-    def _url_for(filepath: str, user_title: str = "") -> str:
+    def _url_for(filepath: str, user_title: str = "",
+                 project_id: str = "", issue_id: str = "") -> str:
+        if mode == "apicall":
+            # Cách 1 — pull DocumentUrl from PP.API.Web /Documents.
+            # AECIS pre-built it; we just relay. Per-issue cache in
+            # _aecis_doc_cache means N photos in one issue cost ONE
+            # API call, not N.
+            if project_id and issue_id:
+                url = _aecis_api_url_for(project_id, issue_id, filepath)
+                if url:
+                    return url
+            # If the API didn't return a URL for this filepath (or
+            # we don't have project_id/issue_id), fall through to
+            # SecureLink composition when possible — that path
+            # still produces a working URL provided NginxHashKey
+            # is also configured.
+            sl = _aecis_securelink(filepath, user_title)
+            if sl:
+                return sl
+            return ""
         if mode == "securelink":
             return _aecis_securelink(filepath, user_title) or ""
         if mode == "iam-signed":
@@ -6152,7 +6263,11 @@ def admin_seed_aecis_urls(
         def _gen_lines():
             n = 0
             for row in _iter_aecis_hse_rows():
-                url = _url_for(row["filepath"], row.get("user_title", ""))
+                url = _url_for(
+                    row["filepath"], row.get("user_title", ""),
+                    project_id=row.get("project_id", ""),
+                    issue_id=row.get("issue_id", ""),
+                )
                 if url:
                     yield url + "\n"
                 n += 1
@@ -6183,7 +6298,11 @@ def admin_seed_aecis_urls(
         yield json.dumps(meta, ensure_ascii=False)
         n = 0
         for row in _iter_aecis_hse_rows():
-            url = _url_for(row["filepath"], row.get("user_title", ""))
+            url = _url_for(
+                row["filepath"], row.get("user_title", ""),
+                project_id=row.get("project_id", ""),
+                issue_id=row.get("issue_id", ""),
+            )
             obj = {
                 "issue_id": row["issue_id"],
                 "project_id": row["project_id"],
