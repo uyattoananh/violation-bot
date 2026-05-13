@@ -2,6 +2,13 @@
 .env
 .env.*
 !.env.example
+# AECIS-supplied credentials and any other access-key CSVs that
+# land in Issue_Gen/ from the DB manager. Belt-and-braces against
+# accidentally `git add`ing the whole folder.
+Issue_Gen/*accessKeys*
+Issue_Gen/*credentials*
+Issue_Gen/*.env
+**/accessKeys*.csv
 
 # Python
 __pycache__/
