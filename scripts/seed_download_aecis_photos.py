@@ -164,10 +164,18 @@ def build_aecis_signer():
 
 def iter_hse_rows(limit: int = 0):
     """Yield {issue_id, project_id, issue_name, description, filepath}
-    for each HSE-disciplined photo row (DisciplineID=10)."""
+    for each HSE-disciplined photo row (DisciplineID=10).
+
+    Dedupes by FilePath: the CSV is the Issue -> IssueActivity ->
+    IssuePhoto join, so one photo can appear 2-3 times (once per
+    activity that references it). Without this dedupe, parallel
+    workers race on the same destination file and one wins the
+    rename while the others 403 with WinError 183 on Windows.
+    """
     if not CSV_PATH.exists():
         sys.stderr.write(f"ERROR: missing {CSV_PATH}\n")
         sys.exit(2)
+    seen: set[str] = set()
     n = 0
     with CSV_PATH.open(encoding="utf-8-sig", newline="") as f:
         r = csv.reader(f)
@@ -178,8 +186,9 @@ def iter_hse_rows(limit: int = 0):
             if row[6] != "10":
                 continue
             filepath = (row[61] or "").strip()
-            if not filepath:
+            if not filepath or filepath in seen:
                 continue
+            seen.add(filepath)
             yield {
                 "issue_id": row[0],
                 "project_id": row[2],
@@ -209,7 +218,12 @@ def download_one(url: str, dest: Path, timeout: int = 30) -> tuple[str, int]:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = resp.read()
         tmp.write_bytes(data)
-        tmp.rename(dest)
+        # Path.replace() is atomic-replace on both POSIX and Windows.
+        # Path.rename() crashes with WinError 183 on Windows when the
+        # destination exists, which happens whenever a previous run
+        # was interrupted mid-write or when parallel workers race on
+        # an iterator that emits the same key twice.
+        tmp.replace(dest)
         return ("ok", len(data))
     except Exception as e:  # noqa: BLE001
         if tmp.exists():
