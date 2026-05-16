@@ -26,6 +26,7 @@ runs/
 # Exception: the trained CLIP domain adapter is small (~1MB) and IS the
 # whole point of training — needs to ship to production via git.
 !src/clip_adapter.pt
+!src/clip_supcon_head.pt
 
 # Data
 data/raw/

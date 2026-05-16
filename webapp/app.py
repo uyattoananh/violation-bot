@@ -6403,6 +6403,750 @@ def admin_seed_aecis_urls(
     return StreamingResponse(_gen_json(), media_type="application/json")
 
 
+# ----------------------------------------------------------------------
+# /admin/seed/aecis-label-ingest — text-classification seed pipeline
+# ----------------------------------------------------------------------
+# Counterpart to scripts/seed_validate_aecis.py's vision gate, but
+# cheaper: classifies the AECIS-supplied (IssueName + Description) TEXT
+# via OpenRouter and trusts the LLM verdict against our 13-HSE-type
+# taxonomy. No vision call per photo, so cost drops from ~$0.014 to
+# ~$0.0008 per row (Sonnet 4.5 with prompt caching).
+#
+# Flow (matches the user's described architecture):
+#   1. Read photos from the AECIS manifest (already-downloaded files
+#      from scripts/seed_download_aecis_photos.py).
+#   2. Dedup by sha256 — AECIS attaches the same JPEG to many issues.
+#   3. Cross-check each AECIS label against our HSE violation list via
+#      OpenRouter. The LLM returns one of our 13 hse_type_slugs +
+#      9 location_slugs, or nulls if the label is administrative /
+#      workmanship / non-visual.
+#   4. CLIP-embed and upsert into photo_embeddings, sorted into the
+#      hse_type_slug "container" returned by the LLM. Skipped rows
+#      are left unembedded — they never enter our retrieval corpus.
+#
+# Cache lives at scripts/.aecis_label_cache.json (sha-keyed). Re-runs
+# are free for already-classified labels.
+#
+# Long runs (limit=0) can exceed HTTP timeout — operator pattern is
+# to call with limit=200 repeatedly until "remaining" hits 0.
+
+_AECIS_LABEL_CACHE_PATH = REPO_ROOT / "scripts" / ".aecis_label_cache.json"
+_AECIS_LABEL_SYSTEM_PROMPT = """You map AECIS construction-site \
+inspection issue text to one of our HSE-type + location slug pairs,
+but ONLY when the text matches a class in our list. Otherwise return
+nulls — do NOT force-fit.
+
+The text comes from AECIS's database — a short issue title plus a
+longer description, mix of English + Vietnamese.
+
+Decide in order:
+  1. Is the text describing a VISIBLE construction-site safety
+     violation that CLEARLY matches one of the provided HSE-type
+     slugs? Both halves must be true.
+
+  2. If YES: pick the matching hse_type_slug AND location_slug from
+     the provided lists. Both required.
+
+  3. If NO (any of the cases below) → return both slugs as null:
+
+     a) Administrative / paperwork: document submission, insurance
+        renewal, certificate updates, training schedules, meeting
+        notes, contractor records.
+
+     b) Workmanship / finishing complaints: silicone seal quality,
+        paint defects, cracks in finished tile, misaligned fixtures,
+        wrong color, surface dust.
+
+     c) Cleanup / resolution photos: post-incident cleanup,
+        demolition rubble, debris removal where the violation itself
+        isn't visible — the photo shows the AFTER, not the violation.
+
+     d) Edge cases NOT in our taxonomy: insufficient lighting,
+        drainage / plumbing issues, water puddles without a clear
+        slip context, signage that isn't safety-related,
+        documentation requests, environmental complaints, general
+        site management without a specific hazard.
+
+     e) Vague / placeholder text: "test", random Vietnamese names,
+        single words like "Façade", numbers, fewer than 10 chars
+        of meaningful content.
+
+Confidence: use the 0..1 slider HONESTLY. If the text vaguely
+suggests a class but doesn't clearly belong, set confidence < 0.6 so
+it gets filtered. Reserve > 0.8 for unambiguous text matches.
+
+Output ONE JSON object, no prose, no markdown fences:
+
+{"hse_type_slug": "<slug or null>", "location_slug": "<slug or null>",
+ "confidence": <0..1>,
+ "reasoning": "<10-30 words: what made you map it here OR why null>"}
+"""
+
+
+def _classify_aecis_label_text(
+    openai_client, issue_name: str, description: str,
+    hse_slugs: list[dict], loc_slugs: list[dict], model: str,
+) -> dict:
+    """Call OpenRouter to map the AECIS text to (hse, loc). Returns
+    dict with hse_type_slug, location_slug (may be None), confidence,
+    reasoning."""
+    hse_list = "\n".join(f"  - {h['slug']}: {h.get('label_en') or h['slug']}"
+                         for h in hse_slugs)
+    loc_list = "\n".join(f"  - {l['slug']}: {l.get('label_en') or l['slug']}"
+                         for l in loc_slugs)
+    user = (
+        f"HSE_TYPES:\n{hse_list}\n\n"
+        f"LOCATIONS:\n{loc_list}\n\n"
+        f'AECIS issue_name: "{(issue_name or "").strip()[:300]}"\n'
+        f'AECIS description: "{(description or "").strip()[:600]}"\n\n'
+        "Classify this text. Return JSON only."
+    )
+    resp = openai_client.chat.completions.create(
+        model=model,
+        max_tokens=250,
+        messages=[
+            {"role": "system", "content": _AECIS_LABEL_SYSTEM_PROMPT},
+            {"role": "user",   "content": user},
+        ],
+        extra_headers={"X-Title": os.environ.get("OPENROUTER_TITLE", "violation-bot-label-ingest")},
+    )
+    raw = (resp.choices[0].message.content or "").strip()
+    s, e = raw.find("{"), raw.rfind("}")
+    if s < 0 or e <= s:
+        return {"hse_type_slug": None, "location_slug": None,
+                "confidence": 0.0, "reasoning": f"no JSON: {raw[:80]}"}
+    try:
+        j = json.loads(raw[s : e + 1])
+    except Exception as ex:  # noqa: BLE001
+        return {"hse_type_slug": None, "location_slug": None,
+                "confidence": 0.0, "reasoning": f"parse err: {ex}"}
+    valid_hse = {h["slug"] for h in hse_slugs}
+    valid_loc = {l["slug"] for l in loc_slugs}
+    hse = j.get("hse_type_slug")
+    loc = j.get("location_slug")
+    if hse not in valid_hse:
+        hse = None
+    if loc not in valid_loc:
+        loc = None
+    return {
+        "hse_type_slug": hse,
+        "location_slug": loc,
+        "confidence": float(j.get("confidence") or 0),
+        "reasoning": (j.get("reasoning") or "")[:200],
+    }
+
+
+def _aecis_label_taxonomy() -> tuple[list[dict], list[dict]]:
+    """Return (hse_types, locations) for the seed-pipeline classifier.
+
+    hse_types comes from data/fine_hse_types_by_parent.json. locations
+    use a fixed AECIS-seed vocabulary — these slugs are BACKEND-ONLY
+    hints for pgvector k-NN retrieval (the inspector doesn't see them
+    on the frontend). Keep them internally consistent across seeded
+    rows; don't try to "normalize" against the production picker's
+    location list — that conflates two distinct semantic systems and
+    breaks k-NN match quality (we measured -14pp top-1 HSE / -20pp
+    top-1 LOC on 2026-05-14 when we tried)."""
+    fine_path = REPO_ROOT / "data" / "fine_hse_types_by_parent.json"
+    parents = {}
+    if fine_path.exists():
+        try:
+            parents = json.loads(fine_path.read_text(encoding="utf-8")).get("parents", {})
+        except Exception:  # noqa: BLE001
+            parents = {}
+    hse_types = [{"slug": k, "label_en": k.replace("_", " ").title()}
+                 for k in sorted(parents.keys())]
+    locations = [
+        {"slug": "Common_working_area", "label_en": "Common working area"},
+        {"slug": "Confined_space",      "label_en": "Confined space"},
+        {"slug": "Excavation_or_pit",   "label_en": "Excavation / pit"},
+        {"slug": "Height_work",         "label_en": "Work at height"},
+        {"slug": "Storage_area",        "label_en": "Storage area"},
+        {"slug": "Traffic_route",       "label_en": "Traffic route"},
+        {"slug": "Mechanical_zone",     "label_en": "Mechanical zone"},
+        {"slug": "Electrical_zone",     "label_en": "Electrical zone"},
+        {"slug": "Fire_exit",           "label_en": "Fire exit"},
+    ]
+    return hse_types, locations
+
+
+_VISION_VERIFY_PROMPT = """Look at this construction-site photograph
+and decide whether it visibly depicts the proposed safety violation.
+
+The slug below was derived from text labels and may be wrong. Common
+failures we have seen:
+  - The photo shows the AFTER state (cleanup, repaired wall) rather
+    than the violation itself.
+  - The text described one issue, but the actual photo shows
+    something else (office, workmanship, plumbing, lighting).
+  - The photo is a paperwork shot, a closeup of a finished surface,
+    or otherwise not a safety violation at all.
+
+Be strict. Only return match=true if the photograph CLEARLY shows
+the proposed violation type in a way an inspector would document.
+
+Proposed slug: {slug}
+Text label (context only, may be misleading): {text}
+
+Return ONE JSON object, no prose, no markdown fences:
+{{"match": true | false, "confidence": <0..1>,
+  "reasoning": "<10-25 words: what made you say yes or no>"}}
+"""
+
+
+def _vision_verify_match(openai_client, img_path: Path, slug: str,
+                         text_context: str, model: str) -> dict:
+    """Ask Gemini Flash 2.5 whether the photo matches the proposed slug.
+
+    Returns dict with `match` (bool), `confidence` (0..1), `reasoning`.
+    On parse failure returns match=False with a reasoning trace —
+    safer to reject than embed a bad row."""
+    import base64 as _b64
+    sys_p = _VISION_VERIFY_PROMPT.format(
+        slug=slug, text=(text_context or "")[:200])
+    b64 = _b64.standard_b64encode(img_path.read_bytes()).decode("ascii")
+    suffix = img_path.suffix.lower().lstrip(".")
+    mt = {"jpg":"image/jpeg","jpeg":"image/jpeg","png":"image/png",
+          "webp":"image/webp","heic":"image/heic"}.get(suffix, "image/jpeg")
+    try:
+        resp = openai_client.chat.completions.create(
+            model=model, max_tokens=200,
+            messages=[
+                {"role":"system","content": sys_p},
+                {"role":"user","content":[
+                    {"type":"image_url",
+                     "image_url":{"url":f"data:{mt};base64,{b64}"}},
+                ]},
+            ],
+        )
+    except Exception as e:  # noqa: BLE001
+        return {"match": False, "confidence": 0.0,
+                "reasoning": f"vision call failed: {str(e)[:120]}"}
+    raw = (resp.choices[0].message.content or "").strip()
+    s, e = raw.find("{"), raw.rfind("}")
+    if s < 0 or e <= s:
+        return {"match": False, "confidence": 0.0,
+                "reasoning": f"no JSON: {raw[:80]}"}
+    try:
+        j = json.loads(raw[s : e + 1])
+    except Exception as ex:  # noqa: BLE001
+        return {"match": False, "confidence": 0.0,
+                "reasoning": f"parse err: {ex}"}
+    return {
+        "match": bool(j.get("match")),
+        "confidence": float(j.get("confidence") or 0),
+        "reasoning": (j.get("reasoning") or "")[:200],
+    }
+
+
+@app.post("/admin/seed/aecis-label-ingest", include_in_schema=False)
+def admin_seed_aecis_label_ingest(
+    request: Request,
+    limit: int = 100,
+    dry_run: bool = False,
+    model: str = "",
+    label_source: str = "aecis_labelled_v2_visionchecked",
+    min_confidence: float = 0.7,
+    min_vision_confidence: float = 0.7,
+    skip_vision_verify: bool = False,
+    workers: int = 1,
+    max_per_class: int = 80,
+    skip_disciplines: str = "0,169",
+):
+    """Text-classify AECIS labels via OpenRouter and ingest matching
+    photos into photo_embeddings, sorted by the LLM-chosen HSE bucket.
+
+    Query params:
+      limit          max unique sha256s to process this call (default 100,
+                     0 = all — risks HTTP timeout on a fresh dataset)
+      dry_run        classify only; skip CLIP embed + DB upsert
+      model          OpenRouter model id (default: $OPENROUTER_MODEL or
+                     'anthropic/claude-sonnet-4.5')
+      label_source   photo_embeddings.label_source for new rows
+                     (default 'aecis_labelled_v1')
+      min_confidence drop classifications below this LLM-reported
+                     confidence (default 0.6). Helps reject photos
+                     whose AECIS label doesn't cleanly map to our HSE
+                     list — the LLM still picks a slug but flags it
+                     low-confidence, and we exclude it from the seed.
+
+    Returns JSON counts + a 'remaining' hint so the operator can
+    re-invoke until exhaustion.
+    """
+    if not _admin_authed(request):
+        raise HTTPException(403, "admin required")
+
+    manifest_path = REPO_ROOT / "Issue_Gen" / "photos" / "manifest.jsonl"
+    if not manifest_path.exists():
+        raise HTTPException(404, f"manifest missing at {manifest_path}")
+
+    # Default to the production model (Gemini Flash 2.5) — see CLAUDE.md
+    # "Live debugging path". The repo `.env` override of Sonnet 4.5 is
+    # stale dev config; production VPS env runs gemini-2.5-flash and our
+    # honest eval shows it beats Haiku + Sonnet on every metric.
+    model = model or "google/gemini-2.5-flash"
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise HTTPException(503, "OPENROUTER_API_KEY not set")
+
+    # Load text-classifier cache
+    cache: dict[str, dict] = {}
+    if _AECIS_LABEL_CACHE_PATH.exists():
+        try:
+            cache = json.loads(_AECIS_LABEL_CACHE_PATH.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            cache = {}
+
+    # Load vision-verify cache (sha-keyed). The vision check is the
+    # second gate: after text classifier proposes a slug, we send the
+    # photo to Gemini Flash 2.5 and only embed if it confirms.
+    _vision_cache_path = REPO_ROOT / "scripts" / ".aecis_vision_verify_cache.json"
+    vision_cache: dict[str, dict] = {}
+    if _vision_cache_path.exists():
+        try:
+            vision_cache = json.loads(_vision_cache_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            vision_cache = {}
+
+    hse_types, locations = _aecis_label_taxonomy()
+    if not hse_types:
+        raise HTTPException(503, "no HSE taxonomy available — "
+                                 "data/fine_hse_types_by_parent.json missing")
+
+    # Dedup manifest by sha256 (compute sha lazily — only for rows we
+    # haven't seen yet). Windows-reserved chars in filepath get sanitized.
+    import hashlib as _hashlib
+    photos_root = REPO_ROOT / "Issue_Gen" / "photos"
+    def _safe(fp: str) -> str:
+        out = fp
+        for c in ':*?"<>|':
+            out = out.replace(c, "_")
+        return out
+
+    # Persisted seen-filepaths cache — paths we've already judged
+    # (passed or rejected) in prior calls. Skipping them avoids the
+    # ~10ms-per-file sha re-computation on a manifest that's now 270k+
+    # lines. Path-keyed (not sha-keyed) because checking happens BEFORE
+    # we even open the file.
+    _seen_paths_path = REPO_ROOT / "scripts" / ".aecis_seen_filepaths.json"
+    seen_paths: set[str] = set()
+    if _seen_paths_path.exists():
+        try:
+            seen_paths = set(json.loads(_seen_paths_path.read_text(encoding="utf-8")))
+        except Exception:  # noqa: BLE001
+            seen_paths = set()
+
+    # Pre-filter disciplines that have <2% pass rate (mostly noise).
+    # Default 0+169 = uncategorized + project-specific tag, both
+    # dominated by admin/workmanship records that don't visually
+    # depict HSE violations.
+    skip_disc_set = {s.strip() for s in skip_disciplines.split(",") if s.strip()}
+
+    by_sha: dict[str, dict] = {}
+    n_lines = 0
+    n_skipped_discipline = 0
+    n_skipped_already_judged = 0
+    # Validation counters — surfaced in response so the operator can
+    # see how many manifest rows failed the cheap pre-flight checks
+    # (missing files, suspiciously tiny downloads, unsupported
+    # suffixes). Catching these here means embed_image() doesn't get
+    # called on a corrupted byte payload that would just raise.
+    n_skipped_missing = 0
+    n_skipped_tiny = 0
+    n_skipped_bad_suffix = 0
+    _VALID_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
+    _MIN_PHOTO_BYTES = 1024   # AECIS 404 responses are sub-1KB JSON
+    with manifest_path.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            n_lines += 1
+            fp = rec.get("filepath", "")
+            # Skip 1: filepath already judged (passed or rejected) in
+            # a prior call — saves the sha re-compute. Path-keyed.
+            if fp in seen_paths:
+                n_skipped_already_judged += 1
+                continue
+            # Skip 2: discipline pre-filter (default 0+169 — noise).
+            if skip_disc_set and str(rec.get("discipline_id", "")) in skip_disc_set:
+                n_skipped_discipline += 1
+                continue
+            local = photos_root / _safe(fp)
+            if not local.exists():
+                n_skipped_missing += 1
+                continue
+            try:
+                sz = local.stat().st_size
+            except OSError:
+                n_skipped_missing += 1
+                continue
+            if sz < _MIN_PHOTO_BYTES:
+                n_skipped_tiny += 1
+                continue
+            if local.suffix.lower() not in _VALID_SUFFIXES:
+                n_skipped_bad_suffix += 1
+                continue
+            sha = _hashlib.sha256(local.read_bytes()).hexdigest()
+            if sha in by_sha:
+                continue
+            by_sha[sha] = {**rec, "local_path": str(local), "sha256": sha}
+
+    db = get_db()
+    # Already-ingested shas under this label_source — paginate to skip Supabase's 1k cap.
+    # Also count per-class so we can enforce a max_per_class diversity quota
+    # below: stops the seed corpus from over-concentrating in one bucket
+    # (Housekeeping_general routinely captures 80%+ of AECIS text-passes).
+    existing: set[str] = set()
+    class_counts: dict[str, int] = {}
+    off, page = 0, 1000
+    while True:
+        rows = (db.table("photo_embeddings").select("sha256, hse_type_slug")
+                  .eq("label_source", label_source)
+                  .range(off, off + page - 1).execute().data or [])
+        for r in rows:
+            if r.get("sha256"):
+                existing.add(r["sha256"])
+            h = r.get("hse_type_slug")
+            if h:
+                class_counts[h] = class_counts.get(h, 0) + 1
+        if len(rows) < page:
+            break
+        off += page
+
+    from openai import OpenAI
+    or_client = OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
+
+    counts = {
+        "manifest_lines": n_lines, "unique_sha": len(by_sha),
+        "skipped_already_judged_path": n_skipped_already_judged,
+        "skipped_discipline_filtered": n_skipped_discipline,
+        "skipped_missing_file": n_skipped_missing,
+        "skipped_tiny": n_skipped_tiny,
+        "skipped_bad_suffix": n_skipped_bad_suffix,
+        "skipped_already_ingested": 0, "skipped_text_empty": 0,
+        "classified_passed": 0, "classified_rejected": 0,
+        "vision_verified": 0, "vision_rejected": 0,
+        "embedded": 0, "errors": 0,
+        "by_hse_type": {},
+    }
+    processed = 0
+    embed_image = None   # lazy — only import when we actually embed
+
+    # Parallel branch — uses N threads to fan out the per-photo
+    # OpenRouter calls. Each photo's text/vision/embed sequence is
+    # independent so a thread pool gives near-linear speedup until
+    # OpenRouter latency stops being the bottleneck (~8 workers in
+    # practice). Cache writes are protected by a lock; the Supabase
+    # client and CLIP embed are already thread-safe.
+    if workers > 1:
+        import threading
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        # Preload CLIP once before fanning out — module-level state in
+        # src.embeddings makes the first call slow and serializes the
+        # threads if we leave it lazy.
+        if embed_image is None:
+            from src.embeddings import embed_image as _embed
+            embed_image = _embed
+            try:
+                # warm cache with first viable photo
+                first = next(iter(by_sha.values()))
+                _ = embed_image(Path(first["local_path"]))
+            except Exception:  # noqa: BLE001
+                pass
+
+        cache_lock = threading.Lock()
+        vision_cache_lock = threading.Lock()
+        existing_lock = threading.Lock()
+        counters_lock = threading.Lock()
+
+        # Pick at most `limit` candidates up-front (already-skipped
+        # are filtered out so all submitted work consumes the budget).
+        candidates = []
+        for sha, rec in by_sha.items():
+            with existing_lock:
+                if sha in existing:
+                    counts["skipped_already_ingested"] += 1
+                    continue
+            issue_name = rec.get("issue_name", "") or ""
+            description = rec.get("description", "") or ""
+            if not (issue_name or description).strip():
+                counts["skipped_text_empty"] += 1
+                continue
+            candidates.append((sha, rec, issue_name, description))
+            if limit and len(candidates) >= limit:
+                break
+
+        def _process_one(args):
+            sha, rec, issue_name, description = args
+            ck = (issue_name.strip()[:300] + "||" + description.strip()[:600])
+            with cache_lock:
+                verdict = cache.get(ck)
+            if verdict is None:
+                try:
+                    verdict = _classify_aecis_label_text(
+                        or_client, issue_name, description,
+                        hse_types, locations, model,
+                    )
+                except Exception:  # noqa: BLE001
+                    return {"sha": sha, "outcome": "error"}
+                with cache_lock:
+                    cache[ck] = verdict
+            hse_slug = verdict.get("hse_type_slug")
+            loc_slug = verdict.get("location_slug")
+            conf = float(verdict.get("confidence") or 0)
+            if not hse_slug or not loc_slug or conf < min_confidence:
+                return {"sha": sha,
+                        "outcome": ("low_conf" if hse_slug and loc_slug else "rejected")}
+            if dry_run:
+                return {"sha": sha, "outcome": "passed_dryrun", "hse": hse_slug}
+            if not skip_vision_verify:
+                with vision_cache_lock:
+                    v = vision_cache.get(sha)
+                if v is None:
+                    local_p = Path(rec["local_path"])
+                    v = _vision_verify_match(
+                        or_client, local_p, hse_slug,
+                        f"{issue_name[:120]} | {description[:200]}", model,
+                    )
+                    with vision_cache_lock:
+                        vision_cache[sha] = v
+                if not v.get("match") or v.get("confidence", 0) < 0.5:
+                    return {"sha": sha, "outcome": "vision_rejected",
+                            "hse": hse_slug}
+            try:
+                emb = embed_image(Path(rec["local_path"])).tolist()
+                db.table("photo_embeddings").upsert({
+                    "sha256": sha,
+                    "hse_type_slug": hse_slug,
+                    "location_slug": loc_slug,
+                    "label_source": label_source,
+                    "project_code": f"P_{rec.get('project_id') or 'AECIS'}",
+                    "issue_id": str(rec.get("issue_id") or ""),
+                    "source_path": f"aecis_labelled/{rec.get('filepath','')}",
+                    "embedding": emb,
+                }, on_conflict="sha256").execute()
+                return {"sha": sha, "outcome": "embedded", "hse": hse_slug,
+                        "loc": loc_slug}
+            except Exception:  # noqa: BLE001
+                return {"sha": sha, "outcome": "embed_error", "hse": hse_slug}
+
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            for r in ex.map(_process_one, candidates):
+                with counters_lock:
+                    oc = r.get("outcome")
+                    if oc == "rejected":
+                        counts["classified_rejected"] += 1
+                    elif oc == "low_conf":
+                        counts["classified_low_confidence"] = counts.get("classified_low_confidence", 0) + 1
+                    elif oc == "passed_dryrun":
+                        counts["classified_passed"] += 1
+                        counts["by_hse_type"][r["hse"]] = counts["by_hse_type"].get(r["hse"], 0) + 1
+                    elif oc == "vision_rejected":
+                        counts["classified_passed"] += 1
+                        counts["vision_rejected"] += 1
+                    elif oc == "embedded":
+                        counts["classified_passed"] += 1
+                        counts["vision_verified"] += 1
+                        counts["embedded"] += 1
+                        counts["by_hse_type"][r["hse"]] = counts["by_hse_type"].get(r["hse"], 0) + 1
+                        with existing_lock:
+                            existing.add(r["sha"])
+                    elif oc == "embed_error":
+                        counts["errors"] += 1
+                    elif oc == "error":
+                        counts["errors"] += 1
+        processed = len(candidates)
+        # skip the serial loop below — drop to cache-write + response.
+        # We use the same persist + remaining-compute logic below by
+        # short-circuiting with a sentinel: setting by_sha to {} so the
+        # serial 'for' iterates over nothing.
+        by_sha = {}
+
+    for sha, rec in by_sha.items():
+        if limit and processed >= limit:
+            break
+        if sha in existing:
+            counts["skipped_already_ingested"] += 1
+            continue
+
+        issue_name = rec.get("issue_name", "") or ""
+        description = rec.get("description", "") or ""
+        if not (issue_name or description).strip():
+            counts["skipped_text_empty"] += 1
+            continue
+
+        # Cache key on the text — same text always maps the same way.
+        ck = (issue_name.strip()[:300] + "||" + description.strip()[:600])
+        verdict = cache.get(ck)
+        was_cache_hit = verdict is not None
+        if not was_cache_hit:
+            try:
+                verdict = _classify_aecis_label_text(
+                    or_client, issue_name, description,
+                    hse_types, locations, model,
+                )
+            except Exception:  # noqa: BLE001
+                counts["errors"] += 1
+                processed += 1   # the OpenRouter attempt was the expensive op
+                continue
+            cache[ck] = verdict
+
+        hse_slug = verdict.get("hse_type_slug")
+        loc_slug = verdict.get("location_slug")
+        conf = float(verdict.get("confidence") or 0)
+        # Low-confidence pick (LLM picked a slug but flagged it weak)
+        # gets treated as a rejection. Helps when an AECIS label doesn't
+        # actually map to anything in our HSE list — the LLM is forced
+        # to pick something but returns low confidence to signal that.
+        if not hse_slug or not loc_slug or conf < min_confidence:
+            if hse_slug and loc_slug and conf < min_confidence:
+                counts["classified_low_confidence"] = counts.get("classified_low_confidence", 0) + 1
+            else:
+                counts["classified_rejected"] += 1
+            seen_paths.add(rec.get("filepath", ""))
+            # Only burn the per-call limit slot when this was a *fresh*
+            # OpenRouter call. Cache-hit rejections are free — without
+            # this we'd waste every batch re-rejecting the first N
+            # already-decided photos and never reach the remainder.
+            if not was_cache_hit:
+                processed += 1
+            continue
+
+        counts["classified_passed"] += 1
+        counts["by_hse_type"][hse_slug] = counts["by_hse_type"].get(hse_slug, 0) + 1
+        if dry_run:
+            if not was_cache_hit:
+                processed += 1
+            continue
+
+        # ───── Per-class quota gate ─────
+        # Cap each hse_type at max_per_class total rows under this
+        # label_source. Stops Housekeeping_general (the typical
+        # over-represented bucket) from drowning out rare classes
+        # and biasing top-1 retrieval.
+        #
+        # NOTE: quota-skipped photos do NOT consume the `processed`
+        # budget — otherwise a batch full of over-quota candidates
+        # would exhaust the limit without finding any embeddable
+        # rare-class photo, and the loop would never progress.
+        if max_per_class > 0 and class_counts.get(hse_slug, 0) >= max_per_class:
+            counts["skipped_class_quota"] = counts.get("skipped_class_quota", 0) + 1
+            seen_paths.add(rec.get("filepath", ""))
+            continue
+
+        # ───── Vision-verify gate ─────
+        # Sends photo + proposed slug to Gemini Flash 2.5. Only embeds
+        # when the model confirms the photo matches. Filters out the
+        # ~65% mismatch rate observed in the May-13/14 force-fit
+        # investigation (see CLAUDE.md "Seed-pipeline failure mode").
+        # Cache key is sha256 — once a photo is judged, future runs
+        # reuse the verdict for free.
+        if not skip_vision_verify:
+            v_verdict = vision_cache.get(sha)
+            v_was_cache_hit = v_verdict is not None
+            if v_verdict is None:
+                local_p = Path(rec["local_path"])
+                v_verdict = _vision_verify_match(
+                    or_client, local_p, hse_slug,
+                    f"{issue_name[:120]} | {description[:200]}", model,
+                )
+                vision_cache[sha] = v_verdict
+            if not v_verdict.get("match") or v_verdict.get("confidence", 0) < min_vision_confidence:
+                counts["vision_rejected"] += 1
+                seen_paths.add(rec.get("filepath", ""))
+                # An expensive vision call (or its cache hit) still
+                # counts as work done — count it toward the limit so
+                # the loop makes forward progress.
+                if not (was_cache_hit and v_was_cache_hit):
+                    processed += 1
+                continue
+            counts["vision_verified"] += 1
+
+        # CLIP-embed and upsert (this is the slow part — ~1s/photo on CPU).
+        # Embedding always counts toward the limit even on cache hit,
+        # since embedding is the actual per-photo cost.
+        if embed_image is None:
+            from src.embeddings import embed_image as _embed
+            embed_image = _embed
+        try:
+            emb = embed_image(Path(rec["local_path"])).tolist()
+            db.table("photo_embeddings").upsert({
+                "sha256": sha,
+                "hse_type_slug": hse_slug,
+                "location_slug": loc_slug,
+                "label_source": label_source,
+                "project_code": f"P_{rec.get('project_id') or 'AECIS'}",
+                "issue_id": str(rec.get("issue_id") or ""),
+                "source_path": f"aecis_labelled/{rec.get('filepath','')}",
+                "embedding": emb,
+            }, on_conflict="sha256").execute()
+            existing.add(sha)
+            class_counts[hse_slug] = class_counts.get(hse_slug, 0) + 1
+            counts["embedded"] += 1
+            seen_paths.add(rec.get("filepath", ""))
+        except Exception:  # noqa: BLE001
+            counts["errors"] += 1
+        processed += 1
+
+    # Persist caches (atomic via tmp + replace)
+    try:
+        _AECIS_LABEL_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _AECIS_LABEL_CACHE_PATH.with_suffix(_AECIS_LABEL_CACHE_PATH.suffix + ".tmp")
+        tmp.write_text(json.dumps(cache, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_AECIS_LABEL_CACHE_PATH)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        _vision_cache_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _vision_cache_path.with_suffix(_vision_cache_path.suffix + ".tmp")
+        tmp.write_text(json.dumps(vision_cache, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_vision_cache_path)
+    except Exception:  # noqa: BLE001
+        pass
+    # Persist seen filepaths — drives the cheap-skip on the next call.
+    try:
+        _seen_paths_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _seen_paths_path.with_suffix(_seen_paths_path.suffix + ".tmp")
+        tmp.write_text(json.dumps(sorted(seen_paths), ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_seen_paths_path)
+    except Exception:  # noqa: BLE001
+        pass
+
+    # remaining = uniques we haven't decided yet. Decided = already
+    # embedded under this label_source OR text-cached as a rejection
+    # (either null slug or below the current min_confidence threshold).
+    decided = 0
+    for s, rec in by_sha.items():
+        if s in existing:
+            decided += 1
+            continue
+        in_ = (rec.get("issue_name", "") or "").strip()[:300]
+        de_ = (rec.get("description", "") or "").strip()[:600]
+        v = cache.get(in_ + "||" + de_)
+        if not v:
+            continue
+        hse_v = v.get("hse_type_slug")
+        loc_v = v.get("location_slug")
+        conf_v = float(v.get("confidence") or 0)
+        if not hse_v or not loc_v or conf_v < min_confidence:
+            decided += 1
+    counts["remaining"] = max(0, len(by_sha) - decided)
+    counts["min_confidence"] = min_confidence
+    # Cumulative count under this label_source — drivers use this to
+    # decide when to run a quality-gate eval (see
+    # tmp/loop_ingest_with_safeguard.sh).
+    counts["total_in_label_source"] = len(existing)
+    counts["model"] = model
+    counts["dry_run"] = dry_run
+    return JSONResponse(counts)
+
+
 @app.get("/admin/seed/aecis-api-probe", include_in_schema=False)
 def admin_seed_aecis_api_probe(
     request: Request,
@@ -6880,3 +7624,223 @@ def metrics():
         "jobs_error": errs.count,
         "training_set_size": _training_set_size(),
     }
+
+
+# ----------------------------------------------------------------------
+# /admin/eval/random-labelled — end-to-end accuracy of the RAG classifier
+# ----------------------------------------------------------------------
+# Sample N already-labelled photos from photo_embeddings, run each
+# through src.zero_shot.classify_image() (CLIP → pgvector k-NN → Sonnet),
+# and compare the predicted (hse_type_slug, location_slug) against the
+# stored ground-truth label.
+#
+# Leak guard: each sampled sha256 is marked is_holdout=TRUE for the
+# duration of the call so the RPC `match_photo_embeddings` excludes
+# the photo from its own k-NN candidates. Flags are restored in the
+# finally block — eval crashes won't strand holdout flips.
+#
+# Only `label_source='aecis_labelled_v1'` is supported by default
+# because those rows have local image files at Issue_Gen/photos/.
+# Production `manual` rows would need an R2 fetch which is left for
+# a follow-up. Pass label_source explicitly to opt in.
+
+@app.post("/admin/eval/random-labelled", include_in_schema=False)
+def admin_eval_random_labelled(
+    request: Request,
+    sample_size: int = 100,
+    label_source: str = "aecis_labelled_v1",
+    model: str = "",
+    seed: int = 42,
+    rag_neighbours: int = -1,
+    samples: int = 0,
+):
+    """End-to-end eval: sample N labelled photos, classify each via the
+    production pipeline, compare predicted vs stored labels.
+
+    Query params:
+      sample_size   how many photos to sample (default 100)
+      label_source  source filter (default 'aecis_labelled_v1' — only
+                    source with reliable local files right now)
+      model         override OpenRouter model id; default = production
+      seed          random seed for reproducibility (default 42)
+
+    Returns per-photo result + aggregate hse/loc top-1 accuracy.
+    """
+    if not _admin_authed(request):
+        raise HTTPException(403, "admin required")
+
+    db = get_db()
+    photos_root = REPO_ROOT / "Issue_Gen" / "photos"
+
+    # Sample candidates that have non-null labels.
+    candidates = (db.table("photo_embeddings")
+        .select("sha256, hse_type_slug, location_slug, source_path, issue_id")
+        .eq("label_source", label_source)
+        .not_.is_("hse_type_slug", "null")
+        .not_.is_("location_slug", "null")
+        .execute().data or [])
+    if not candidates:
+        raise HTTPException(404,
+            f"no labelled rows with label_source={label_source!r}. "
+            "Run /admin/seed/aecis-label-ingest first.")
+
+    import random
+    # Determinism: sort candidates by sha256 so the random.sample below
+    # picks the same N photos every run with the same seed. Without this,
+    # Supabase's row-order is non-deterministic across calls and
+    # back-to-back evals of the same configuration drift 5-10pp on
+    # top-1 / top-3 metrics — far larger than any real intervention
+    # we're trying to measure. See CLAUDE.md "Live debugging path".
+    candidates.sort(key=lambda r: r.get("sha256") or "")
+    rng = random.Random(seed)
+    sample = rng.sample(candidates, min(sample_size, len(candidates)))
+
+    # For label_source='manual', the original disk paths are stale
+    # (folder naming convention changed since the original
+    # auto_seed_from_disk.py run). Look up by sha256 against a
+    # rebuilt map at tmp/manual_corpus_sha_map.json produced by
+    # scripts/seed_walk_manual_corpus.py.
+    manual_corpus_root: Path | None = None
+    manual_sha_map: dict[str, str] = {}
+    if label_source == "manual":
+        sha_map_path = REPO_ROOT / "tmp" / "manual_corpus_sha_map.json"
+        if sha_map_path.exists():
+            try:
+                blob = json.loads(sha_map_path.read_text(encoding="utf-8"))
+                manual_corpus_root = Path(blob.get("root", ""))
+                manual_sha_map = blob.get("sha_to_relpath") or {}
+            except Exception:  # noqa: BLE001
+                pass
+        if not manual_sha_map:
+            raise HTTPException(503,
+                "label_source='manual' needs tmp/manual_corpus_sha_map.json. "
+                "Run scripts/seed_walk_manual_corpus.py first.")
+
+    def _local_path(source_path: str, sha256: str = "") -> Path | None:
+        # Manual rows: resolve via sha → corpus root + relative path.
+        if label_source == "manual" and sha256:
+            rel = manual_sha_map.get(sha256)
+            if not rel or not manual_corpus_root:
+                return None
+            p = manual_corpus_root / rel
+            return p if p.exists() else None
+        # AECIS labelled / seed rows: source_path points into Issue_Gen/photos/.
+        if not source_path:
+            return None
+        rel = source_path
+        for prefix in ("aecis_labelled/", "aecis_seed/"):
+            if rel.startswith(prefix):
+                rel = rel[len(prefix):]
+                break
+        for c in ':*?"<>|':
+            rel = rel.replace(c, "_")
+        p = photos_root / rel
+        return p if p.exists() else None
+
+    resolved = []
+    for s in sample:
+        p = _local_path(s.get("source_path", ""), s.get("sha256", ""))
+        if p:
+            resolved.append({**s, "_path": p})
+    if not resolved:
+        raise HTTPException(404,
+            "sampled rows but no local images found under "
+            f"{photos_root}. Run the seed downloader.")
+
+    # Leak guard: flip is_holdout for the sampled shas. Wrapped in
+    # try/finally so an eval crash always restores them.
+    sha_list = [r["sha256"] for r in resolved]
+    db.table("photo_embeddings").update({"is_holdout": True}) \
+        .in_("sha256", sha_list).execute()
+
+    per_photo = []
+    hse_hits = loc_hits = 0
+    hse_top3_hits = loc_top3_hits = 0
+    n = 0
+    err = 0
+    import time as _time
+    started_at = _time.time()
+    chosen_model = (model or os.environ.get("OPENROUTER_MODEL")
+                    or DEFAULT_OPENROUTER_MODEL)
+    try:
+        for r in resolved:
+            n += 1
+            try:
+                kw = {"model": chosen_model}
+                if rag_neighbours >= 0:
+                    kw["rag_neighbours"] = rag_neighbours
+                if samples > 0:
+                    kw["samples"] = samples
+                cls = classify_image(r["_path"], **kw)
+            except Exception as e:  # noqa: BLE001
+                err += 1
+                per_photo.append({
+                    "sha256": r["sha256"][:12],
+                    "gt_hse": r["hse_type_slug"],
+                    "gt_loc": r["location_slug"],
+                    "predicted_hse": None,
+                    "predicted_loc": None,
+                    "error": str(e)[:200],
+                })
+                continue
+            # Classification.hse_type / .location are AxisLabel dataclasses;
+            # pull slug + confidence off them. Top-3 lists come from
+            # *_alternatives — these are the runner-ups the inspector
+            # can one-tap into on the review card. We score top-1 and
+            # top-3 because both matter for the UX target (50% / 80%).
+            pred_hse = cls.hse_type.slug if cls.hse_type else None
+            pred_loc = cls.location.slug if cls.location else None
+            pred_conf = cls.hse_type.confidence if cls.hse_type else None
+            hse_top3 = [pred_hse] + [a.slug for a in (cls.hse_type_alternatives or [])
+                                     if getattr(a, "slug", None) and a.slug != pred_hse]
+            loc_top3 = [pred_loc] + [a.slug for a in (cls.location_alternatives or [])
+                                     if getattr(a, "slug", None) and a.slug != pred_loc]
+            hse_top3 = [s for s in hse_top3 if s][:3]
+            loc_top3 = [s for s in loc_top3 if s][:3]
+            hse_ok = (pred_hse == r["hse_type_slug"])
+            loc_ok = (pred_loc == r["location_slug"])
+            hse_top3_ok = r["hse_type_slug"] in hse_top3
+            loc_top3_ok = r["location_slug"] in loc_top3
+            if hse_ok: hse_hits += 1
+            if loc_ok: loc_hits += 1
+            if hse_top3_ok: hse_top3_hits += 1
+            if loc_top3_ok: loc_top3_hits += 1
+            per_photo.append({
+                "sha256": r["sha256"][:12],
+                "gt_hse": r["hse_type_slug"],
+                "gt_loc": r["location_slug"],
+                "predicted_hse": pred_hse,
+                "predicted_loc": pred_loc,
+                "hse_top3": hse_top3,
+                "loc_top3": loc_top3,
+                "hse_ok": hse_ok,
+                "loc_ok": loc_ok,
+                "hse_top3_ok": hse_top3_ok,
+                "loc_top3_ok": loc_top3_ok,
+                "confidence": pred_conf,
+            })
+    finally:
+        # Restore is_holdout=FALSE on the sampled rows. This ALWAYS
+        # runs even on exception, so eval failures don't strand the
+        # holdout flag.
+        db.table("photo_embeddings").update({"is_holdout": False}) \
+            .in_("sha256", sha_list).execute()
+
+    elapsed = round(_time.time() - started_at, 1)
+    n_scored = max(1, n - err)
+    return JSONResponse({
+        "sample_size": n,
+        "errors": err,
+        "label_source": label_source,
+        "model": chosen_model,
+        "elapsed_seconds": elapsed,
+        "top1_hse_accuracy": round(hse_hits / n_scored, 4),
+        "top1_loc_accuracy": round(loc_hits / n_scored, 4),
+        "top3_hse_accuracy": round(hse_top3_hits / n_scored, 4),
+        "top3_loc_accuracy": round(loc_top3_hits / n_scored, 4),
+        "hse_hits": hse_hits,
+        "loc_hits": loc_hits,
+        "hse_top3_hits": hse_top3_hits,
+        "loc_top3_hits": loc_top3_hits,
+        "per_photo": per_photo,
+    })

@@ -249,7 +249,8 @@ def append_curve_row(row: dict) -> None:
         w.writerow(row)
 
 
-def run_assigner(chunk: list[dict], base: str, label_source: str) -> int:
+def run_assigner(chunk: list[dict], base: str, label_source: str,
+                 manifest_path: Path | None = None) -> int:
     """Invoke the existing Playwright assigner on this chunk.
 
     Note: the assigner currently uses the UI upload path. For a
@@ -272,6 +273,8 @@ def run_assigner(chunk: list[dict], base: str, label_source: str) -> int:
         "--auto-confirm",
         "--confirm-threshold", "0.85",
     ]
+    if manifest_path:
+        cmd += ["--manifest", str(manifest_path)]
     sys.stdout.write(f"  $ {' '.join(cmd)}\n")
     return subprocess.call(cmd, cwd=str(REPO_ROOT))
 
@@ -321,7 +324,7 @@ def main() -> int:
         tag = f"aecis_seed_v1_batch_{batch_n:03d}"
         sys.stdout.write(f"\n=== batch {batch_n}/{len(chunks)} [{tag}] · {len(chunk)} photos ===\n")
         t0 = time.perf_counter()
-        rc = run_assigner(chunk, args.base, tag)
+        rc = run_assigner(chunk, args.base, tag, manifest_path)
         if rc != 0:
             sys.stderr.write(f"assigner exited {rc}; stopping.\n")
             return rc

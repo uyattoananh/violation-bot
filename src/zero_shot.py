@@ -78,7 +78,10 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # k=5 was tested at 60.0% post-dedup; k=12 regressed to 54.1% (the extra
 # borderline neighbours dilute the strongest signal). Stay with 5 unless
 # a future eval shows a different sweet spot.
-RAG_NEIGHBOURS_DEFAULT = 5
+RAG_NEIGHBOURS_DEFAULT = 15   # bumped from 5 on 2026-05-14 — N=100 manual
+                              # eval showed +6.5pp top-1 HSE / +2.6pp top-1
+                              # LOC at k=15 vs k=5; k=20 over-fetched and
+                              # diluted signal back down. See CLAUDE.md.
 
 
 # ---------- data shapes ----------
@@ -252,6 +255,29 @@ Confidence guidance:
 Taxonomies follow."""
 
 
+# Chain-of-thought variant — model articulates visual evidence FIRST,
+# then commits to slugs. Tested 2026-05-16. Set CHAIN_OF_THOUGHT=1
+# in env to opt in. Same task schema, but adds a 'visual_observations'
+# field that comes BEFORE the slug picks in the output (forcing the
+# model to look at the photo before deciding).
+SYSTEM_PROMPT_COT = SYSTEM_PROMPT.replace(
+    '  "rationale": "<one short sentence, max 40 words>"\n}',
+    '  "visual_observations": "<2-3 sentences: describe SPECIFICALLY what you '
+    'see in the photo before classifying. Name objects, workers, equipment, '
+    'site features. Don\'t guess the slug yet — just describe.>",\n'
+    '  "rationale": "<one short sentence linking your observations to the '
+    'slug choice, max 40 words>"\n}'
+).replace(
+    '==== OUTPUT ====\n',
+    '==== OUTPUT ====\n'
+    'CRITICAL: complete the `visual_observations` field FIRST (before any '
+    'slug-related field) — your description anchors the rest of the JSON. '
+    'Write what you literally see in the image, then choose slugs that '
+    'match. Do not justify a slug retroactively; let the observations '
+    'drive the slug.\n\n'
+)
+
+
 def build_user_message_anthropic(image_b64: str, taxonomy_block: str, media_type: str) -> list[dict]:
     """Anthropic Messages API image-content block.
 
@@ -297,17 +323,129 @@ def build_user_message_openai(image_b64: str, taxonomy_block: str, media_type: s
     ]
 
 
+def _active_system_prompt() -> str:
+    """Return SYSTEM_PROMPT_COT when CHAIN_OF_THOUGHT=1, else SYSTEM_PROMPT."""
+    if (os.environ.get("CHAIN_OF_THOUGHT") or "").strip() == "1":
+        return SYSTEM_PROMPT_COT
+    return SYSTEM_PROMPT
+
+
 def _system_with_cache() -> list[dict]:
     """Anthropic accepts `system` as either a string or a list of blocks.
     Return the list form so the system prompt (~400 tokens) is also cached."""
     return [{
         "type": "text",
-        "text": SYSTEM_PROMPT,
+        "text": _active_system_prompt(),
         "cache_control": {"type": "ephemeral"},
     }]
 
 
 # ---------- photo-RAG retrieval ----------
+
+# Lazy-loaded SupCon projection state — populated only when
+# SUPCON_RAG=1. Avoids loading numpy/torch at process start when
+# the feature is off.
+_supcon_state: dict[str, Any] | None = None
+
+
+def _load_supcon_state() -> dict[str, Any] | None:
+    """Load the SupCon projection head + precomputed projected embeddings.
+    Cached on first call. Returns None if files aren't present."""
+    global _supcon_state
+    if _supcon_state is not None:
+        return _supcon_state or None
+    try:
+        import numpy as np
+        import torch
+        import torch.nn as nn
+        import torch.nn.functional as F
+    except Exception as e:  # noqa: BLE001
+        log.debug("supcon: torch/numpy unavailable: %s", e)
+        return None
+
+    # Head ships in src/ (committed to repo, ~1MB).
+    # Embeddings .npz is regenerated per-environment via
+    # scripts/project_supcon_embeddings.py and lives in tmp/.
+    repo = Path(__file__).resolve().parents[1]
+    head_path = repo / "src" / "clip_supcon_head.pt"
+    if not head_path.exists():
+        head_path = repo / "tmp" / "clip_supcon_head.pt"   # local-dev fallback
+    emb_path = repo / "tmp" / "clip_supcon_embeddings.npz"
+    if not head_path.exists() or not emb_path.exists():
+        log.debug("supcon: head/embeddings file missing at %s / %s",
+                  head_path, emb_path)
+        return None
+
+    class _ProjHead(nn.Module):
+        def __init__(self, dim: int = 512, hidden: int = 256):
+            super().__init__()
+            self.fc1 = nn.Linear(dim, hidden)
+            self.fc2 = nn.Linear(hidden, dim)
+        def forward(self, x):  # noqa: D401
+            h = F.relu(self.fc1(x))
+            return F.normalize(x + self.fc2(h), dim=-1)
+
+    ckpt = torch.load(head_path, map_location="cpu", weights_only=False)
+    head = _ProjHead(dim=ckpt["input_dim"], hidden=ckpt["hidden_dim"])
+    head.load_state_dict(ckpt["state_dict"])
+    head.eval()
+
+    data = np.load(emb_path, allow_pickle=False)
+    # Exclude is_holdout rows so we mirror the production RPC behaviour.
+    keep = ~data["is_holdout"]
+    cand_emb = data["embedding"][keep]
+    cand_sha = data["sha256"][keep]
+    cand_hse = data["hse"][keep]
+    cand_loc = data["loc"][keep]
+
+    log.info("supcon: loaded projection head + %d candidate embeddings",
+             len(cand_emb))
+    _supcon_state = {
+        "head": head,
+        "torch": torch,
+        "np": np,
+        "F": F,
+        "emb": cand_emb,
+        "sha": cand_sha,
+        "hse": cand_hse,
+        "loc": cand_loc,
+    }
+    return _supcon_state
+
+
+def _retrieve_similar_labels_supcon(image_path: Path, k: int) -> list[dict[str, Any]]:
+    """SupCon variant: project query embedding through the trained head,
+    do kNN-cosine in-memory against the precomputed projected pool.
+    Returns the same dict shape as the original RPC path."""
+    state = _load_supcon_state()
+    if state is None:
+        return []
+    try:
+        from src.embeddings import embed_image
+    except Exception as e:  # noqa: BLE001
+        log.debug("supcon: embeddings unavailable: %s", e)
+        return []
+    np = state["np"]
+    torch = state["torch"]
+    F = state["F"]
+    head = state["head"]
+    try:
+        qv = embed_image(image_path).astype(np.float32)
+        qv = qv / max(float(np.linalg.norm(qv)), 1e-9)
+        with torch.no_grad():
+            qz = head(torch.from_numpy(qv).float().unsqueeze(0)).numpy()[0]
+        sims = state["emb"] @ qz   # (N,) — already unit-normalized on both sides
+        top_idx = np.argsort(-sims)[:k]
+        return [{
+            "sha256": str(state["sha"][i]),
+            "hse_type_slug": str(state["hse"][i]) or None,
+            "location_slug": str(state["loc"][i]) or None,
+            "distance": float(1.0 - sims[i]),
+        } for i in top_idx]
+    except Exception as e:  # noqa: BLE001
+        log.warning("supcon retrieval failed (%s); falling back to original RPC", e)
+        return []
+
 
 def _retrieve_similar_labels(image_path: Path, k: int) -> list[dict[str, Any]]:
     """Given a query photo, return the k visually nearest neighbour labels.
@@ -315,7 +453,24 @@ def _retrieve_similar_labels(image_path: Path, k: int) -> list[dict[str, Any]]:
     Requires Supabase + pgvector + the photo_embeddings table populated (see
     scripts/embed_dataset.py). Returns [] if retrieval is unavailable — the
     classifier then falls back to pure zero-shot with no reference hints.
+
+    SupCon path: when env SUPCON_RAG=1 AND the projection head + projected
+    embeddings file exist, project the query through the head and do kNN
+    in-memory. Falls back to the original pgvector RPC if anything goes
+    wrong. See scripts/train_supcon_head.py + scripts/project_supcon_embeddings.py.
+
+    NOTE: a class-diversity filter (cap N-per-hse_slug) was tried on
+    2026-05-14 to combat Housekeeping_general dominance. It made things
+    WORSE — substituting closer neighbours for further-distance diverse
+    ones costs more signal than the diversity gains. Fix the seed-pool
+    imbalance at ingest time (max_per_class in /admin/seed/aecis-label-
+    ingest) instead of at retrieval time.
     """
+    if (os.environ.get("SUPCON_RAG") or "").strip() == "1":
+        rs = _retrieve_similar_labels_supcon(image_path, k)
+        if rs:
+            return rs
+        # fall through to original RPC if SupCon path returned []
     try:
         from src.embeddings import embed_image
     except Exception as e:  # noqa: BLE001
@@ -400,10 +555,46 @@ def _format_rag_block(neighbours: list[dict[str, Any]]) -> str:
         lines.append(
             f"  #{i} (cosine-dist {dist_str}): location={loc}  hse_type={hse}"
         )
+    # Per-class summary so the model doesn't have to count manually.
+    # Shows how many neighbours vote for each hse_type + their mean
+    # distance — the closer the mean, the more weight that hint
+    # deserves. Avoids the failure mode where the model sees "5 of 15
+    # are Housekeeping_general" and over-picks the majority even when
+    # the closest 2 neighbours are a different class.
+    #
+    # NOTE: this summary MUST stay AFTER the per-neighbour list. We
+    # tested putting it before and the model regressed -10pp top-1
+    # HSE / -6pp top-3 HSE on identical sample. Listing the raw
+    # neighbours first gives the model context for the aggregate.
+    from collections import defaultdict
+    by_hse: dict[str, list[float]] = defaultdict(list)
+    by_loc: dict[str, list[float]] = defaultdict(list)
+    for n in neighbours:
+        d = n.get("distance")
+        if not isinstance(d, (int, float)):
+            d = 0.0
+        if n.get("hse_type_slug"):
+            by_hse[n["hse_type_slug"]].append(d)
+        if n.get("location_slug"):
+            by_loc[n["location_slug"]].append(d)
+    if by_hse:
+        lines.append("")
+        lines.append("hse_type vote summary (count, mean-cosine-dist — lower dist = closer match):")
+        for slug, dists in sorted(by_hse.items(), key=lambda x: sum(x[1])/len(x[1])):
+            mean = sum(dists) / len(dists)
+            lines.append(f"  {slug}: {len(dists)} votes (mean dist {mean:.3f})")
+    if by_loc:
+        lines.append("location vote summary (same convention):")
+        for slug, dists in sorted(by_loc.items(), key=lambda x: sum(x[1])/len(x[1])):
+            mean = sum(dists) / len(dists)
+            lines.append(f"  {slug}: {len(dists)} votes (mean dist {mean:.3f})")
+    lines.append("")
     lines.append(
         "Use these neighbour labels as a strong prior — a photo visually similar to a "
         "neighbour often shares its labels. But trust your own visual judgement when the "
-        "evidence in the current photo disagrees."
+        "evidence in the current photo disagrees. Weight votes by mean distance: a class "
+        "with FEWER votes at LOWER distance can be more reliable than a popular class at "
+        "higher distance."
     )
     return "\n".join(lines)
 
@@ -509,7 +700,7 @@ def _classify_via_openrouter(
         "model": model_id,
         "max_tokens": 3000,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": _active_system_prompt()},
             {"role": "user", "content": build_user_message_openai(image_b64, taxonomy_block, media_type)},
         ],
     }
@@ -858,10 +1049,12 @@ def classify_image(
     if samples_n == 1 and not extra_models:
         if prov == "openrouter":
             parsed, in_tok, out_tok = _classify_via_openrouter(
-                image_b64, media_type, taxonomy_block, model_id)
+                image_b64, media_type, taxonomy_block, model_id,
+                temperature=0.0)
         else:
             parsed, in_tok, out_tok = _classify_via_anthropic(
-                image_b64, media_type, taxonomy_block, model_id)
+                image_b64, media_type, taxonomy_block, model_id,
+                temperature=0.0)
         cls = _build_classification(parsed, tax, f"{prov}:{model_id}", in_tok, out_tok)
         return _maybe_run_stage2(cls, in_tok, out_tok, f"{prov}:{model_id}")
 

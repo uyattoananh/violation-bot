@@ -208,7 +208,12 @@ def _validate_one(rec: dict, tax: dict, model: str,
     """Returns the input rec annotated with validation verdict.
     Uses the cache (keyed by sha256) to avoid re-paying for already-
     judged photos."""
-    img = PHOTOS_ROOT / rec["filepath"]
+    # Match the downloader's local-path sanitizer for Windows-reserved
+    # chars (':*?"<>|'). Original filepath stays in the record.
+    safe_fp = rec["filepath"]
+    for c in ':*?"<>|':
+        safe_fp = safe_fp.replace(c, "_")
+    img = PHOTOS_ROOT / safe_fp
     if not img.exists():
         return {**rec, "verdict": "missing_local_file", "passed": False}
     sha = rec.get("sha256") or _sha256(img)

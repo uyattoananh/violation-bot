@@ -162,9 +162,17 @@ def build_aecis_signer():
     return _unsigned, "UNSIGNED — will 403 against a private bucket"
 
 
-def iter_hse_rows(limit: int = 0):
+def iter_hse_rows(limit: int = 0, disciplines: set[str] | None = None,
+                  csv_path: Path | None = None):
     """Yield {issue_id, project_id, issue_name, description, filepath}
-    for each HSE-disciplined photo row (DisciplineID=10).
+    for each photo row matching the discipline filter.
+
+    `disciplines`: set of DisciplineID strings to keep, or None to keep
+    all rows. Defaults applied at the CLI layer — pass {"10"} for the
+    original HSE-only behaviour. AECIS users misfile photos across
+    disciplines (workmanship issues land under HSE, real safety hits
+    land under "0" uncategorised), so the VLM gate downstream is what
+    actually decides what's a training-quality violation.
 
     Dedupes by FilePath: the CSV is the Issue -> IssueActivity ->
     IssuePhoto join, so one photo can appear 2-3 times (once per
@@ -172,18 +180,19 @@ def iter_hse_rows(limit: int = 0):
     workers race on the same destination file and one wins the
     rename while the others 403 with WinError 183 on Windows.
     """
-    if not CSV_PATH.exists():
-        sys.stderr.write(f"ERROR: missing {CSV_PATH}\n")
+    actual_csv = csv_path or CSV_PATH
+    if not actual_csv.exists():
+        sys.stderr.write(f"ERROR: missing {actual_csv}\n")
         sys.exit(2)
     seen: set[str] = set()
     n = 0
-    with CSV_PATH.open(encoding="utf-8-sig", newline="") as f:
+    with actual_csv.open(encoding="utf-8-sig", newline="") as f:
         r = csv.reader(f)
         next(r)
         for row in r:
             if len(row) < 70:
                 continue
-            if row[6] != "10":
+            if disciplines is not None and row[6] not in disciplines:
                 continue
             filepath = (row[61] or "").strip()
             if not filepath or filepath in seen:
@@ -196,10 +205,24 @@ def iter_hse_rows(limit: int = 0):
                 "description": row[12],
                 "filepath": filepath,
                 "user_title": (row[59] or "").strip(),
+                "discipline_id": row[6],
             }
             n += 1
             if limit and n >= limit:
                 return
+
+
+# Windows reserves : * ? " < > | in path components, and AECIS occasionally
+# stores Apple HEIC asset URLs ("@asset_url:UUID/L0/file.heic") as the
+# FilePath value. Map those to safe characters for the local destination
+# only — the signer still receives the original filepath for S3.
+_WIN_RESERVED = ':*?"<>|'
+
+def _safe_local_path(filepath: str) -> str:
+    out = filepath
+    for c in _WIN_RESERVED:
+        out = out.replace(c, "_")
+    return out
 
 
 def download_one(url: str, dest: Path, timeout: int = 30) -> tuple[str, int]:
@@ -238,13 +261,32 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="cap rows (0 = all)")
     ap.add_argument("--workers", type=int, default=8, help="parallel downloads")
     ap.add_argument("--dry-run", action="store_true", help="print URLs, no download")
+    ap.add_argument("--disciplines", default="10",
+                    help="comma-separated DisciplineIDs to include, or 'all' "
+                         "for no filter. The VLM gate downstream filters out "
+                         "non-violations, so a broader set just means more "
+                         "candidate photos. Default: '10' (HSE).")
+    ap.add_argument("--csv", type=str, default="",
+                    help="Path to a custom join CSV. Defaults to "
+                         "Issue_Gen/Issue_Gen/result_after_query.csv. "
+                         "Use result_after_query.full.csv (produced by "
+                         "scripts/seed_csv_from_sql.py) to access the full "
+                         "275k-row photo set instead of the 39k-row "
+                         "IssueActionID=1 subset.")
     args = ap.parse_args()
+    csv_override = Path(args.csv).expanduser().resolve() if args.csv else None
+
+    if args.disciplines.strip().lower() == "all":
+        disciplines = None
+    else:
+        disciplines = {s.strip() for s in args.disciplines.split(",") if s.strip()}
 
     signer, mode = build_aecis_signer()
     sys.stdout.write(f"URL mode: {mode}\n")
+    sys.stdout.write(f"Discipline filter: {disciplines or 'ALL'}\n")
 
-    rows = list(iter_hse_rows(args.limit))
-    sys.stdout.write(f"HSE rows to fetch: {len(rows)}\n")
+    rows = list(iter_hse_rows(args.limit, disciplines, csv_override))
+    sys.stdout.write(f"Rows to fetch: {len(rows)}\n")
 
     if args.dry_run:
         for r in rows[:20]:
@@ -267,7 +309,7 @@ def main():
         if not url:
             sys.stderr.write(f"  SKIP {row['filepath']}: signer returned empty URL\n")
             return row, "fail", 0
-        dest = PHOTO_ROOT / row["filepath"]
+        dest = PHOTO_ROOT / _safe_local_path(row["filepath"])
         status, n_bytes = download_one(url, dest)
         return row, status, n_bytes
 
@@ -282,6 +324,7 @@ def main():
                     "project_id": row["project_id"],
                     "issue_name": row["issue_name"],
                     "description": row["description"],
+                    "discipline_id": row.get("discipline_id", ""),
                     "bytes": n_bytes,
                 }, ensure_ascii=False) + "\n")
             done = counts["ok"] + counts["skip"] + counts["fail"]

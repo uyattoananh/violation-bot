@@ -52,17 +52,22 @@ except Exception:
     pass
 
 
-def load_manifest(limit: int = 0):
+def load_manifest(limit: int = 0, manifest_path: Path | None = None):
     """Return list of {filepath, issue_id, project_id, issue_name,
-    description, bytes} dicts from the downloader's manifest."""
-    if not MANIFEST.exists():
+    description, bytes} dicts from the downloader's manifest.
+
+    Defaults to Issue_Gen/photos/manifest.jsonl (raw download
+    output). Pass manifest_path to point at a curated manifest
+    such as manifest.validated.jsonl from seed_validate_aecis.py."""
+    m_path = manifest_path or MANIFEST
+    if not m_path.exists():
         sys.stderr.write(
-            f"ERROR: manifest missing at {MANIFEST}. Run "
+            f"ERROR: manifest missing at {m_path}. Run "
             "seed_download_aecis_photos.py first.\n"
         )
         sys.exit(2)
     out = []
-    with MANIFEST.open(encoding="utf-8") as f:
+    with m_path.open(encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -163,9 +168,12 @@ async def main():
     ap.add_argument("--auto-confirm", action="store_true", help="confirm high-conf picks")
     ap.add_argument("--confirm-threshold", type=float, default=0.85)
     ap.add_argument("--dry-run", action="store_true", help="print plan, don't run Playwright")
+    ap.add_argument("--manifest", type=str, default=None,
+                    help="Path to manifest.jsonl (default: Issue_Gen/photos/manifest.jsonl). "
+                         "Use manifest.validated.jsonl for the VLM-gated subset.")
     args = ap.parse_args()
 
-    photos = load_manifest(args.limit)
+    photos = load_manifest(args.limit, Path(args.manifest) if args.manifest else None)
     if not photos:
         sys.stderr.write("ERROR: no photos in manifest.\n")
         sys.exit(2)
