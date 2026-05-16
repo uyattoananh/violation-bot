@@ -32,7 +32,11 @@ import torch.nn.functional as F
 from supabase import create_client
 
 REPO = Path(__file__).resolve().parents[1]
-HEAD_PATH = REPO / "tmp" / "clip_supcon_head.pt"
+# Head ships committed in src/ (~1MB); fall back to tmp/ for local
+# dev where the trainer wrote it.
+_HEAD_SRC = REPO / "src" / "clip_supcon_head.pt"
+_HEAD_TMP = REPO / "tmp" / "clip_supcon_head.pt"
+HEAD_PATH = _HEAD_SRC if _HEAD_SRC.exists() else _HEAD_TMP
 OUT_PATH = REPO / "tmp" / "clip_supcon_embeddings.npz"
 
 
