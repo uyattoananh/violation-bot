@@ -29,6 +29,8 @@ runs/
 !src/clip_supcon_head.pt
 !src/clip_supcon_head_v2.pt
 !src/clip_supcon_head_v3.pt
+!src/clip_supcon_head_v4.pt
+!src/clip_supcon_head_v5.pt
 
 # Data
 data/raw/

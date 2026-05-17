@@ -368,7 +368,13 @@ def _load_supcon_state() -> dict[str, Any] | None:
     # anneal). Default stays on v1 until v2 measurements ship.
     repo = Path(__file__).resolve().parents[1]
     version = (os.environ.get("SUPCON_HEAD_VERSION") or "1").strip()
-    if version == "3":
+    if version == "5":
+        head_name = "clip_supcon_head_v5.pt"
+        emb_name  = "clip_supcon_embeddings_v5.npz"
+    elif version == "4":
+        head_name = "clip_supcon_head_v4.pt"
+        emb_name  = "clip_supcon_embeddings_v4.npz"
+    elif version == "3":
         head_name = "clip_supcon_head_v3.pt"
         emb_name  = "clip_supcon_embeddings_v3.npz"
     elif version == "2":

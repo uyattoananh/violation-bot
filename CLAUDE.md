@@ -4,22 +4,45 @@ Two-axis classifier for AECIS construction-site safety photos. Inspector
 uploads a photo, the model returns a `(location, hse_type)` pair plus a
 top-3 alternative list.
 
-Honest accuracy (multi-seed N=50 mean, inspector-validated `manual`
-ground truth, as of 2026-05-16 — full DB + SupCon + rare-mine):
+Honest accuracy (5-seed N=100 mean, inspector-validated `manual`
+ground truth, as of 2026-05-17 — SupCon v1 head, "Plan E" pool:
+manual + dtag + v2_visionchecked + 128 curated_rare_v1, with
+extended-mine + visual-neighbour-mine rows is_holdout-flagged):
 
   Axis        Top-1   Top-3   Target          Status
-  HSE type    63.0%   80.5%   50% / 80%       ALL PASS
-  Location    63.7%   94.7%   50% / 80%       ALL PASS
+  HSE type    63.3%   79.0%   50% / 80%       3 of 4 (top-3 -1pp)
+  Location    66.4%   91.9%   50% / 80%       BOTH PASS
 
-**All four targets pass at the multi-seed mean.** Per-photo cost
-~$0.0015 (Gemini Flash 2.5 via OpenRouter with prompt caching).
+Per-photo cost ~$0.0015 (Gemini Flash 2.5 via OpenRouter with prompt
+caching). 3 of 4 targets pass at multi-seed mean; top-3 HSE sits
+1pp under target (range 74.5-80.6%, stdev 2.6pp — 2 of 5 individual
+seeds cross 80%).
 
-The final +6.7pp top-3 HSE jump came from `mine_rare_class_seeds.py`
-adding 128 LLM-curated rare-class seeds (Pressure_equipment 17,
-Site_lighting 15, Formwork 15, Garbage_waste 12, Chemicals_hazmat
-27, etc.) — only ~3% of the v2 corpus but targeted at the exact
-classes the multi-class classifier rarely picks. See "Targeted
-rare-class mining" below.
+**Plan E lesson (2026-05-17):** adding 459 more curated-rare-class
+seeds (extended-mine 357 + visual-neighbour 102) REGRESSED accuracy
+across the board (top-3 LOC -7.6pp, top-3 HSE -2.2pp at 5-seed
+N=100). Marginal-confidence seeds visually resemble multiple
+classes; once in the kNN pool they pull queries toward wrong-class
+neighbours. The cleanest 128-rare-seed state from the first careful
+mining run is the local maximum we've found. Backup of the 459
+flagged rows lives at `tmp/rare_extended_and_nbr_shas.json` —
+unflagging is one `is_holdout=FALSE` UPDATE if needed.
+
+The earlier "80.5% top-3 HSE all-pass" reading was 3-seed N=50
+sampling luck — when extended to 5 seeds N=100, the honest mean
+returned to ~78%. Always validate at N≥3 seeds × N≥100 sample size
+before claiming a target crossed.
+
+The `mine_rare_class_seeds.py` first sweep added 128 curated rare-
+class seeds (Pressure_equipment, Site_lighting, Formwork,
+Chemicals_hazmat, etc.) — helped on the N=50 measurement but the
+effect washed out at N=100. The extended sweep (+357 more at lower
+vision threshold) HURT top-3 HSE -2.2pp at N=100, confirming that
+data quality at the margin matters more than data quantity.
+
+The v4 head retrain (manual + rare_v1) was the right diagnostic
+experiment but didn't deliver — at 5-seed N=100 mean v4 == v1 on
+top-3 HSE (both 78%). See "Head version A/B history" below.
 
 SupCon projection layer (env SUPCON_RAG=1) adds +10pp top-1 HSE,
 +7pp top-1 LOC, +2.7pp top-3 HSE, +4pp top-3 LOC vs raw CLIP. See
@@ -491,6 +514,37 @@ in any class):
 
   ./.venv-webapp/Scripts/python.exe scripts/train_supcon_head.py
   ./.venv-webapp/Scripts/python.exe scripts/project_supcon_embeddings.py
+
+### Head version A/B history
+
+  v1 (deployed): manual-only, single-axis SupCon
+    5-seed N=100: top1_HSE=61.5%  top3_HSE=78.0%  top1_LOC=64.6%  top3_LOC=91.7%
+
+  v2 (not deployed): manual + v2_visionchecked, multi-axis loss, temp anneal
+    3-seed N=50:  top1_HSE=65.1%  top3_HSE=74.5%  top1_LOC=64.4%  top3_LOC=89.9%
+    Net: lost top-3 LOC, top-3 HSE flat.
+
+  v3 (not deployed): manual-only, confusion-aware sampling
+    3-seed N=50:  top1_HSE=61.8%  top3_HSE=75.2%  top1_LOC=65.1%  top3_LOC=89.3%
+    Net: flat, sample-weight boost was inflated by counting wrong-
+    prediction-as-class double, never converged on a real lever.
+
+  v4 (not deployed): manual + rare_v1 retrain
+    5-seed N=100: top1_HSE=61.5%  top3_HSE=78.0%  top1_LOC=64.6%  top3_LOC=91.7%
+    Net: identical to v1 within noise. Diagnosed the right issue
+    (head wasn't trained on rare-mine seeds) but the effect wasn't
+    large enough to push the metric.
+
+  v5 (not deployed): manual + ALL rare variants (587 rare-class pairs)
+    5-seed N=100: top1_HSE=63.2%  top3_HSE=79.4%  top1_LOC=66.7%  top3_LOC=92.1%
+    Net: flat vs v1 (deltas all <+0.5pp). Adding the extended-mine
+    and rare_v2_nbr labels as supervised training data didn't
+    compound — the SupCon head already separates the easy-to-
+    separate classes; the remaining ambiguity is in inspector-
+    label boundaries that no embedding-space training can fix.
+    2 of 5 seeds still cross 80% top-3 HSE individually.
+
+Production stays on v1 head. Switch via env `SUPCON_HEAD_VERSION=2/3/4/5`.
 
 ### v2 + v3 head variants tried, did NOT win (2026-05-16)
 
