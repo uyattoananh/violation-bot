@@ -34,10 +34,23 @@ from supabase import create_client
 REPO = Path(__file__).resolve().parents[1]
 # Head ships committed in src/ (~1MB); fall back to tmp/ for local
 # dev where the trainer wrote it.
-_HEAD_SRC = REPO / "src" / "clip_supcon_head.pt"
-_HEAD_TMP = REPO / "tmp" / "clip_supcon_head.pt"
-HEAD_PATH = _HEAD_SRC if _HEAD_SRC.exists() else _HEAD_TMP
-OUT_PATH = REPO / "tmp" / "clip_supcon_embeddings.npz"
+import argparse
+_ap = argparse.ArgumentParser(add_help=False)
+_ap.add_argument("--head", type=str, default="")
+_ap.add_argument("--out",  type=str, default="")
+_args, _ = _ap.parse_known_args()
+
+if _args.head:
+    HEAD_PATH = Path(_args.head).expanduser().resolve()
+else:
+    _HEAD_SRC = REPO / "src" / "clip_supcon_head.pt"
+    _HEAD_TMP = REPO / "tmp" / "clip_supcon_head.pt"
+    HEAD_PATH = _HEAD_SRC if _HEAD_SRC.exists() else _HEAD_TMP
+
+if _args.out:
+    OUT_PATH = Path(_args.out).expanduser().resolve()
+else:
+    OUT_PATH = REPO / "tmp" / "clip_supcon_embeddings.npz"
 
 
 class ProjHead(nn.Module):

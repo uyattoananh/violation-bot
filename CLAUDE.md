@@ -5,20 +5,44 @@ uploads a photo, the model returns a `(location, hse_type)` pair plus a
 top-3 alternative list.
 
 Honest accuracy (multi-seed N=50 mean, inspector-validated `manual`
-ground truth, as of 2026-05-16 — full DB + SupCon CLIP projection):
+ground truth, as of 2026-05-16 — full DB + SupCon + rare-mine):
 
-  Axis        Top-1   Top-3   Target
-  HSE type    62.4%   74.5%   50% / 80%   (top-1 PASS, top-3 -5.5pp)
-  Location    64.4%   92.0%   50% / 80%   (both PASS)
+  Axis        Top-1   Top-3   Target          Status
+  HSE type    63.0%   80.5%   50% / 80%       ALL PASS
+  Location    63.7%   94.7%   50% / 80%       ALL PASS
 
-Per-photo cost ~$0.0015 (Gemini Flash 2.5 via OpenRouter with prompt
-caching). 3 of 4 targets pass at the multi-seed mean; the 4th
-(top-3 HSE) sits 5.5pp under target. v2_visionchecked seed corpus:
-894 rows across 20+ HSE classes.
+**All four targets pass at the multi-seed mean.** Per-photo cost
+~$0.0015 (Gemini Flash 2.5 via OpenRouter with prompt caching).
+
+The final +6.7pp top-3 HSE jump came from `mine_rare_class_seeds.py`
+adding 128 LLM-curated rare-class seeds (Pressure_equipment 17,
+Site_lighting 15, Formwork 15, Garbage_waste 12, Chemicals_hazmat
+27, etc.) — only ~3% of the v2 corpus but targeted at the exact
+classes the multi-class classifier rarely picks. See "Targeted
+rare-class mining" below.
 
 SupCon projection layer (env SUPCON_RAG=1) adds +10pp top-1 HSE,
 +7pp top-1 LOC, +2.7pp top-3 HSE, +4pp top-3 LOC vs raw CLIP. See
 "SupCon contrastive projection head" section below.
+
+### Targeted rare-class mining (`scripts/mine_rare_class_seeds.py`)
+
+For each of 15 sparse classes (Welding, Truck_vehicle, Mass_piling,
+Smoking, Concrete, Site_lighting, Garbage_waste, Pressure_equipment,
+Formwork, Common_area, First_aid_kit, Parking, Confined_space,
+Chemicals_hazmat, Ladder) — scan manifest by keyword, then send a
+TARGETED vision-verify ("does this photo depict THIS specific
+class?") to Gemini Flash 2.5. Confirms become embeds with
+label_source='aecis_curated_rare_v1'. No human judgement needed —
+LLM does the visual gating.
+
+Different from `/admin/seed/aecis-label-ingest` which classifies
+across all 29 classes; this hunts a single class hypothesis at a
+time, much higher recall for rare classes.
+
+Cache lives at `scripts/.rare_mine_cache.json` (sha+slug keyed).
+Cost: ~$2-3 for a full sweep at min_vision_confidence=0.55,
+max-checks=100 per class.
 
 ## Accuracy targets (north star)
 
@@ -467,6 +491,57 @@ in any class):
 
   ./.venv-webapp/Scripts/python.exe scripts/train_supcon_head.py
   ./.venv-webapp/Scripts/python.exe scripts/project_supcon_embeddings.py
+
+### v2 + v3 head variants tried, did NOT win (2026-05-16)
+
+We tried two follow-up training scripts; both regressed or stayed
+flat across the 4-metric multi-seed mean, so v1 stays in production.
+The .pt files (`src/clip_supcon_head_v2.pt`, `src/clip_supcon_head_v3.pt`)
+remain in the tree as reproducibility artifacts. Toggle via env
+`SUPCON_HEAD_VERSION=2` or `=3` to A/B locally.
+
+**v2 — multi-axis loss + v2_visionchecked corpus + temperature anneal**
+(`scripts/train_supcon_head_v2.py`):
+
+  Metric       v1     v2     delta
+  top-1 HSE   62.4%  65.1%   +2.7pp
+  top-1 LOC   64.4%  64.4%   +0.0pp
+  top-3 HSE   74.5%  74.5%   +0.0pp
+  top-3 LOC   92.0%  89.9%   -2.1pp
+
+The 0.3× location SupCon term pulled embedding capacity away from
+hse_type separation. The v2_visionchecked rows (LLM-labelled, not
+human-validated) seem to disagree with the manual ground truth on
+the boundaries we measure — they dilute training signal at the
+manual-eval target.
+
+**v3 — confusion-pair hard-negative mining on manual-only corpus**
+(`scripts/train_supcon_head_v3.py`):
+
+  Metric       v1     v3     delta
+  top-1 HSE   62.4%  61.8%   -0.6pp
+  top-1 LOC   64.4%  65.1%   +0.7pp
+  top-3 HSE   74.5%  75.2%   +0.7pp
+  top-3 LOC   92.0%  89.3%   -2.7pp
+
+Sample-weight boost based on per-class confusion rate, computed
+from past eval per_photo files. The boost (1 + 2× rate) gave some
+classes 20× sampling weight because confusion-rate-as-defined
+overcounts (a class wrongly predicted AS X bumps X's miss count).
+Net effect on the multi-seed eval was flat. The honest read: SupCon
+already pulls same-class together implicitly; explicit hard-negative
+sampling didn't compound. Save the lever for a richer confusion
+dataset.
+
+**What to try next** if pushing top-3 HSE further:
+
+  1. Hand-curate ~50 rare-class photos and train v4 on a
+     refresh of manual + curated_rare.
+  2. LoRA fine-tune CLIP's last 1-2 attention layers — bigger
+     capacity, real catastrophic-forgetting risk.
+  3. Wait for more `aecis_labelled_v2_visionchecked` rows from the
+     ongoing AECIS ingest, retrain v1 (manual-only) after that
+     corpus has visibly improved per-class diversity.
 
 ## Seed-pipeline failure mode: text-only force-fit
 

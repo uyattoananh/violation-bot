@@ -363,14 +363,24 @@ def _load_supcon_state() -> dict[str, Any] | None:
         log.debug("supcon: torch/numpy unavailable: %s", e)
         return None
 
-    # Head ships in src/ (committed to repo, ~1MB).
-    # Embeddings .npz is regenerated per-environment via
-    # scripts/project_supcon_embeddings.py and lives in tmp/.
+    # Head + embeddings selection — env SUPCON_HEAD_VERSION=2 opts
+    # into the v2 trainer (manual+v2 corpus, multi-axis loss, temp
+    # anneal). Default stays on v1 until v2 measurements ship.
     repo = Path(__file__).resolve().parents[1]
-    head_path = repo / "src" / "clip_supcon_head.pt"
+    version = (os.environ.get("SUPCON_HEAD_VERSION") or "1").strip()
+    if version == "3":
+        head_name = "clip_supcon_head_v3.pt"
+        emb_name  = "clip_supcon_embeddings_v3.npz"
+    elif version == "2":
+        head_name = "clip_supcon_head_v2.pt"
+        emb_name  = "clip_supcon_embeddings_v2.npz"
+    else:
+        head_name = "clip_supcon_head.pt"
+        emb_name  = "clip_supcon_embeddings.npz"
+    head_path = repo / "src" / head_name
     if not head_path.exists():
-        head_path = repo / "tmp" / "clip_supcon_head.pt"   # local-dev fallback
-    emb_path = repo / "tmp" / "clip_supcon_embeddings.npz"
+        head_path = repo / "tmp" / head_name   # local-dev fallback
+    emb_path = repo / "tmp" / emb_name
     if not head_path.exists() or not emb_path.exists():
         log.debug("supcon: head/embeddings file missing at %s / %s",
                   head_path, emb_path)
