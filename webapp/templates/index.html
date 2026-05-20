@@ -1006,6 +1006,7 @@ const I18N = {
     auth_signin: "Sign in",
     auth_signout: "Sign out",
     auth_admin_link: "Admin panel",
+    auth_display_taxonomy: "Display standard",
     notice_title: "Your work trains the AI",
     notice_subtitle: "Welcome — quick heads-up before you start.",
     notice_body_1: "Every photo you upload, every confirmation you make, and every correction you add becomes training data for the AI. The model gets better at HSE classification over time as you and your colleagues use it.",
@@ -1231,6 +1232,7 @@ const I18N = {
     auth_signin: "Đăng nhập",
     auth_signout: "Đăng xuất",
     auth_admin_link: "Bảng quản trị",
+    auth_display_taxonomy: "Tiêu chuẩn hiển thị",
     notice_title: "Mỗi thao tác của bạn đều giúp AI học",
     notice_subtitle: "Chào mừng — vài điều cần biết trước khi bắt đầu.",
     notice_body_1: "Mỗi ảnh bạn tải lên, mỗi xác nhận bạn thực hiện, và mỗi chỉnh sửa bạn thêm vào đều trở thành dữ liệu huấn luyện cho AI. Mô hình sẽ phân loại HSE chính xác hơn theo thời gian khi bạn và đồng nghiệp sử dụng.",
@@ -1456,6 +1458,7 @@ const I18N = {
     auth_signin: "Iniciar sesión",
     auth_signout: "Cerrar sesión",
     auth_admin_link: "Panel de administración",
+    auth_display_taxonomy: "Estándar mostrado",
     notice_title: "Tu trabajo entrena a la IA",
     notice_subtitle: "Bienvenido — un aviso rápido antes de empezar.",
     notice_body_1: "Cada foto que subes, cada confirmación que haces y cada corrección que añades se convierte en datos de entrenamiento para la IA. El modelo mejora la clasificación HSE con el tiempo a medida que tú y tus colegas lo usan.",
@@ -1681,6 +1684,7 @@ const I18N = {
     auth_signin: "登录",
     auth_signout: "退出登录",
     auth_admin_link: "管理面板",
+    auth_display_taxonomy: "显示标准",
     notice_title: "你的工作训练 AI",
     notice_subtitle: "欢迎 — 开始之前的小提示。",
     notice_body_1: "你上传的每一张照片、每一次确认和每一次更正，都会成为 AI 的训练数据。随着你和同事的使用，模型在 HSE 分类上会逐步变得更准确。",
@@ -1877,23 +1881,27 @@ function applyLang() {
   }
 }
 
-// Output-taxonomy picker (v118). Mirrors the language picker
-// pattern — custom popover in the header, localStorage-persisted,
-// per-user. Selection is read by fetchPending() and passed as
-// ?taxonomy= to /api/pending. The server reshapes each
-// classification block with *_local fields; cards prefer the local
-// label when present and fall back to the AECIS label otherwise.
-// Country code (VN / CA / US) shows on the button — matches the
-// language picker's two-letter aesthetic.
+// Output-taxonomy picker (v118.4). Lives inside the auth dropdown
+// menu (settings sheet). Picking persists per-user via localStorage
+// and forces a fresh /api/pending poll so cards re-render in the
+// new taxonomy.
+//
+// History note: v118.2 placed this in the header next to the
+// language picker as a 2-letter button. Two adjacent 2-letter
+// buttons (EN / VN) were ambiguous — Vietnamese readers read VN as
+// "Vietnamese language" not "Vietnam standard". Moved into the
+// auth-menu disclosure as a sticky setting; the header now only
+// has the language picker.
 let TAXONOMY_ID = localStorage.getItem("violation-ai-taxonomy") || "aecis_default";
 let TAXONOMIES = [];   // populated by /api/taxonomies on load
 const _TAX_BY_ID = () => Object.fromEntries(TAXONOMIES.map(t => [t.id, t]));
 
 async function _initTaxonomyPicker() {
-  const btn  = document.getElementById("tax-btn");
-  const menu = document.getElementById("tax-menu");
-  const curBtnLabel = document.getElementById("tax-current");
-  if (!btn || !menu) return;
+  const toggle      = document.getElementById("tax-toggle");
+  const list        = document.getElementById("tax-list");
+  const curLabel    = document.getElementById("tax-current-label");
+  const chevron     = document.getElementById("tax-toggle-chevron");
+  if (!toggle || !list) return;
 
   try {
     const resp = await fetch("/api/taxonomies");
@@ -1905,49 +1913,68 @@ async function _initTaxonomyPicker() {
   }
   if (!TAXONOMIES.length) return;
 
-  // Fallback if saved choice no longer exists (mapping removed, typo, etc.)
+  // Fallback if saved choice no longer exists (mapping removed)
   if (!_TAX_BY_ID()[TAXONOMY_ID]) {
     TAXONOMY_ID = "aecis_default";
     localStorage.setItem("violation-ai-taxonomy", TAXONOMY_ID);
   }
 
-  // Render menu items
-  menu.innerHTML = "";
-  TAXONOMIES.forEach(t => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.setAttribute("role", "menuitemradio");
-    b.setAttribute("aria-checked", t.id === TAXONOMY_ID ? "true" : "false");
-    b.dataset.taxonomyId = t.id;
-    b.innerHTML = `<span class="lang-code">${(t.country || "??").toUpperCase()}</span><span>${t.label_en}</span>`;
-    menu.appendChild(b);
-  });
+  function renderList() {
+    list.innerHTML = "";
+    TAXONOMIES.forEach(t => {
+      const isCurrent = t.id === TAXONOMY_ID;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "menuitemradio");
+      b.setAttribute("aria-checked", isCurrent ? "true" : "false");
+      b.dataset.taxonomyId = t.id;
+      b.className = "w-full flex items-center gap-2 pl-9 pr-3 py-1.5 text-sm rounded-lg "
+                  + (isCurrent
+                       ? "bg-emerald-50 text-emerald-900"
+                       : "text-slate-700 hover:bg-slate-50");
+      const check = isCurrent
+        ? `<svg class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 20 20" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 10l3 3 7-7"/></svg>`
+        : `<span class="w-3.5 h-3.5 flex-shrink-0"></span>`;
+      const country = (t.country || "??").toUpperCase();
+      b.innerHTML = `${check}<span class="text-xs font-mono text-slate-500 w-6">${country}</span><span class="flex-1 text-left truncate">${t.label_en}</span>`;
+      list.appendChild(b);
+    });
+  }
+  function updateCurrentLabel() {
+    const cur = _TAX_BY_ID()[TAXONOMY_ID];
+    if (curLabel && cur) {
+      // Truncate the full label_en for the disclosure row; the open
+      // sublist still shows the full name on each option.
+      const short = cur.id === "aecis_default" ? "AECIS"
+                  : cur.id === "csa_z1000_ca"  ? "CSA Z1000"
+                  : cur.id === "osha_us"       ? "OSHA"
+                  : (cur.label_en || cur.id);
+      curLabel.textContent = short;
+    }
+  }
+  renderList();
+  updateCurrentLabel();
 
-  // Reflect current pick on the button
-  const cur = _TAX_BY_ID()[TAXONOMY_ID];
-  if (curBtnLabel && cur) curBtnLabel.textContent = (cur.country || "??").toUpperCase();
+  const open  = () => { list.classList.remove("hidden"); toggle.setAttribute("aria-expanded", "true");
+                        if (chevron) chevron.style.transform = "rotate(180deg)"; };
+  const close = () => { list.classList.add("hidden");    toggle.setAttribute("aria-expanded", "false");
+                        if (chevron) chevron.style.transform = ""; };
+  const isOpen = () => !list.classList.contains("hidden");
 
-  const open  = () => { menu.classList.remove("hidden"); btn.setAttribute("aria-expanded", "true"); };
-  const close = () => { menu.classList.add("hidden");    btn.setAttribute("aria-expanded", "false"); };
-  const isOpen = () => !menu.classList.contains("hidden");
-
-  btn.addEventListener("click", (e) => {
+  toggle.addEventListener("click", (e) => {
     e.stopPropagation();
     isOpen() ? close() : open();
   });
 
-  menu.addEventListener("click", (e) => {
+  list.addEventListener("click", (e) => {
     const item = e.target.closest('[role="menuitemradio"]');
     if (!item) return;
     const next = item.dataset.taxonomyId;
     if (next && next !== TAXONOMY_ID) {
       TAXONOMY_ID = next;
       localStorage.setItem("violation-ai-taxonomy", TAXONOMY_ID);
-      const c = _TAX_BY_ID()[TAXONOMY_ID];
-      if (curBtnLabel && c) curBtnLabel.textContent = (c.country || "??").toUpperCase();
-      menu.querySelectorAll('[role="menuitemradio"]').forEach(b => {
-        b.setAttribute("aria-checked", b.dataset.taxonomyId === TAXONOMY_ID ? "true" : "false");
-      });
+      renderList();
+      updateCurrentLabel();
       // Force a fresh pending poll so cards re-render in the new
       // taxonomy. The local-block payload only comes from the server
       // (the client doesn't have the mapping JSONs), so a fetch is
@@ -1955,16 +1982,6 @@ async function _initTaxonomyPicker() {
       if (typeof poll === "function") poll({force: true});
     }
     close();
-    btn.focus();
-  });
-
-  document.addEventListener("click", (e) => {
-    if (!isOpen()) return;
-    if (menu.contains(e.target) || btn.contains(e.target)) return;
-    close();
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && isOpen()) { close(); btn.focus(); }
   });
 }
 _initTaxonomyPicker();

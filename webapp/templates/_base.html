@@ -624,28 +624,12 @@
           </div>
         </div>
 
-        <!-- Taxonomy picker (v118). Lets inspectors choose which
-             country-standard taxonomy the UI renders predictions in.
-             Defaults to AECIS (passthrough — no rewrite). The model
-             always predicts in the internal AECIS taxonomy; this
-             switches the DISPLAY layer at the /api/pending response.
-             Menu items are populated from /api/taxonomies on load. -->
-        <div class="relative">
-          <button id="tax-btn" type="button"
-                  class="lang-select"
-                  aria-haspopup="menu"
-                  aria-expanded="false"
-                  aria-label="Taxonomy"
-                  title="Choose safety taxonomy">
-            <span id="tax-current">VN</span>
-          </button>
-          <div id="tax-menu" role="menu" aria-labelledby="tax-btn"
-               class="lang-menu hidden">
-            <!-- Items injected by JS in index.html on load.
-                 Stays hidden until populated to avoid showing an
-                 empty menu on slow first paint. -->
-          </div>
-        </div>
+        <!-- v118.4 — Taxonomy picker moved INTO the auth dropdown
+             (the section below). Two adjacent 2-letter buttons in the
+             header (EN + VN) were ambiguous: a Vietnamese user would
+             read VN as "language" not "country/standard". Stickier
+             prefs belong in the settings sheet anyway. -->
+
 
         <!-- PWA install button. Hidden by default; JS in this file reveals
              it once we detect either:
@@ -711,6 +695,34 @@
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.6 2A9 9 0 11 3.4 14a9 9 0 0117.2 0z"/></svg>
               <span data-i18n="auth_admin_link">Admin panel</span>
             </a>
+
+            <!-- v118.4 — Display-taxonomy disclosure. Clicking the
+                 row reveals a list of installed taxonomies; clicking
+                 a taxonomy picks it, persists to localStorage, and
+                 closes the disclosure. Currently-selected one shows
+                 an emerald check. Populated by JS in index.html. -->
+            <div id="tax-disclosure" class="border-t border-slate-100 mt-1 pt-1">
+              <button id="tax-toggle" type="button"
+                      class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg"
+                      aria-expanded="false"
+                      aria-controls="tax-list">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                  <!-- shield-checkmark icon: signifies a safety standard -->
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l8 4v5a8 8 0 11-16 0V7l8-4z" opacity="0.0"/>
+                </svg>
+                <span class="flex-1 text-left" data-i18n="auth_display_taxonomy">Display standard</span>
+                <span id="tax-current-label" class="text-xs text-slate-500 truncate max-w-[110px]">AECIS</span>
+                <svg id="tax-toggle-chevron" class="w-3 h-3 text-slate-400 transition-transform" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 20 20" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 7l5 5 5-5"/>
+                </svg>
+              </button>
+              <div id="tax-list" role="menu" class="hidden mt-1 mb-1 space-y-0.5">
+                <!-- Items injected by JS. Each is a <button> with
+                     data-taxonomy-id, an emerald check when current,
+                     and the country code as a leading chip. -->
+              </div>
+            </div>
             <form method="POST" action="/auth/logout" class="m-0">
               <button type="submit"
                       class="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-lg">
