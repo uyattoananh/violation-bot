@@ -1,0 +1,10 @@
+{
+  "id": "aecis_default",
+  "label_en": "AECIS (Vietnam)",
+  "label_locale": "Tiếng Việt / English",
+  "country": "VN",
+  "version": "1.0",
+  "description": "Pass-through — the model's internal taxonomy. Inspectors who work directly in AECIS see slugs verbatim.",
+  "hse_types": {},
+  "locations": {}
+}

@@ -1799,6 +1799,17 @@ def healthz():
     return {"ok": True}
 
 
+@app.get("/api/taxonomies")
+def api_taxonomies():
+    """List installed output taxonomies (AECIS default, CSA Canada,
+    OSHA US, etc.) for the inspection UI to render a picker. The
+    model always predicts in the internal AECIS taxonomy; this
+    endpoint just describes what translation layers are available
+    at response time. See data/taxonomy_mappings/."""
+    from src.taxonomy_translator import list_available
+    return {"taxonomies": list_available()}
+
+
 @app.get("/service-worker.js", include_in_schema=False)
 def service_worker_js():
     """Serve the PWA service worker from the ROOT path with the
