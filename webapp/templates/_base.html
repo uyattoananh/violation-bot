@@ -624,6 +624,29 @@
           </div>
         </div>
 
+        <!-- Taxonomy picker (v118). Lets inspectors choose which
+             country-standard taxonomy the UI renders predictions in.
+             Defaults to AECIS (passthrough — no rewrite). The model
+             always predicts in the internal AECIS taxonomy; this
+             switches the DISPLAY layer at the /api/pending response.
+             Menu items are populated from /api/taxonomies on load. -->
+        <div class="relative">
+          <button id="tax-btn" type="button"
+                  class="lang-select"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                  aria-label="Taxonomy"
+                  title="Choose safety taxonomy">
+            <span id="tax-current">VN</span>
+          </button>
+          <div id="tax-menu" role="menu" aria-labelledby="tax-btn"
+               class="lang-menu hidden">
+            <!-- Items injected by JS in index.html on load.
+                 Stays hidden until populated to avoid showing an
+                 empty menu on slow first paint. -->
+          </div>
+        </div>
+
         <!-- PWA install button. Hidden by default; JS in this file reveals
              it once we detect either:
                - Android (Chrome/Edge/Samsung) fired `beforeinstallprompt`

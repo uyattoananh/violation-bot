@@ -1877,6 +1877,98 @@ function applyLang() {
   }
 }
 
+// Output-taxonomy picker (v118). Mirrors the language picker
+// pattern — custom popover in the header, localStorage-persisted,
+// per-user. Selection is read by fetchPending() and passed as
+// ?taxonomy= to /api/pending. The server reshapes each
+// classification block with *_local fields; cards prefer the local
+// label when present and fall back to the AECIS label otherwise.
+// Country code (VN / CA / US) shows on the button — matches the
+// language picker's two-letter aesthetic.
+let TAXONOMY_ID = localStorage.getItem("violation-ai-taxonomy") || "aecis_default";
+let TAXONOMIES = [];   // populated by /api/taxonomies on load
+const _TAX_BY_ID = () => Object.fromEntries(TAXONOMIES.map(t => [t.id, t]));
+
+async function _initTaxonomyPicker() {
+  const btn  = document.getElementById("tax-btn");
+  const menu = document.getElementById("tax-menu");
+  const curBtnLabel = document.getElementById("tax-current");
+  if (!btn || !menu) return;
+
+  try {
+    const resp = await fetch("/api/taxonomies");
+    if (!resp.ok) return;
+    const j = await resp.json();
+    TAXONOMIES = j.taxonomies || [];
+  } catch {
+    return;
+  }
+  if (!TAXONOMIES.length) return;
+
+  // Fallback if saved choice no longer exists (mapping removed, typo, etc.)
+  if (!_TAX_BY_ID()[TAXONOMY_ID]) {
+    TAXONOMY_ID = "aecis_default";
+    localStorage.setItem("violation-ai-taxonomy", TAXONOMY_ID);
+  }
+
+  // Render menu items
+  menu.innerHTML = "";
+  TAXONOMIES.forEach(t => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "menuitemradio");
+    b.setAttribute("aria-checked", t.id === TAXONOMY_ID ? "true" : "false");
+    b.dataset.taxonomyId = t.id;
+    b.innerHTML = `<span class="lang-code">${(t.country || "??").toUpperCase()}</span><span>${t.label_en}</span>`;
+    menu.appendChild(b);
+  });
+
+  // Reflect current pick on the button
+  const cur = _TAX_BY_ID()[TAXONOMY_ID];
+  if (curBtnLabel && cur) curBtnLabel.textContent = (cur.country || "??").toUpperCase();
+
+  const open  = () => { menu.classList.remove("hidden"); btn.setAttribute("aria-expanded", "true"); };
+  const close = () => { menu.classList.add("hidden");    btn.setAttribute("aria-expanded", "false"); };
+  const isOpen = () => !menu.classList.contains("hidden");
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    isOpen() ? close() : open();
+  });
+
+  menu.addEventListener("click", (e) => {
+    const item = e.target.closest('[role="menuitemradio"]');
+    if (!item) return;
+    const next = item.dataset.taxonomyId;
+    if (next && next !== TAXONOMY_ID) {
+      TAXONOMY_ID = next;
+      localStorage.setItem("violation-ai-taxonomy", TAXONOMY_ID);
+      const c = _TAX_BY_ID()[TAXONOMY_ID];
+      if (curBtnLabel && c) curBtnLabel.textContent = (c.country || "??").toUpperCase();
+      menu.querySelectorAll('[role="menuitemradio"]').forEach(b => {
+        b.setAttribute("aria-checked", b.dataset.taxonomyId === TAXONOMY_ID ? "true" : "false");
+      });
+      // Force a fresh pending poll so cards re-render in the new
+      // taxonomy. The local-block payload only comes from the server
+      // (the client doesn't have the mapping JSONs), so a fetch is
+      // the cheapest way to get fresh *_local fields.
+      if (typeof poll === "function") poll({force: true});
+    }
+    close();
+    btn.focus();
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!isOpen()) return;
+    if (menu.contains(e.target) || btn.contains(e.target)) return;
+    close();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isOpen()) { close(); btn.focus(); }
+  });
+}
+_initTaxonomyPicker();
+
 // 4-language picker (v116): EN / ES / ZH / VN. Custom popover lives
 // in _base.html so admin and main pages share the same chooser. The
 // switch from native <select> kills the iOS Safari Prev | Next | Done
@@ -2252,6 +2344,36 @@ function displayLabel(lookup, slug) {
   if (!item) return slug || "?";
   if (LANG === "vn" && item.label_vn) return item.label_vn;
   return item.label_en || slug;
+}
+
+// v118 — prefer the server-side localized label (CSA / OSHA / etc.)
+// when present, else fall back to the in-page AECIS lookup.
+// `localBlock` is the {slug, label_en, label_fr?, aecis_slug} object
+// the server attached via TaxonomyTranslator. When the inspector has
+// AECIS_default selected, localBlock is undefined and we behave
+// exactly like displayLabel().
+function displayLabelLocalized(lookup, slug, localBlock) {
+  if (localBlock) {
+    // French preference when LANG=fr (future) — for now only en, vn,
+    // es, zh exist as I18N packs, none of which match label_fr; the
+    // local mapping ships en + fr only, so en is the right default.
+    if (LANG === "fr" && localBlock.label_fr) return localBlock.label_fr;
+    if (localBlock.label_en) return localBlock.label_en;
+    // Server returned a slug-only entry (no mapping found in JSON) —
+    // fall through to AECIS lookup using the original slug.
+  }
+  return displayLabel(lookup, slug);
+}
+
+// Tooltip text — shows the AECIS slug alongside the localized label
+// so inspectors who know the AECIS taxonomy can still identify the
+// underlying class. Empty string when no translation is active so we
+// don't bloat default tooltips.
+function localizedTitle(localBlock, aecisSlug) {
+  if (!localBlock) return "";
+  const aecis = localBlock.aecis_slug || aecisSlug || "";
+  if (!aecis) return "";
+  return `AECIS: ${aecis}`;
 }
 
 function showToast(msg, opts = {}) {
@@ -3374,7 +3496,16 @@ function updateCard(card, photo) {
     const cls = photo.classification || {};
     const finalHse = photo.final_hse_type_slug || cls.hse_type_slug;
     const finalFine = photo.final_fine_hse_type_slug;
-    let detail = displayLabel(HSE_BY_SLUG, finalHse);
+    // Prefer localized HSE label when the inspector chose a non-AECIS
+    // taxonomy AND the final hse slug matches what was predicted (i.e.
+    // the local mapping makes sense). If the inspector corrected to a
+    // different AECIS slug, hse_type_local references the original
+    // prediction; fall back to plain displayLabel which always finds
+    // the correct AECIS label by slug.
+    const _localHseDetail =
+      cls.hse_type_local && (cls.hse_type_local.aecis_slug === finalHse)
+        ? cls.hse_type_local : null;
+    let detail = displayLabelLocalized(HSE_BY_SLUG, finalHse, _localHseDetail);
     if (finalFine) {
       // Show "Lifting_unsafe — Cable hooks unsafe" so the inspector sees
       // the refinement they picked.
@@ -3453,7 +3584,13 @@ function updateCard(card, photo) {
   const _staged = card.dataset.staged === "1";
 
   if (!_editOpen && !_staged) {
-    el(".primary-hse", card).textContent = displayLabel(HSE_BY_SLUG, cls.hse_type_slug);
+    const _phEl = el(".primary-hse", card);
+    _phEl.textContent = displayLabelLocalized(HSE_BY_SLUG, cls.hse_type_slug, cls.hse_type_local);
+    // Tooltip surfaces the AECIS slug for inspectors who want to
+    // cross-reference. Only set when translation is active so the
+    // default-AECIS tooltip stays empty (cleaner UX).
+    const _phTitle = localizedTitle(cls.hse_type_local, cls.hse_type_slug);
+    if (_phTitle) _phEl.title = _phTitle; else _phEl.removeAttribute("title");
     // Fine-grained label (Stage 2 of the two-stage classifier). When the
     // model's Stage 2 picked a specific item with confidence above floor,
     // we surface it as the headline label and demote the parent to a
@@ -3552,12 +3689,20 @@ function updateCard(card, photo) {
   } else {
     altSection.classList.add("hidden");
   }
+  // Build a sha→local lookup for the alt chips so each chip can pull
+  // its own localized label without re-running translation per item.
+  const _altsLocal = cls.hse_type_alternatives_local || [];
+  const _localByAltSlug = {};
+  _altsLocal.forEach(a => { if (a && a.aecis_slug) _localByAltSlug[a.aecis_slug] = a; });
   altsHse.forEach(a => {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "alt-chip inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-200 rounded-full px-2.5 py-1 text-xs font-medium transition-colors";
     b.dataset.altSlug = a.slug;
-    b.innerHTML = `${displayLabel(HSE_BY_SLUG, a.slug)} <span class="text-amber-600 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
+    const _localAlt = _localByAltSlug[a.slug];
+    const _altTitle = localizedTitle(_localAlt, a.slug);
+    if (_altTitle) b.title = _altTitle;
+    b.innerHTML = `${displayLabelLocalized(HSE_BY_SLUG, a.slug, _localAlt)} <span class="text-amber-600 tabular-nums">${Math.round((a.confidence || 0) * 100)}%</span>`;
     // STAGE without auto-submit. Tap → emerald chip, hidden
     // .hse-select gets the alt's slug, dataset.staged='1' so
     // Confirm routes through correctCard. Tapping a different chip
@@ -5304,7 +5449,7 @@ async function poll(opts = {}) {
   if (!opts.force && _pollIdleStreak >= 5 && (now - _lastPollAt) < 16_000) return;
   _lastPollAt = now;
   try {
-    const resp = await fetch(`/api/pending?limit=40&batch_id=${encodeURIComponent(CURRENT_BATCH_ID)}`);
+    const resp = await fetch(`/api/pending?limit=40&batch_id=${encodeURIComponent(CURRENT_BATCH_ID)}&taxonomy=${encodeURIComponent(TAXONOMY_ID || "aecis_default")}`);
     if (!resp.ok) return;
     const data = await resp.json();
     renderTrainingSetSize(data.training_set_size);
