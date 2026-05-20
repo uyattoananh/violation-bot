@@ -1810,6 +1810,35 @@ def api_taxonomies():
     return {"taxonomies": list_available()}
 
 
+@app.get("/api/taxonomies/preview")
+def api_taxonomies_preview(taxonomy: str = "aecis_default"):
+    """Diagnostic endpoint: show a full sample classification rewritten
+    through the requested taxonomy. Helps a Canadian/US HSE reviewer
+    eyeball the mapping without needing an actual photo upload."""
+    from src.taxonomy_translator import TaxonomyTranslator
+    sample = {
+        "hse_type_slug": "Lifting_unsafe",
+        "location_slug": "Lifting_work",
+        "rationale": "Crane operating without spotter, no load test, "
+                     "workers in drop zone.",
+        "hse_type_alternatives": [
+            {"slug": "Equipment_machinery_unsafe", "confidence": 0.6},
+            {"slug": "PPE_missing", "confidence": 0.3},
+        ],
+        "location_alternatives": [
+            {"slug": "Common_working_area", "confidence": 0.4},
+            {"slug": "Working_at_height",   "confidence": 0.2},
+        ],
+    }
+    t = TaxonomyTranslator(taxonomy)
+    t.translate_classification_response(sample)
+    return {
+        "taxonomy_id": t.mapping_id,
+        "is_passthrough": t.is_passthrough,
+        "sample_classification": sample,
+    }
+
+
 @app.get("/service-worker.js", include_in_schema=False)
 def service_worker_js():
     """Serve the PWA service worker from the ROOT path with the
@@ -3427,12 +3456,21 @@ def retry_classify(request: Request, photo_id: str):
 
 
 @app.get("/api/pending")
-def api_pending(limit: int = 40, batch_id: str | None = None):
+def api_pending(limit: int = 40, batch_id: str | None = None,
+                taxonomy: str | None = None):
     """Return the most recent photos + their current classification.
 
     If `batch_id` is provided, only photos in that batch are returned —
     this is what the frontend always passes so users see only their
     current upload session, not the full tenant history.
+
+    `taxonomy` (optional): id of an installed mapping in
+    data/taxonomy_mappings/ (e.g. "csa_z1000_ca", "osha_us"). When
+    present, each classification dict gains `*_local` fields with the
+    translated slugs + labels. The original AECIS slugs stay alongside
+    so the eval pipeline and storage layer are unaffected. Default
+    (or "aecis_default") is a no-op passthrough. See
+    GET /api/taxonomies for the picker payload.
 
     Poll this from the frontend every few seconds to update cards as the
     worker classifies them.
@@ -3453,7 +3491,11 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
         else:
             raise
     if not photos:
-        return {"photos": [], "training_set_size": _training_set_size()}
+        return {
+            "photos": [],
+            "training_set_size": _training_set_size(),
+            "taxonomy_id": (taxonomy or "aecis_default"),
+        }
 
     photo_ids = [p["id"] for p in photos]
     cls_rows = (
@@ -3515,6 +3557,16 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
         from datetime import timedelta
         _expiry_delta = timedelta(days=_PHOTO_EXPIRY_DAYS)
 
+    # Localization layer — initialise once per request. Passthrough if
+    # the inspector picked AECIS (or didn't pick anything). Unknown ids
+    # silently fall back to passthrough (TaxonomyTranslator handles it).
+    try:
+        from src.taxonomy_translator import TaxonomyTranslator
+        translator = TaxonomyTranslator(taxonomy or "aecis_default")
+    except Exception as e:  # noqa: BLE001
+        log.warning("taxonomy translator init failed (%s) — passthrough", e)
+        translator = None
+
     out: list[dict] = []
     for p in photos:
         thumb = r2.generate_presigned_url(
@@ -3537,6 +3589,29 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
             alts_fine = raw.get("fine_hse_type_alternatives") or []
         corr = latest_correction.get(p["id"]) or {}
         job = job_status_by_photo.get(p["id"]) or {}
+        # Build the classification block (might be None when worker hasn't
+        # finished yet). When present, apply taxonomy translation so the
+        # frontend gets *_local fields alongside the AECIS slugs.
+        classification_block = (
+            {
+                "location_slug": cls["location_slug"],
+                "hse_type_slug": cls["hse_type_slug"],
+                "location_confidence": cls.get("location_confidence") or 0,
+                "hse_type_confidence": cls.get("hse_type_confidence") or 0,
+                "rationale": cls.get("rationale", ""),
+                "hse_type_alternatives": alts_hse,
+                "location_alternatives": alts_loc,
+                "fine_hse_type_slug": cls.get("fine_hse_type_slug"),
+                "fine_hse_type_confidence": cls.get("fine_hse_type_confidence") or 0,
+                "fine_hse_type_alternatives": alts_fine,
+                "model": cls.get("model"),
+            } if cls else None
+        )
+        if classification_block and translator and not translator.is_passthrough:
+            try:
+                translator.translate_classification_response(classification_block)
+            except Exception as e:  # noqa: BLE001
+                log.warning("translate failed for photo %s: %s", p["id"], e)
         out.append({
             "id": p["id"],
             "thumb_url": thumb,
@@ -3549,24 +3624,7 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
             # UI surfaces 'error' as a retry-able card.
             "classify_status": job.get("status"),
             "classify_error": (job.get("error") or "")[:500],
-            "classification": (
-                {
-                    "location_slug": cls["location_slug"],
-                    "hse_type_slug": cls["hse_type_slug"],
-                    "location_confidence": cls.get("location_confidence") or 0,
-                    "hse_type_confidence": cls.get("hse_type_confidence") or 0,
-                    "rationale": cls.get("rationale", ""),
-                    "hse_type_alternatives": alts_hse,
-                    "location_alternatives": alts_loc,
-                    # Stage-2 fine sub-type fields. May be missing on
-                    # pre-migration classifications rows or when Stage 2
-                    # confidence was below threshold and emitted null.
-                    "fine_hse_type_slug": cls.get("fine_hse_type_slug"),
-                    "fine_hse_type_confidence": cls.get("fine_hse_type_confidence") or 0,
-                    "fine_hse_type_alternatives": alts_fine,
-                    "model": cls.get("model"),
-                } if cls else None
-            ),
+            "classification": classification_block,
             "reviewed": bool(corr),
             "review_action": corr.get("action"),
             # Final labels — what the inspector actually saved (could differ
@@ -3594,6 +3652,7 @@ def api_pending(limit: int = 40, batch_id: str | None = None):
         "photos": out,
         "training_set_size": _training_set_size(),
         "photo_expiry_days": _PHOTO_EXPIRY_DAYS,
+        "taxonomy_id": (translator.mapping_id if translator else "aecis_default"),
     }
 
 
