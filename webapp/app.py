@@ -3992,6 +3992,56 @@ def _collect_export_rows(tenant_id: str, limit: int = 5000,
     return rows
 
 
+def _enrich_with_localized_labels(rows: list[dict], taxonomy_id: str) -> str:
+    """Add country-localized label columns alongside the AECIS columns.
+
+    AECIS columns (slug + label_en + label_vn) stay intact for audit
+    fidelity — exports remain a faithful record of what AECIS-internal
+    state the system stored. The extra columns layer on top:
+
+      ai_hse_type_local_slug         (e.g. "lifting_rigging_unsafe")
+      ai_hse_type_local_label_en     (e.g. "Unsafe lifting / rigging operation")
+      ai_hse_type_local_label_fr     (CSA only — when present)
+      final_hse_type_local_slug      (same pattern for the inspector's pick)
+      final_hse_type_local_label_en
+      final_hse_type_local_label_fr
+      ai_location_local_slug         (same pattern for location axis)
+      ai_location_local_label_en
+      final_location_local_slug
+      final_location_local_label_en
+
+    Returns the resolved taxonomy id actually used (handles bad input
+    by falling back to aecis_default, which is a no-op).
+    """
+    if not taxonomy_id or taxonomy_id == "aecis_default":
+        return "aecis_default"
+    try:
+        from src.taxonomy_translator import TaxonomyTranslator
+        t = TaxonomyTranslator(taxonomy_id)
+    except Exception as e:  # noqa: BLE001
+        log.warning("export translator init failed (%s): falling back to AECIS", e)
+        return "aecis_default"
+    if t.is_passthrough:
+        return t.mapping_id
+
+    for r in rows:
+        for axis_kind, fn in (("hse_type", t.translate_hse),
+                               ("location", t.translate_loc)):
+            for prefix in ("ai_", "final_"):
+                src_slug = r.get(f"{prefix}{axis_kind}_slug")
+                if not src_slug:
+                    continue
+                local = fn(src_slug)
+                if not local:
+                    continue
+                r[f"{prefix}{axis_kind}_local_slug"] = local.get("slug", "")
+                if local.get("label_en"):
+                    r[f"{prefix}{axis_kind}_local_label_en"] = local["label_en"]
+                if local.get("label_fr"):
+                    r[f"{prefix}{axis_kind}_local_label_fr"] = local["label_fr"]
+    return t.mapping_id
+
+
 def _enrich_with_labels(rows: list[dict], tax: dict) -> None:
     """Add label_en / label_vn columns from the taxonomy in place.
     Also resolves the fine_hse_type_slug against data/fine_hse_types_by_parent.json
@@ -4030,6 +4080,7 @@ def _enrich_with_labels(rows: list[dict], tax: dict) -> None:
 
 def _build_export_blob(
     fmt: str, batch_id: str | None, limit: int = 5000,
+    taxonomy: str | None = None,
 ) -> tuple[bytes, str, str]:
     """Return (blob_bytes, mime_type, filename) for the requested format.
 
@@ -4040,6 +4091,10 @@ def _build_export_blob(
 
     Supported formats: 'pdf' | 'zip' | 'csv' | 'json'. Caller has
     already validated the format string.
+
+    `taxonomy` (optional): when set to a non-default mapping id, the
+    rows get extra *_local_* fields. Audit columns (AECIS slug + EN/VN
+    labels) stay intact.
     """
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "tenant not configured")
@@ -4047,6 +4102,8 @@ def _build_export_blob(
     if not rows:
         raise HTTPException(404, "no photos to export")
     tax = app.state.taxonomy or load_taxonomy()
+    if taxonomy and taxonomy != "aecis_default":
+        _enrich_with_localized_labels(rows, taxonomy)
     _enrich_with_labels(rows, tax)
 
     from datetime import datetime, timezone
@@ -4695,15 +4752,23 @@ async def export_email(
 
 
 @app.get("/api/export/csv")
-def export_csv(limit: int = 5000, batch_id: str | None = None):
+def export_csv(limit: int = 5000, batch_id: str | None = None,
+               taxonomy: str | None = None):
     """Stream a CSV of every photo + AI prediction + final label.
+
     Filter to one batch via ?batch_id=... — frontend always passes the
-    current batch so users only download photos from this upload session."""
+    current batch so users only download photos from this upload session.
+
+    ?taxonomy=<id> appends localized columns alongside the AECIS columns.
+    Audit trail (AECIS slug + EN + VN labels) is preserved in every row
+    regardless; the localized columns are additive. Default behaviour
+    (no taxonomy param or aecis_default) is unchanged."""
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "tenant not configured")
     rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit, batch_id=batch_id)
     tax = app.state.taxonomy or load_taxonomy()
     _enrich_with_labels(rows, tax)
+    applied_taxonomy = _enrich_with_localized_labels(rows, taxonomy or "aecis_default")
 
     import csv
     import io
@@ -4732,6 +4797,20 @@ def export_csv(limit: int = 5000, batch_id: str | None = None):
         "ai_rationale", "ai_model",
         "sha256",
     ]
+    # When a non-AECIS taxonomy was applied, append the localized
+    # columns at the right edge of the CSV. AECIS columns stay where
+    # they were for backward compatibility of any downstream tooling.
+    if applied_taxonomy and applied_taxonomy != "aecis_default":
+        cols.extend([
+            "final_hse_type_local_slug",     "final_hse_type_local_label_en",
+            "final_hse_type_local_label_fr",
+            "ai_hse_type_local_slug",        "ai_hse_type_local_label_en",
+            "ai_hse_type_local_label_fr",
+            "final_location_local_slug",     "final_location_local_label_en",
+            "final_location_local_label_fr",
+            "ai_location_local_slug",        "ai_location_local_label_en",
+            "ai_location_local_label_fr",
+        ])
     w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
     w.writeheader()
     for r in rows:
@@ -4750,7 +4829,8 @@ def export_csv(limit: int = 5000, batch_id: str | None = None):
 
 
 @app.get("/api/export/html")
-def export_html(limit: int = 5000, batch_id: str | None = None):
+def export_html(limit: int = 5000, batch_id: str | None = None,
+                taxonomy: str | None = None):
     """Self-contained HTML report — cover page + summary stats + per-photo
     rows with inlined base64 thumbnails. Opens in any browser, prints
     cleanly via Cmd/Ctrl+P, and travels well over email (no expiring
@@ -4758,10 +4838,12 @@ def export_html(limit: int = 5000, batch_id: str | None = None):
 
     Same row collection / enrichment pipeline as the other export
     formats; the actual HTML build lives in _build_export_blob so the
-    email-export flow gets the same output."""
+    email-export flow gets the same output. ?taxonomy=<id> attaches
+    localized fields to each row; AECIS columns remain unchanged."""
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "tenant not configured")
-    blob, mime, filename = _build_export_blob("html", batch_id, limit=limit)
+    blob, mime, filename = _build_export_blob(
+        "html", batch_id, limit=limit, taxonomy=taxonomy)
     return Response(
         content=blob,
         media_type=mime,
@@ -4770,19 +4852,27 @@ def export_html(limit: int = 5000, batch_id: str | None = None):
 
 
 @app.get("/api/export/json")
-def export_json(limit: int = 5000, batch_id: str | None = None):
-    """JSON dump of every photo + AI prediction + final label."""
+def export_json(limit: int = 5000, batch_id: str | None = None,
+                taxonomy: str | None = None):
+    """JSON dump of every photo + AI prediction + final label.
+
+    ?taxonomy=<id> attaches per-row localized fields alongside the
+    AECIS columns; AECIS slugs + EN/VN labels remain on every row
+    for audit fidelity. Default is unchanged. Top-level
+    `taxonomy_applied` reflects what the caller asked for."""
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "tenant not configured")
     rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit, batch_id=batch_id)
     tax = app.state.taxonomy or load_taxonomy()
     _enrich_with_labels(rows, tax)
+    applied_taxonomy = _enrich_with_localized_labels(rows, taxonomy or "aecis_default")
 
     from datetime import datetime, timezone
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
     return JSONResponse(
         {
             "exported_at": datetime.now(timezone.utc).isoformat(),
+            "taxonomy_applied": applied_taxonomy,
             "count": len(rows),
             "photos": rows,
         },
@@ -4791,7 +4881,8 @@ def export_json(limit: int = 5000, batch_id: str | None = None):
 
 
 @app.get("/api/export/pdf")
-def export_pdf(limit: int = 5000, batch_id: str | None = None):
+def export_pdf(limit: int = 5000, batch_id: str | None = None,
+               taxonomy: str | None = None):
     """Render a printable PDF report — cover page + one photo per page
     with the violation type, location, AI vs final label, and inspector
     note. Format AECIS HSE clients expect to hand to safety officers /
@@ -4799,7 +4890,11 @@ def export_pdf(limit: int = 5000, batch_id: str | None = None):
 
     Photos are downscaled to 1200px wide before embedding so the PDF
     stays a reasonable size even on a 200-photo batch (~30-40MB).
-    """
+
+    ?taxonomy=<id> attaches localized labels alongside the AECIS audit
+    labels. The PDF builder reads whichever columns it knows about; new
+    localized columns are appended to the dict and ignored by builders
+    that haven't been taught to render them yet (audit trail intact)."""
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "tenant not configured")
     rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=limit, batch_id=batch_id)
@@ -4807,6 +4902,7 @@ def export_pdf(limit: int = 5000, batch_id: str | None = None):
         raise HTTPException(404, "no photos to export")
     tax = app.state.taxonomy or load_taxonomy()
     _enrich_with_labels(rows, tax)
+    _enrich_with_localized_labels(rows, taxonomy or "aecis_default")
 
     # Resolve a friendly batch label for the cover page (latest non-empty
     # wins, mirroring /api/batches behavior). If unset, the builder shows

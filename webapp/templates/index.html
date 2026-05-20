@@ -3513,7 +3513,15 @@ function updateCard(card, photo) {
       const fineLabel = f ? (LANG === "vn" && f.label_vn ? f.label_vn : f.label_en) : finalFine;
       detail += ` — ${fineLabel}`;
     }
-    el(".reviewed-detail", revEl).textContent = detail;
+    const _revDetail = el(".reviewed-detail", revEl);
+    _revDetail.textContent = detail;
+    // When the inspector is viewing in a non-AECIS taxonomy, surface
+    // the canonical AECIS slug as a tooltip on the reviewed line so
+    // they can verify what actually got stored (corrections are
+    // always written in AECIS slugs — the model trains on AECIS).
+    const _revTitle = localizedTitle(_localHseDetail, finalHse);
+    if (_revTitle) _revDetail.title = _revTitle;
+    else _revDetail.removeAttribute("title");
     cached.status = "reviewed";
     photoCache.set(photo.id, cached);
     card.dataset.status = "reviewed";
