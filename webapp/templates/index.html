@@ -46,6 +46,15 @@
     </div>
   </div>
 
+  <!-- v118.9 — Dropzone host slot. The same #dropzone-panel widget
+       that lives in the batch-detail view physically relocates here
+       on view-list, then back to its detail-view host when the user
+       opens a batch. Sharing one DOM instance avoids ID collisions,
+       state drift, and duplicated event wiring (Option A from the
+       UX-port deliberation). The list-host stays empty when the
+       widget is parked in the detail view. -->
+  <div id="dropzone-host-list" class="mb-3"></div>
+
   <!-- Compact expiry banner. Was a two-line yellow card; now a slim
        one-liner. v82 overhaul. -->
   <div id="expiry-banner-list"
@@ -148,6 +157,12 @@
     <span data-i18n="expiry_banner_cta_compact" class="text-amber-900 font-medium">download report</span>
   </span>
 </div>
+
+<!-- v118.9 — Dropzone host slot for the DETAIL view. The single
+     #dropzone-panel below physically relocates between this slot
+     and #dropzone-host-list in the inspection-list view via
+     _relocateDropzone(). Only one instance of the widget exists. -->
+<div id="dropzone-host-detail"></div>
 
 <!-- Dropzone panel. Wrapped in a div so the [+ Add] button in the
      title row can toggle it via aria-expanded. UX overhaul v81: the
@@ -4277,6 +4292,20 @@ window.addEventListener("beforeunload", (e) => {
 
 async function uploadFiles(files) {
   if (!files.length) return;
+  // v118.9 — when files arrive while the inspector is on the list
+  // view (the shared dropzone was relocated there by switchView),
+  // mint a fresh batch and route to detail BEFORE the upload begins.
+  // Without this guard the upload would attach to whatever batch ID
+  // happened to be in CURRENT_BATCH_ID (stale from a previous
+  // session) or land orphaned.
+  if (typeof currentView !== "undefined" && currentView === VIEW_LIST) {
+    startNewBatch();
+    if (typeof _autoNameBatch === "function") _autoNameBatch();
+    switchView(VIEW_DETAIL);
+    // switchView calls _relocateDropzone which moves #dropzone-panel
+    // back into the detail view, so the upload-progress overlay below
+    // renders in the same widget the user just interacted with.
+  }
   const total = files.length;
   const detail = el("#upload-progress-detail");
   const bar = el("#upload-progress-bar");
@@ -5527,12 +5556,43 @@ let currentView = VIEW_LIST;
 const viewListEl   = el("#view-list");
 const viewDetailEl = el("#view-detail");
 
+// v118.9 — Relocate the shared #dropzone-panel into whichever view is
+// active. Only ONE dropzone DOM instance exists across the whole app;
+// the same widget physically moves between the list view's host slot
+// and the detail view's host slot on each switchView() call. This
+// avoids duplicated IDs / event listeners / state. All existing
+// global selectors (#dropzone, #file-input, #camera-input,
+// #btn-camera, #btn-choose, #dropzone-quota) keep working because
+// the element is the same node — only its parent changes.
+function _relocateDropzone(view) {
+  const panel = document.getElementById("dropzone-panel");
+  if (!panel) return;
+  const targetId = view === VIEW_LIST ? "dropzone-host-list" : "dropzone-host-detail";
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  if (panel.parentElement !== target) {
+    target.appendChild(panel);
+  }
+  // On the list view we want the dropzone OPEN by default so the
+  // inspector sees the drop affordance without an extra tap. On
+  // the detail view, poll() / openBatch() drive the open state
+  // based on whether the batch has photos.
+  if (view === VIEW_LIST) {
+    panel.classList.remove("hidden");
+    // Force the "empty" data-state so the full hero copy + actions
+    // render (vs. the compact has-photos strip).
+    const dz = document.getElementById("dropzone");
+    if (dz) dz.dataset.state = "empty";
+  }
+}
+
 function switchView(v, opts = {}) {
   currentView = v;
   localStorage.setItem("violation-ai-view", v);
   viewListEl.classList.toggle("hidden", v !== VIEW_LIST);
   viewDetailEl.classList.toggle("hidden", v !== VIEW_DETAIL);
   document.title = v === VIEW_LIST ? "HSE Detector · inspections" : "HSE Detector · upload";
+  _relocateDropzone(v);
 
   // v115.3 — wire SPA navigation into the browser history so
   // back/forward actually work. Without this, hitting the back
