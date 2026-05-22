@@ -5380,6 +5380,13 @@ async function poll(opts = {}) {
       // welcome layout. UX overhaul v81.
       el("#dropzone").dataset.state = "empty";
       _setDropzonePanelOpen(true);
+      // v118.6 — hide [+ Add] when the batch is empty. The dropzone
+      // is already on-screen at full size; the duplicate button just
+      // collapses the only upload affordance when tapped (the click
+      // toggles aria-expanded → hides the panel → user is left with
+      // nothing). UX bug report: "the add button when clicked while
+      // there is no photo, closes the drop-off box".
+      el("#btn-add-photos")?.classList.add("hidden");
       el("#batch-subtitle").textContent = "";
     } else {
       el("#empty-state").classList.add("hidden");
@@ -5396,6 +5403,10 @@ async function poll(opts = {}) {
       // collapses to a [+ Add] button — same one tap to expand again
       // if you want to add more.
       _setDropzonePanelOpen(false);
+      // v118.6 — reveal the [+ Add] button now that there's content to
+      // add MORE to. Pair with the hide() above when transitioning
+      // from has-photos → empty (e.g. user deletes all).
+      el("#btn-add-photos")?.classList.remove("hidden");
     }
     // v116: re-apply select-mode classes to whatever cards exist now.
     // poll() can insert new cards or replace updated ones, and without
@@ -5464,6 +5475,18 @@ function _setDropzonePanelOpen(open) {
 }
 el("#btn-add-photos")?.addEventListener("click", (e) => {
   e.stopPropagation();
+  // v118.6 — guard against clicks that arrive while the button is in
+  // its hidden state (race with poll's visibility flip). Treat such
+  // clicks as no-ops rather than collapsing the dropzone.
+  if (e.currentTarget.classList.contains("hidden")) return;
+  // Second guard: never collapse the dropzone when the batch has
+  // zero cards. There's nothing else to upload from in that state.
+  const hasCards = els(".card", cardsEl).length > 0;
+  if (!hasCards) {
+    _setDropzonePanelOpen(true);
+    el("#dropzone-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
   const open = el("#dropzone-panel").classList.contains("hidden");
   _setDropzonePanelOpen(open);
   // When opening, scroll the dropzone into view so the user can
