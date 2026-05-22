@@ -4525,6 +4525,27 @@ if (btnCamera && cameraInput) {
     const newFiles = Array.from(e.target.files || []);
     cameraInput.value = "";       // allow taking the same photo twice
     if (!newFiles.length) return;
+    // v117.11 — When the user fires the camera from the inspection-
+    // list view (the dropzone was relocated there in v117.8), the
+    // burst tray that would normally render the staged shot lives
+    // INSIDE view-detail's markup. Without this guard, the photo
+    // gets silently staged in _camBurst with no visible feedback —
+    // the tray exists but is hidden inside the off-screen detail
+    // view. Audit test caught this: capture=environment input is
+    // correctly wired, file gets selected, but view stays on list
+    // and no upload UI surfaces.
+    //
+    // Mirror the uploadFiles list-view guard: if we're on the list
+    // view, create a fresh batch and switch to detail BEFORE staging
+    // so the burst tray actually paints. The dropzone-panel + cam-
+    // burst-tray are both visible in the detail view; the staged
+    // shot lands in the tray ready for the inspector to take more
+    // or tap Upload.
+    if (typeof currentView !== "undefined" && currentView === VIEW_LIST) {
+      startNewBatch();
+      if (typeof _autoNameBatch === "function") _autoNameBatch();
+      switchView(VIEW_DETAIL);
+    }
     // Stage instead of uploading immediately. The user can take more
     // shots and submit the whole burst when they're ready.
     newFiles.forEach(f => {
