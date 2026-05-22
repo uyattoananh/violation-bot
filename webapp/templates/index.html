@@ -8,19 +8,42 @@
 <section id="view-list" class="hidden">
   <div class="flex items-center justify-between gap-2 mb-4">
     <h1 class="font-semibold text-slate-900 truncate min-w-0" style="font-size: clamp(18px, 5vw, 22px);" data-i18n="list_title">Your inspections</h1>
-    <!-- Start-new-batch CTA collapses to icon-only on the narrowest
-         screens (UX backlog A1 unified-responsive approach). The
-         label hides via .narrow-hide; the icon stays so the action
-         is still discoverable. -->
-    <button id="btn-new-batch-from-list"
-            class="btn-primary flex-shrink-0"
-            aria-label="Start new inspection"
-            title="Start a new inspection">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
-      </svg>
-      <span class="narrow-hide" data-i18n="batch_new_full">Start new inspection</span>
-    </button>
+    <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+      <!-- v118.8 — Quick-capture button. Tapping opens the rear
+           camera directly, auto-creates a batch, and uploads the
+           snapped photo. Distinct from "+ Start new inspection"
+           below (which makes an empty batch for inspectors who
+           have multiple existing photos to drop in). Mobile-first:
+           the inspector standing at a violation wants ONE tap to
+           camera, not 3 (new batch → +Add → camera). #btn-quick-
+           batch is the JS hook already wired in v82-era code
+           (markup was removed; the handler stayed null-guarded).
+           Icon-only — a labelled second CTA would re-introduce the
+           v82 duplicate-CTA UX problem. -->
+      <button id="btn-quick-batch"
+              type="button"
+              class="inline-flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white border border-slate-300 hover:bg-slate-50 active:bg-slate-100 text-slate-700 shadow-sm transition-colors"
+              aria-label="Take photo (opens camera)"
+              title="Take photo (opens camera and starts a new inspection)">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175-1.075.18-1.807 1.114-1.807 2.155V16.5a2.25 2.25 0 002.25 2.25h15.75a2.25 2.25 0 002.25-2.25V9.56c0-1.041-.732-1.975-1.807-2.155a48.32 48.32 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z"/>
+        </svg>
+      </button>
+      <!-- Start-new-batch CTA — v118.8 makes the label hide on phones
+           (< 640px) so the new quick-capture camera button has room
+           on the title row. The icon "+" is enough on a phone; the
+           full label returns at sm: and above. -->
+      <button id="btn-new-batch-from-list"
+              class="btn-primary"
+              aria-label="Start new inspection"
+              title="Start a new inspection">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+        </svg>
+        <span class="hidden sm:inline" data-i18n="batch_new_full">Start new inspection</span>
+      </button>
+    </div>
   </div>
 
   <!-- Compact expiry banner. Was a two-line yellow card; now a slim
