@@ -852,6 +852,45 @@ def _cleanup_expired_batches() -> int:
     return deleted
 
 
+def _retry_on_supabase_disconnect(fn, *args, retries=1, **kwargs):
+    """Wrap a Supabase-touching call. Retries ONCE on the transient
+    HTTP/2 protocol disconnect that httpx surfaces from the Supabase
+    Python client when the server-side stream dies mid-response.
+
+    Audit harness (v117.4) caught this surfacing as 500s on
+    /api/batches and /api/export/summary — back-to-back GETs would
+    succeed-fail-succeed without any state change on our side. Not
+    a bug in our code, but the user sees a "failed to load" toast
+    that goes away if they refresh, which is bad UX.
+
+    Catch the specific exception class lazily (httpx may not be at the
+    top of the import graph in every environment). Anything not
+    matching the network-protocol fingerprint re-raises unchanged.
+    """
+    try:
+        import httpx  # noqa: F401
+    except Exception:  # noqa: BLE001
+        httpx = None  # type: ignore[assignment]
+    for attempt in range(retries + 1):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:  # noqa: BLE001
+            # Match by class name to avoid hard import dependency on
+            # httpx / httpcore (both raise variants of this).
+            name = type(e).__name__
+            msg = str(e)
+            is_disconnect = (
+                name == "RemoteProtocolError"
+                or "Server disconnected" in msg
+                or "stream was reset" in msg
+            )
+            if is_disconnect and attempt < retries:
+                log.warning("supabase transient disconnect (attempt %d): %s",
+                            attempt + 1, msg[:120])
+                continue
+            raise
+
+
 def _maybe_cleanup():
     """Run cleanup at most once per hour (best-effort, non-blocking).
 
@@ -2857,11 +2896,24 @@ def api_batches(request: Request, limit: int = 100):
     auto-seeded data) are excluded — they aren't user-created batches.
 
     Scoped to the requesting user (by user_id OR user_key) so inspectors
-    only see their own batches and never hit 403 on delete.  Admins see
+    only see their own batches and never hit 403 on delete. Admins see
     all batches in the tenant.
 
     Returns batches sorted newest-first by latest_uploaded_at.
+
+    Wraps the actual work in _retry_on_supabase_disconnect: the
+    Supabase Python client's HTTP/2 connection occasionally drops
+    mid-response (httpx surfaces RemoteProtocolError). One retry is
+    sufficient — the connection pool reissues on a fresh HTTP/1.1 or
+    HTTP/2 stream and the second request succeeds. Audit harness
+    caught this manifesting as transient 500s on the inspections
+    list.
     """
+    return _retry_on_supabase_disconnect(_api_batches_impl, request, limit)
+
+
+def _api_batches_impl(request: Request, limit: int = 100):
+    """Inner body of api_batches — wrapped by _retry_on_supabase_disconnect."""
     _maybe_cleanup()   # expire old photos at most once/hour
     if not DEFAULT_TENANT_ID:
         return {"batches": []}
@@ -7591,7 +7643,13 @@ def admin_proposal_duplicate(
 
 @app.get("/api/export/summary")
 def export_summary(batch_id: str | None = None):
-    """Per-batch digest used by the UI's summary card. Cheap aggregate query."""
+    """Per-batch digest used by the UI's summary card. Cheap aggregate query.
+    Same retry-on-Supabase-disconnect wrapper as /api/batches (audit-caught
+    transient 500). See _retry_on_supabase_disconnect."""
+    return _retry_on_supabase_disconnect(_export_summary_impl, batch_id)
+
+
+def _export_summary_impl(batch_id: str | None = None):
     if not DEFAULT_TENANT_ID:
         raise HTTPException(500, "tenant not configured")
     rows = _collect_export_rows(DEFAULT_TENANT_ID, limit=5000, batch_id=batch_id)

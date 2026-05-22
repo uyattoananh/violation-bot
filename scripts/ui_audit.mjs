@@ -132,28 +132,50 @@ async function main() {
   await snapshot(page, "01-landing", findings);
   await clickRandomNonDestructive(page, NOISY_CLICKS, findings, "01-landing");
 
-  // ===== Step 2: start new inspection =====
-  await page.evaluate(() => {
-    const btns = Array.from(document.querySelectorAll("button"));
-    btns.find(b => /start new inspection/i.test(b.textContent || ""))?.click();
+  // ===== Step 2: open an existing batch (new flow — v117.9 removed
+  // the "+ Start new inspection" button; the dropzone now drives
+  // batch creation on upload). If no batch exists yet, just stay
+  // on the list view and skip the detail-view assertion.
+  const opened = await page.evaluate(() => {
+    const firstBatchRow = document.querySelector("#batches-grid > *");
+    if (firstBatchRow) {
+      firstBatchRow.click();
+      return true;
+    }
+    return false;
   });
-  await new Promise(r => setTimeout(r, 2500));
-  await snapshot(page, "02-empty-batch", findings);
+  await new Promise(r => setTimeout(r, 2000));
+  await snapshot(page, "02-batch-detail-or-list", findings);
 
-  // Assertion: +Add button must NOT be visible in empty batch
-  const addBtnAfterStart = await page.evaluate(() => {
-    const b = document.getElementById("btn-add-photos");
-    return {
-      hidden_class: b?.classList.contains("hidden") ?? null,
-      visible: b ? b.getBoundingClientRect().width > 0 : false,
-    };
-  });
+  // Assertion: +Add button on batch detail. With photos in the batch,
+  // the button should be visible. With zero photos, hidden.
   findings.assertions = findings.assertions || [];
-  findings.assertions.push({
-    name: "add-btn-hidden-on-empty-batch",
-    pass: addBtnAfterStart.hidden_class === true && addBtnAfterStart.visible === false,
-    detail: addBtnAfterStart,
-  });
+  if (opened) {
+    const detailState = await page.evaluate(() => {
+      const b = document.getElementById("btn-add-photos");
+      const cards = document.querySelectorAll(".card").length;
+      return {
+        hidden_class: b?.classList.contains("hidden") ?? null,
+        visible: b ? b.getBoundingClientRect().width > 0 : false,
+        photo_cards_count: cards,
+      };
+    });
+    findings.assertions.push({
+      name: "add-btn-visibility-matches-photo-count",
+      // When cards > 0, the button SHOULD be visible. When cards === 0,
+      // SHOULD be hidden. v118.6 wired this in poll().
+      pass: detailState.photo_cards_count > 0
+              ? (!detailState.hidden_class && detailState.visible)
+              : (detailState.hidden_class === true),
+      detail: detailState,
+    });
+  } else {
+    findings.assertions.push({
+      name: "add-btn-visibility-matches-photo-count",
+      skipped: true,
+      reason: "no batches in the test database — assertion skipped",
+    });
+  }
 
   await clickRandomNonDestructive(page, NOISY_CLICKS, findings, "02-empty-batch");
   await snapshot(page, "03-empty-batch-after-noisy-clicks", findings);
