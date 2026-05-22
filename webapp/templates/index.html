@@ -78,14 +78,11 @@
      summary card retire entirely. Add button toggles the dropzone
      (hidden by default once the batch has photos). -->
 <div class="mb-3 flex items-center gap-2 sm:gap-3">
-  <!-- Icon + button now match: both 44 x 44, both rounded-xl. The
-       icon container's height was 40 px while the button's was 44 px,
-       which read as a misalignment when stacked side-by-side. -->
-  <div class="w-11 h-11 rounded-xl bg-emerald-50 grid place-items-center flex-shrink-0">
-    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-    </svg>
-  </div>
+  <!-- v118.7 — removed the emerald-50 / check-circle icon block that
+       used to sit here. It signified nothing: the check-mark always
+       rendered regardless of batch state (empty, in-progress, done).
+       Pure decoration that added visual weight without communicating
+       anything. The title alone is the page identity. -->
   <!-- v115.9: editable title with a subtle hover wash + a faint
        pencil glyph hint, so the user sees this is tap-to-rename
        even when the auto-generated date label is already filled
