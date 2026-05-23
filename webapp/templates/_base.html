@@ -521,6 +521,20 @@
       //      sliding 10 s window. Removes spam-redirect from a burst
       //      of failing parallel polls.
       let _lastVerifyAt = 0;
+      // v117.12 — startup grace window. Android Chrome (especially in
+      // PWA / standalone mode) occasionally does NOT include the
+      // session cookie on the very first batch of requests after an
+      // OAuth redirect — the cookie store sync lags the navigation.
+      // Without this grace, an early /api/batches poll gets 401, the
+      // verify path also 401s (same missing cookie), and the user
+      // gets `location.replace`d back to /auth/signin. They sign in
+      // again, the race repeats, looking like the "sign-in popup
+      // appearing and disappearing rapidly" symptom reported on
+      // Android. Inside the grace window we silently swallow 401s
+      // without verifying or redirecting; the next poll a few
+      // seconds later will succeed once cookies catch up.
+      const _PAGE_LOAD_AT = Date.now();
+      const _STARTUP_GRACE_MS = 8000;
       window.fetch = async function (...args) {
         const resp = await _origFetch.apply(this, args);
         if (resp.status === 401 && !_redirecting) {
@@ -531,6 +545,14 @@
           // for the one-shot probes we issue from below.
           const isAuthMe = url.includes("/auth/me");
           if (isOurApi && !isAuthMe) {
+            // Startup grace: cookie-sync races on Android PWAs surface
+            // as 401s in the first few seconds of a fresh page load.
+            // Don't redirect during this window — let the cookie catch
+            // up and the next poll succeed naturally.
+            const since_load = Date.now() - _PAGE_LOAD_AT;
+            if (since_load < _STARTUP_GRACE_MS) {
+              return resp;
+            }
             const now = Date.now();
             if (now - _lastVerifyAt < 10_000) return resp;   // throttled
             _lastVerifyAt = now;
@@ -1216,8 +1238,31 @@
         }
       } catch (_) {}
 
-      fetch("/auth/me", { credentials: "same-origin" })
-        .then((r) => r.ok ? r.json() : { authed: false })
+      // v117.12 — Android cookie-sync race tolerance. If the cache
+      // said authed (we pre-painted the avatar) but the FIRST
+      // /auth/me probe says authed=false, retry once after a short
+      // delay before flipping the pill to "Sign in". The first
+      // probe can race the cookie store on Android PWA; a second
+      // probe a moment later usually reflects the real state.
+      async function _fetchAuthMe() {
+        try {
+          const r = await fetch("/auth/me", { credentials: "same-origin", cache: "no-store" });
+          return r.ok ? await r.json() : { authed: false };
+        } catch (_) {
+          return { authed: false };
+        }
+      }
+      (async function () {
+        let d = await _fetchAuthMe();
+        if (!d.authed && _prePaintShown) {
+          // Cache said authed → first probe says no. Could be a
+          // cookie-sync race. Give it 1.2s and retry once.
+          await new Promise(r => setTimeout(r, 1200));
+          const d2 = await _fetchAuthMe();
+          if (d2.authed) d = d2;   // confirmed authed on retry — use it
+        }
+        return Promise.resolve(d);
+      })()
         .then((d) => {
           // Persist auth state for instant pre-paint on next visit.
           try { localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(d)); } catch (_) {}
