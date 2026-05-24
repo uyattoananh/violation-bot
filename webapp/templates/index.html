@@ -4459,6 +4459,11 @@ async function uploadFiles(files) {
   // v81 overhaul: collapse the dropzone panel after a successful
   // upload so the user lands on the photo grid instead of having to
   // scroll past the dropzone again.
+  // v117.14 — also clear the user-opened flag; the upload is the
+  // intent the panel was opened for, so closing post-upload is
+  // the right default behavior (matches v81's "stay on grid").
+  const _dzPanelClose = el("#dropzone-panel");
+  if (_dzPanelClose) delete _dzPanelClose.dataset.userOpened;
   _setDropzonePanelOpen(false);
   // Drop the in-flight counter so the beforeunload guard releases.
   // Done here (not in finally) because the function's loop above
@@ -5542,14 +5547,24 @@ async function poll(opts = {}) {
       // Has photos: collapse the dropzone so the grid is above the fold
       // on mobile (UX backlog A1).
       el("#dropzone").dataset.state = "has-photos";
-      // v102 rebuild: also collapse the dropzone PANEL when the batch
-      // already has photos. Previously the panel only auto-closed AFTER
-      // a successful upload (uploadFiles end), so navigating into a
-      // batch you'd already populated showed the dropzone panel open
-      // for no reason. Now the moment poll() sees photos, the panel
-      // collapses to a [+ Add] button — same one tap to expand again
-      // if you want to add more.
-      _setDropzonePanelOpen(false);
+      // v117.14 — Only auto-collapse on the FIRST poll after a batch
+      // transitions empty → has-photos. Without this guard, every
+      // ~4s poll would slam the panel shut, which created the
+      // user-reported bug: "tapping [+ Add] in the batch screen
+      // briefly shows the dropzone, then it disappears". The user
+      // taps [+ Add] at T=0, dropzone opens. At T=~4s, poll fires,
+      // sees has-photos, unconditionally calls
+      // _setDropzonePanelOpen(false), dropzone slams shut.
+      //
+      // Now: only auto-close when the panel hasn't been explicitly
+      // opened by the user via the [+ Add] click (or was just
+      // opened-by-poll on a fresh empty-batch entry — we treat the
+      // FIRST has-photos poll as the transition signal).
+      const _dzPanel = el("#dropzone-panel");
+      const _userOpened = _dzPanel?.dataset.userOpened === "1";
+      if (!_userOpened) {
+        _setDropzonePanelOpen(false);
+      }
       // v118.6 — reveal the [+ Add] button now that there's content to
       // add MORE to. Pair with the hide() above when transitioning
       // from has-photos → empty (e.g. user deletes all).
@@ -5629,17 +5644,25 @@ el("#btn-add-photos")?.addEventListener("click", (e) => {
   // Second guard: never collapse the dropzone when the batch has
   // zero cards. There's nothing else to upload from in that state.
   const hasCards = els(".card", cardsEl).length > 0;
+  const _dzPanel = el("#dropzone-panel");
   if (!hasCards) {
     _setDropzonePanelOpen(true);
-    el("#dropzone-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (_dzPanel) _dzPanel.dataset.userOpened = "1";
+    _dzPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
-  const open = el("#dropzone-panel").classList.contains("hidden");
+  const open = _dzPanel.classList.contains("hidden");
   _setDropzonePanelOpen(open);
-  // When opening, scroll the dropzone into view so the user can
-  // immediately see the upload buttons.
+  // v117.14 — flag the panel as user-opened so poll() doesn't slam
+  // it shut on the next 4 s cycle. Cleared when the user explicitly
+  // toggles it closed (tap [+ Add] when already open) or after a
+  // successful upload (uploadFiles end).
+  if (_dzPanel) {
+    if (open) _dzPanel.dataset.userOpened = "1";
+    else delete _dzPanel.dataset.userOpened;
+  }
   if (open) {
-    el("#dropzone-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+    _dzPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 });
 
@@ -6087,6 +6110,11 @@ function openBatch(batchId, label, opts = {}) {
   // Wipe local cards so the fresh poll() starts clean
   photoCache.clear();
   cardsEl.querySelectorAll(".card").forEach(c => c.remove());
+  // v117.14 — reset the user-opened flag on batch swap. The flag's
+  // meaning is "user opened the panel in THIS batch session";
+  // switching batches starts a new session with no inherited state.
+  const _dzPanelOnOpen = el("#dropzone-panel");
+  if (_dzPanelOnOpen) delete _dzPanelOnOpen.dataset.userOpened;
   // Show loading spinner instead of the "No photos yet" empty state.
   // This prevents the confusing flash of an empty batch while poll()
   // fetches the photos from the API. poll() hides the spinner once
