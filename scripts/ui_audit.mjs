@@ -147,31 +147,40 @@ async function main() {
   await new Promise(r => setTimeout(r, 2000));
   await snapshot(page, "02-batch-detail-or-list", findings);
 
-  // Assertion: +Add button on batch detail. With photos in the batch,
-  // the button should be visible. With zero photos, hidden.
+  // v118.10 — The [+ Add] toggle button (#btn-add-photos) was removed.
+  // Replaced by a permanent Take photo / Choose photos menu inside the
+  // detail-view dropzone. Assertion now: that button must NOT exist, and
+  // when a batch is open the permanent action buttons must be present.
   findings.assertions = findings.assertions || [];
+  const addBtnGone = await page.evaluate(() =>
+    document.getElementById("btn-add-photos") === null);
+  findings.assertions.push({
+    name: "legacy-add-button-removed",
+    pass: addBtnGone,
+    detail: { btn_add_photos_in_dom: !addBtnGone },
+  });
   if (opened) {
     const detailState = await page.evaluate(() => {
-      const b = document.getElementById("btn-add-photos");
-      const cards = document.querySelectorAll(".card").length;
+      const vis = (el) => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        return cs.display !== "none" && cs.visibility !== "hidden" && r.width > 0 && r.height > 0;
+      };
       return {
-        hidden_class: b?.classList.contains("hidden") ?? null,
-        visible: b ? b.getBoundingClientRect().width > 0 : false,
-        photo_cards_count: cards,
+        cam_visible: vis(document.getElementById("btn-camera")),
+        choose_visible: vis(document.getElementById("btn-choose")),
+        photo_cards_count: document.querySelectorAll(".card").length,
       };
     });
     findings.assertions.push({
-      name: "add-btn-visibility-matches-photo-count",
-      // When cards > 0, the button SHOULD be visible. When cards === 0,
-      // SHOULD be hidden. v118.6 wired this in poll().
-      pass: detailState.photo_cards_count > 0
-              ? (!detailState.hidden_class && detailState.visible)
-              : (detailState.hidden_class === true),
+      name: "permanent-add-menu-present",
+      pass: detailState.cam_visible && detailState.choose_visible,
       detail: detailState,
     });
   } else {
     findings.assertions.push({
-      name: "add-btn-visibility-matches-photo-count",
+      name: "permanent-add-menu-present",
       skipped: true,
       reason: "no batches in the test database — assertion skipped",
     });

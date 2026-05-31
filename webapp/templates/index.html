@@ -153,16 +153,10 @@
     </svg>
     <div id="batch-subtitle" class="text-xs text-slate-600 px-1.5 mt-0.5 truncate"></div>
   </div>
-  <button type="button" id="btn-add-photos"
-          class="flex-shrink-0 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium rounded-xl w-11 h-11 sm:w-auto sm:h-11 sm:px-4 shadow-sm transition-colors"
-          aria-label="Add photos"
-          aria-controls="dropzone-panel"
-          aria-expanded="false">
-    <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
-    </svg>
-    <span class="hidden sm:inline" data-i18n="add_photos_short">Add</span>
-  </button>
+  <!-- v118.10 — [+ Add] button removed. The detail-view dropzone now
+       stays minimized-but-visible (a permanent Take photo / Choose
+       photos menu) once the batch has photos, so a separate toggle is
+       redundant. -->
 </div>
 
 <!-- Compact expiry banner. Was a two-line yellow box; now a single
@@ -224,6 +218,11 @@
        (where the inspector picks already-taken photos). -->
   <input id="camera-input" type="file" accept="image/*" capture="environment" class="hidden">
   <div class="flex flex-col items-center gap-2 pointer-events-none select-none">
+    <!-- v118.10 — Hero hint (icon + copy) wrapped so the detail-view
+         dropzone can collapse to JUST the action buttons once the batch
+         has photos (data-state="has-photos"); see #dropzone rules in
+         app.css. On an empty batch the full hero shows. -->
+    <div class="dz-hero-hint flex flex-col items-center gap-2">
     <!-- Flat icon, no container. Hidden on the narrowest screens
          (fold-folded) where every vertical pixel matters. -->
     <svg class="narrow-very-hide w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true">
@@ -250,13 +249,16 @@
     <div class="sm:hidden text-xs text-slate-500 max-w-md" data-i18n="drop_sub_mobile">
       JPG · PNG · HEIC. Each confirmation trains the AI.
     </div>
-    <!-- Mobile-only: TWO explicit buttons. No "click anywhere on the
-         dropzone" target on mobile so users always pick a clear path.
+    </div>
+    <!-- v118.10 — TWO explicit action buttons. Formerly mobile-only
+         (sm:hidden) and revealed by the [+ Add] toggle; now visible on
+         EVERY viewport. Once the batch has photos the hero hint above
+         collapses (CSS) and these two buttons ARE the permanent
+         "quick add" menu — replacing the removed [+ Add] button.
            - Take photo  -> camera direct (capture="environment"),
                             stages in burst tray for batch capture.
-           - Choose photos -> OS file chooser (Photos / Files / Camera).
-                            Direct upload on selection. -->
-    <div class="dz-mobile-actions sm:hidden flex flex-col items-stretch gap-2 mt-3 w-full max-w-xs mx-auto pointer-events-auto">
+           - Choose photos -> OS file chooser (Photos / Files / Camera). -->
+    <div class="dz-mobile-actions flex flex-col items-stretch gap-2 mt-3 w-full max-w-xs mx-auto pointer-events-auto">
       <button id="btn-camera" type="button"
               class="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-semibold rounded-full px-5 py-2.5 shadow-sm transition-colors">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -4464,10 +4466,10 @@ async function uploadFiles(files) {
       // We already know a card was just inserted; the empty/has-photos
       // gating in poll() will reconcile correctly on the next tick.
       if (data.uploaded && data.uploaded.length) {
-        el("#btn-add-photos")?.classList.remove("hidden");
-        // Also drop the empty-state card and reveal the toolbar so the
-        // view doesn't briefly read as "no photos yet" while the
-        // /api/pending round-trip is in flight.
+        // Drop the empty-state card and reveal the toolbar so the view
+        // doesn't briefly read as "no photos yet" while the
+        // /api/pending round-trip is in flight. (v118.10 — the dropzone
+        // itself stays visible; no [+ Add] button to reveal anymore.)
         el("#empty-state")?.classList.add("hidden");
         el("#loading-state")?.classList.add("hidden");
         toolbar?.classList.remove("hidden");
@@ -5557,13 +5559,6 @@ async function poll(opts = {}) {
       // welcome layout. UX overhaul v81.
       el("#dropzone").dataset.state = "empty";
       _setDropzonePanelOpen(true);
-      // v118.6 — hide [+ Add] when the batch is empty. The dropzone
-      // is already on-screen at full size; the duplicate button just
-      // collapses the only upload affordance when tapped (the click
-      // toggles aria-expanded → hides the panel → user is left with
-      // nothing). UX bug report: "the add button when clicked while
-      // there is no photo, closes the drop-off box".
-      el("#btn-add-photos")?.classList.add("hidden");
       el("#batch-subtitle").textContent = "";
     } else {
       el("#empty-state").classList.add("hidden");
@@ -5571,29 +5566,12 @@ async function poll(opts = {}) {
       refreshSummary();
       // Has photos: collapse the dropzone so the grid is above the fold
       // on mobile (UX backlog A1).
+      // v118.10 — Batch has photos: the dropzone STAYS visible (no more
+      // [+ Add] toggle, no auto-collapse). data-state="has-photos"
+      // collapses the hero hint via CSS, leaving the permanent Take
+      // photo / Choose photos menu minimized at the top of the grid.
       el("#dropzone").dataset.state = "has-photos";
-      // v117.14 — Only auto-collapse on the FIRST poll after a batch
-      // transitions empty → has-photos. Without this guard, every
-      // ~4s poll would slam the panel shut, which created the
-      // user-reported bug: "tapping [+ Add] in the batch screen
-      // briefly shows the dropzone, then it disappears". The user
-      // taps [+ Add] at T=0, dropzone opens. At T=~4s, poll fires,
-      // sees has-photos, unconditionally calls
-      // _setDropzonePanelOpen(false), dropzone slams shut.
-      //
-      // Now: only auto-close when the panel hasn't been explicitly
-      // opened by the user via the [+ Add] click (or was just
-      // opened-by-poll on a fresh empty-batch entry — we treat the
-      // FIRST has-photos poll as the transition signal).
-      const _dzPanel = el("#dropzone-panel");
-      const _userOpened = _dzPanel?.dataset.userOpened === "1";
-      if (!_userOpened) {
-        _setDropzonePanelOpen(false);
-      }
-      // v118.6 — reveal the [+ Add] button now that there's content to
-      // add MORE to. Pair with the hide() above when transitioning
-      // from has-photos → empty (e.g. user deletes all).
-      el("#btn-add-photos")?.classList.remove("hidden");
+      _setDropzonePanelOpen(true);
     }
     // v116: re-apply select-mode classes to whatever cards exist now.
     // poll() can insert new cards or replace updated ones, and without

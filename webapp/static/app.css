@@ -778,6 +778,11 @@ body.select-mode-active main {
   }
   #dropzone[data-state="has-photos"] .dz-mobile-actions > button {
     flex: 1;
+    /* v118.10 — keep a 44px tap target (Apple HIG / WCAG 2.5.5). These
+       buttons are now the PRIMARY permanent add affordance, not a
+       secondary option, so they must stay thumb-friendly even in the
+       compact minimized row. min-height floors it; padding stays tight. */
+    min-height: 44px;
     padding: 8px 12px;
     font-size: 13px;
   }
@@ -879,3 +884,23 @@ body.select-mode-active main {
   border-color: rgb(110 231 183) !important;         /* emerald-300 */
   box-shadow: 0 0 0 2px rgb(16 185 129);             /* emerald-500 ring */
 }
+
+/* ============================================================
+   v118.10 — Permanent minimized "quick add" menu (all widths).
+
+   The [+ Add] toggle button was removed. In the detail view the
+   dropzone now stays visible at all times: full hero on an empty
+   batch (data-state="empty"), and collapsed to JUST the Take photo /
+   Choose photos buttons once the batch has photos
+   (data-state="has-photos").
+
+   The v69 block above only collapsed the hero on mobile (≤639px);
+   these rules apply at EVERY width so desktop also shows the compact
+   permanent menu instead of the full hero once photos exist. The
+   whole hint (icon + all copy) lives in .dz-hero-hint, so one rule
+   collapses it cleanly.
+   ============================================================ */
+#dropzone[data-state="has-photos"] .dz-hero-hint { display: none; }
+#dropzone[data-state="has-photos"] { padding: 12px !important; }
+#dropzone[data-state="has-photos"] .dz-mobile-actions { margin-top: 0; }
+#dropzone[data-state="has-photos"] #dropzone-quota { margin-top: 0.5rem; }
