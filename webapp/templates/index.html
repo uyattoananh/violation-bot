@@ -4447,6 +4447,26 @@ async function uploadFiles(files) {
       (data.uploaded || []).forEach(u => {
         getOrCreateCard({ id: u.id, thumb_url: "", classification: null, reviewed: false });
       });
+      // v117.15 — Reveal the [+ Add] button immediately, the moment a
+      // placeholder card lands in the grid. Previously [+ Add] only
+      // flipped visible inside poll()'s has-photos branch, which runs
+      // async AFTER /api/pending returns AND the response carries the
+      // new photo. The chain ate noticeable time per upload — the
+      // user perceived it as "the black + doesn't show until the
+      // photo is classified" because the gap stretched from upload-
+      // complete through classification.
+      //
+      // We already know a card was just inserted; the empty/has-photos
+      // gating in poll() will reconcile correctly on the next tick.
+      if (data.uploaded && data.uploaded.length) {
+        el("#btn-add-photos")?.classList.remove("hidden");
+        // Also drop the empty-state card and reveal the toolbar so the
+        // view doesn't briefly read as "no photos yet" while the
+        // /api/pending round-trip is in flight.
+        el("#empty-state")?.classList.add("hidden");
+        el("#loading-state")?.classList.add("hidden");
+        toolbar?.classList.remove("hidden");
+      }
       poll();  // eager refresh, classifications may already be coming in
     } catch (e) {
       showError(`${t("upload_failed")}: ${e.message}`);
