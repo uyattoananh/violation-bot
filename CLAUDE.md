@@ -139,12 +139,164 @@ Service runs on VPS at `/root/violation-bot` under
 Note: there's a stale `/var/www/violation-bot` checkout — don't
 deploy there, the running service ignores it.
 
+### Pre-deploy checklist
+
+1. **Bump `CACHE_VERSION`** in `webapp/static/service-worker.js`
+   whenever rendered HTML/JS changes. Without this, returning users
+   keep seeing the pre-deploy shell from the SW cache. Format:
+   `v<major>.<minor>-<short-description>`, e.g. `v117.15-add-photos-eager-reveal`.
+2. **Run sanity check**: `./.venv-webapp/Scripts/python.exe scripts/test_html_export.py`
+   catches Jinja syntax breakage before deploy.
+3. **Commit + push** to the deployed branch (currently `ui-rebuild`).
+
+### Deploy command
+
 ```
-ssh vps 'cd /root/violation-bot && sudo git pull origin <branch> && sudo systemctl restart violation-webapp.service'
+git push origin <branch>
+ssh vps '
+  set -e
+  cd /root/violation-bot
+  sudo git pull origin <branch>
+  sudo systemctl restart violation-webapp.service
+  sleep 4
+  sudo systemctl is-active violation-webapp.service
+'
 ```
 
-Confirm the deploy with:
-`curl -s "https://hse.aecis.ca/static/service-worker.js?cb=$(date +%s)" | grep CACHE_VERSION`
+### Post-deploy verification
+
+```
+# Live shell version (proves user-facing JS swapped)
+curl -s "https://hse.aecis.ca/static/service-worker.js?cb=$(date +%s)" | grep CACHE_VERSION
+
+# Service health
+curl -s -o /dev/null -w "%{http_code}\n" 'https://hse.aecis.ca/healthz'   # expect 200
+
+# Watch for traces in the first minute
+ssh vps "sudo journalctl -u violation-webapp.service --since '1 minute ago' --no-pager | grep -E 'ERROR|Traceback' | head"
+```
+
+### Rollback
+
+Every commit on `ui-rebuild` is atomic; rollback is a one-liner.
+Look up the previous commit hash with `git log --oneline -5`.
+
+```
+ssh vps '
+  cd /root/violation-bot
+  sudo git reset --hard <previous-commit-sha>
+  sudo systemctl restart violation-webapp.service
+'
+```
+
+Returns production to the prior shell within ~5 s. The SW
+controllerchange handler in `_base.html` has a 10 s reload-loop
+guard (v117.3) so returning users won't loop on the version flip.
+
+## Testing procedures
+
+### UI audit harness (`scripts/ui_audit.mjs`)
+
+Puppeteer-based adversarial exploration. Walks the inspector
+workflow (landing → start inspection → empty batch → back → lang
+menu), captures every `console.error` / `pageerror` / 5xx network
+response, and **at each step also clicks N random non-destructive
+visible elements** to simulate fat-finger taps. Skip-list excludes
+Sign-out, Delete-batch, bulk-delete, confirm-delete.
+
+```
+# Dev server must be running on :8765 first
+./.venv-webapp/Scripts/python.exe -m uvicorn webapp.app:app \
+    --host 127.0.0.1 --port 8765 > tmp/dev_server.log 2>&1 &
+
+# Run audit
+node scripts/ui_audit.mjs --noisy 4
+
+# Output:
+#   .claude/chrome-devtools/screenshots/audit/audit-*.png (per step)
+#   .claude/chrome-devtools/screenshots/audit/report-<ts>.json
+#   stdout JSON summary with assertion pass/fail + counters
+```
+
+Real bugs caught by this harness (kept as a track record so future
+Claude knows the harness is worth running):
+
+- v117.10: transient 500 on `/api/batches` + `/api/export/summary`
+  from `httpx.RemoteProtocolError`. Fixed by
+  `_retry_on_supabase_disconnect`.
+- v117.4: `+Add` button collapsed the only upload affordance on
+  empty batches.
+- v117.11: camera-on-list silently staged into off-screen burst
+  tray.
+
+### Mobile UI verification
+
+Puppeteer with mobile viewport. The pattern lives in
+`scripts/ui_audit.mjs` (look for `page.setViewport`). Quick one-off:
+
+```js
+await page.setViewport({
+  width: 390, height: 844,
+  isMobile: true, hasTouch: true, deviceScaleFactor: 2,
+});
+```
+
+Tested viewports: 375 (iPhone SE), 390 (iPhone 13/14), 768 (tablet),
+1280 (desktop). All four should show the inspection list with no
+truncation and the persistent dropbox.
+
+**Limitation**: Puppeteer mobile emulation uses desktop Chrome's
+real cookie store, so the Android cookie-sync race that v117.12
+targets is NOT reproducible via emulation. See "Android testing"
+below.
+
+### Android testing (real device or Studio AVD)
+
+The OAuth cookie-sync race (v117.12) only manifests in real Android
+Chrome — desktop emulation does NOT reproduce it. To verify:
+
+1. Real device (fastest): visit `https://hse.aecis.ca/` in Chrome,
+   sign in via OAuth, "Add to Home screen" to install as PWA. Watch
+   the first 3 seconds for any "Sign in" button flash.
+2. Android Studio Emulator (free, deterministic): install Android
+   Studio → AVD Manager → Pixel 7 API 34 → boot → repeat the same
+   flow inside the emulated device.
+
+If the flicker recurs, diagnose via `chrome://inspect` from desktop
+Chrome paired to the emulated/real device. In the paired DevTools
+console, run:
+
+```js
+performance.getEntriesByType('navigation')[0]
+document.cookie
+fetch('/auth/me', {credentials:'same-origin'}).then(r=>r.json()).then(console.log)
+```
+
+If `/auth/me` returns `{authed:false}` while you ARE signed in,
+v117.12's grace window isn't catching the cookie state — share the
+response with the next Claude session for targeted diagnosis.
+
+### SupCon head retraining
+
+Re-run when the manual corpus changes meaningfully (>10% new rows
+in any class):
+
+```
+./.venv-webapp/Scripts/python.exe scripts/train_supcon_head.py
+./.venv-webapp/Scripts/python.exe scripts/project_supcon_embeddings.py
+```
+
+After projection: deploy as a normal code push (the new `.npz` is
+gitignored under `tmp/`; the production VPS regenerates it by
+running `scripts/project_supcon_embeddings.py` post-pull). See the
+"SupCon contrastive projection head" section.
+
+### Eval reproducibility
+
+Always validate at N ≥ 3 seeds × N ≥ 100 sample size before
+claiming a target crossed. Single-seed N=50 has ~8pp stdev and
+gives misleading wins/losses. See "N=50 sample variance is huge"
+section.
 
 ## Conventions worth keeping
 
