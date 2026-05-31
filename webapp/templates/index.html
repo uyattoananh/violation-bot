@@ -5627,47 +5627,23 @@ batchInput.addEventListener("keydown", e => {
 // multi-select for bulk operations. Bulk-wipe-everything was too
 // destructive — easy mis-tap, no granularity.
 
-// v81 dropzone-panel toggle. The [+ Add] button in the title row
-// expands/collapses the dropzone panel. aria-expanded follows the
-// state so screen readers announce it. _setDropzonePanelOpen() is
-// also called from poll() to auto-show on empty batch.
+// v118.10 — Dropzone panel visibility. The [+ Add] toggle button was
+// removed; the panel stays visible in the detail view (full hero on an
+// empty batch, collapsed to the permanent Take photo / Choose photos
+// menu once it has photos, via the #dropzone[data-state] CSS).
+// _setDropzonePanelOpen() is still called from poll() to (un)hide the
+// panel container; it no longer depends on the (now-deleted) button.
+// NOTE: a CRLF mismatch in the v118.10 commit left the old button-
+// dependent version in place, which made this early-return (btn===null)
+// and never unhide the panel. v118.11 fixes that.
 function _setDropzonePanelOpen(open) {
   const panel = el("#dropzone-panel");
-  const btn = el("#btn-add-photos");
-  if (!panel || !btn) return;
+  if (!panel) return;
   panel.classList.toggle("hidden", !open);
-  btn.setAttribute("aria-expanded", String(!!open));
 }
-el("#btn-add-photos")?.addEventListener("click", (e) => {
-  e.stopPropagation();
-  // v118.6 — guard against clicks that arrive while the button is in
-  // its hidden state (race with poll's visibility flip). Treat such
-  // clicks as no-ops rather than collapsing the dropzone.
-  if (e.currentTarget.classList.contains("hidden")) return;
-  // Second guard: never collapse the dropzone when the batch has
-  // zero cards. There's nothing else to upload from in that state.
-  const hasCards = els(".card", cardsEl).length > 0;
-  const _dzPanel = el("#dropzone-panel");
-  if (!hasCards) {
-    _setDropzonePanelOpen(true);
-    if (_dzPanel) _dzPanel.dataset.userOpened = "1";
-    _dzPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
-    return;
-  }
-  const open = _dzPanel.classList.contains("hidden");
-  _setDropzonePanelOpen(open);
-  // v117.14 — flag the panel as user-opened so poll() doesn't slam
-  // it shut on the next 4 s cycle. Cleared when the user explicitly
-  // toggles it closed (tap [+ Add] when already open) or after a
-  // successful upload (uploadFiles end).
-  if (_dzPanel) {
-    if (open) _dzPanel.dataset.userOpened = "1";
-    else delete _dzPanel.dataset.userOpened;
-  }
-  if (open) {
-    _dzPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-});
+// The [+ Add] click handler was removed with the button. There is no
+// toggle anymore — the permanent menu inside the dropzone carries the
+// "add more photos" action.
 
 // =================== View routing (list / detail) ===================
 const VIEW_LIST = "list";
