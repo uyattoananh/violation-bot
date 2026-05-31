@@ -570,7 +570,13 @@
          inner button out which broke v112's first cut. -->
     <button type="button" class="thumb-btn relative block group bg-slate-100 aspect-video overflow-hidden" aria-label="View full image">
       <div class="skeleton-thumb thumb-skeleton absolute inset-0"></div>
-      <img class="thumb hidden absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-[1.02]" alt="Site photo" loading="lazy" decoding="async">
+      <!-- NOTE: do NOT add loading="lazy" here. This <img> starts as
+           .hidden (display:none) and is revealed only in updateCard()'s
+           thumb.onload. A lazy image that is display:none is never
+           near-viewport, so the browser defers its load and onload never
+           fires — the thumbnail stays stuck behind the skeleton until a
+           click forces layout. (Regression v117.17, fixed v118.12.) -->
+      <img class="thumb hidden absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-[1.02]" alt="Site photo">
     </button>
 
     <!-- Top-left overlays: status + quality. Positioned over the
