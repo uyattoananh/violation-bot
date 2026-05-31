@@ -180,15 +180,40 @@ async function main() {
   await clickRandomNonDestructive(page, NOISY_CLICKS, findings, "02-empty-batch");
   await snapshot(page, "03-empty-batch-after-noisy-clicks", findings);
 
-  // Assertion: dropzone must STILL be visible after fat-finger clicks
-  const dzStillVisible = await page.evaluate(() => {
-    const dz = document.getElementById("dropzone-panel");
-    return dz ? !dz.classList.contains("hidden") : false;
-  });
+  // Assertion: the upload affordance must STILL be visible after fat-finger
+  // clicks. v117.13 two-instance architecture: the inspection-list view shows
+  // the always-mounted #dropzone-list (never hidden), while an opened batch
+  // shows the detail-view #dropzone-panel (auto-expanded by poll() for empty
+  // batches). Check whichever element belongs to the current view — on an
+  // empty test DB no batch opens, so we stay on the list view.
+  // A noisy click may have navigated the page; let it settle before probing.
+  await new Promise(r => setTimeout(r, 500));
+  let dzStillVisible = false;
+  try {
+    dzStillVisible = await page.evaluate((onDetail) => {
+      const id = onDetail ? "dropzone-panel" : "dropzone-list";
+      const dz = document.getElementById(id);
+      if (!dz) return false;
+      const styleHidden = dz.classList.contains("hidden")
+        || getComputedStyle(dz).display === "none";
+      return !styleHidden && dz.getBoundingClientRect().width > 0;
+    }, opened);
+  } catch (e) {
+    // Context destroyed by an in-flight navigation — re-probe once after settle.
+    await new Promise(r => setTimeout(r, 800));
+    dzStillVisible = await page.evaluate((onDetail) => {
+      const id = onDetail ? "dropzone-panel" : "dropzone-list";
+      const dz = document.getElementById(id);
+      if (!dz) return false;
+      const styleHidden = dz.classList.contains("hidden")
+        || getComputedStyle(dz).display === "none";
+      return !styleHidden && dz.getBoundingClientRect().width > 0;
+    }, opened).catch(() => false);
+  }
   findings.assertions.push({
     name: "dropzone-survives-noisy-clicks",
     pass: !!dzStillVisible,
-    detail: { dz_visible: dzStillVisible },
+    detail: { dz_visible: dzStillVisible, view: opened ? "detail" : "list" },
   });
 
   // ===== Step 3: navigate back to all inspections =====

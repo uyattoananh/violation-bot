@@ -568,7 +568,7 @@
          inner button out which broke v112's first cut. -->
     <button type="button" class="thumb-btn relative block group bg-slate-100 aspect-video overflow-hidden" aria-label="View full image">
       <div class="skeleton-thumb thumb-skeleton absolute inset-0"></div>
-      <img class="thumb hidden absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-[1.02]" alt="Site photo">
+      <img class="thumb hidden absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-[1.02]" alt="Site photo" loading="lazy" decoding="async">
     </button>
 
     <!-- Top-left overlays: status + quality. Positioned over the
@@ -2139,6 +2139,7 @@ function renderTrainingSetSize(_n) { /* no-op */ }
 // updates colour as the user approaches/exceeds cap. Independent of
 // the cost ticker (admin-only).
 async function refreshQuotaIndicator() {
+  if (document.hidden) return;   // don't wake the radio while backgrounded (Android battery)
   try {
     const r = await fetch("/api/usage/me");
     if (!r.ok) return;
@@ -2273,6 +2274,7 @@ async function checkProposalDecisions() {
 
 
 async function refreshCostTicker() {
+  if (document.hidden) return;   // don't wake the radio while backgrounded (Android battery)
   const t = el("#cost-ticker");
   if (!t) return;
   try {
@@ -4279,6 +4281,9 @@ async function _resizeForUpload(file, maxDim = 1600, quality = 0.85) {
     bitmap.close();
 
     const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", quality));
+    // Release the GPU-backed canvas surface immediately — Android Chrome is
+    // slow to GC large canvases and can OOM-reload the tab on big batches.
+    canvas.width = 0; canvas.height = 0;
     if (!blob || blob.size >= file.size) return file;
 
     // Wrap as a File so the server sees a name + content-type. Replace
